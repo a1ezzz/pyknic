@@ -1,5 +1,8 @@
 .eggs
+pyknic.egg-info
 __pycache__
 build
 dist
 docs
+
+.idea
