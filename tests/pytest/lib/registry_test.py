@@ -1,33 +1,33 @@
 
 import pytest
 
-from pyknic.lib.registry import WNoSuchAPIIdError, WDuplicateAPIIdError, WAPIRegistryProto, WAPIRegistry, register_api
+from pyknic.lib.registry import NoSuchAPIIdError, DuplicateAPIIdError, APIRegistryProto, APIRegistry, register_api
 
 
-def test_exceptions():
-    assert(issubclass(WNoSuchAPIIdError, Exception) is True)
-    assert(issubclass(WDuplicateAPIIdError, Exception) is True)
+def test_exceptions() -> None:
+    assert(issubclass(NoSuchAPIIdError, Exception) is True)
+    assert(issubclass(DuplicateAPIIdError, Exception) is True)
 
 
-def test_abstract():
-    pytest.raises(TypeError, WAPIRegistryProto)
-    pytest.raises(NotImplementedError, WAPIRegistryProto.register, None, None, None)
-    pytest.raises(NotImplementedError, WAPIRegistryProto.unregister, None, None)
-    pytest.raises(NotImplementedError, WAPIRegistryProto.get, None, None)
-    pytest.raises(NotImplementedError, WAPIRegistryProto.ids, None)
-    pytest.raises(NotImplementedError, WAPIRegistryProto.has, None, None)
+def test_abstract() -> None:
+    pytest.raises(TypeError, APIRegistryProto)
+    pytest.raises(NotImplementedError, APIRegistryProto.register, None, None, None)
+    pytest.raises(NotImplementedError, APIRegistryProto.unregister, None, None)
+    pytest.raises(NotImplementedError, APIRegistryProto.get, None, None)
+    pytest.raises(NotImplementedError, APIRegistryProto.ids, None)
+    pytest.raises(NotImplementedError, APIRegistryProto.has, None, None)
 
 
 class TestWAPIRegistry:
 
-    def test(self):
-        registry = WAPIRegistry()
-        pytest.raises(WNoSuchAPIIdError, registry.get, 'foo')
-        pytest.raises(WNoSuchAPIIdError, registry.get, 'bar')
+    def test(self) -> None:
+        registry = APIRegistry()
+        pytest.raises(NoSuchAPIIdError, registry.get, 'foo')
+        pytest.raises(NoSuchAPIIdError, registry.get, 'bar')
 
         registry.register('foo', 1)
         assert(registry.get('foo') == 1)
-        pytest.raises(WNoSuchAPIIdError, registry.get, 'bar')
+        pytest.raises(NoSuchAPIIdError, registry.get, 'bar')
 
         assert(registry.has('foo') is True)
         assert('foo' in registry)
@@ -35,7 +35,7 @@ class TestWAPIRegistry:
         assert(registry.has('bar') is False)
         assert('bar' not in registry)
 
-        pytest.raises(WDuplicateAPIIdError, registry.register, 'foo', 1)
+        pytest.raises(DuplicateAPIIdError, registry.register, 'foo', 1)
 
         registry.register('bar', 1)
         assert(registry['foo'] == 1)
@@ -47,40 +47,40 @@ class TestWAPIRegistry:
         assert(registry.has('bar') is True)
         assert('bar' in registry)
 
-        secondary_registry = WAPIRegistry(fallback_registry=registry)
+        secondary_registry = APIRegistry(fallback_registry=registry)
         assert(secondary_registry['foo'] == 1)
         assert(secondary_registry['bar'] == 1)
-        pytest.raises(WNoSuchAPIIdError, secondary_registry.get, 'zzz')
-        pytest.raises(WNoSuchAPIIdError, secondary_registry.get, 'xxx')
+        pytest.raises(NoSuchAPIIdError, secondary_registry.get, 'zzz')
+        pytest.raises(NoSuchAPIIdError, secondary_registry.get, 'xxx')
 
         registry.register('zzz', 1)
         assert(secondary_registry['foo'] == 1)
         assert(secondary_registry['bar'] == 1)
         assert(secondary_registry['zzz'] == 1)
-        pytest.raises(WNoSuchAPIIdError, secondary_registry.get, 'xxx')
+        pytest.raises(NoSuchAPIIdError, secondary_registry.get, 'xxx')
 
         secondary_registry.register('xxx', 1)
         assert(secondary_registry['foo'] == 1)
         assert(secondary_registry['bar'] == 1)
         assert(secondary_registry['zzz'] == 1)
         assert(secondary_registry['xxx'] == 1)
-        pytest.raises(WNoSuchAPIIdError, registry.get, 'xxx')
+        pytest.raises(NoSuchAPIIdError, registry.get, 'xxx')
 
         secondary_registry.register('zzz', 2)
         assert(secondary_registry['foo'] == 1)
         assert(secondary_registry['bar'] == 1)
         assert(secondary_registry['zzz'] == 2)
         assert(secondary_registry['xxx'] == 1)
-        pytest.raises(WNoSuchAPIIdError, registry.get, 'xxx')
+        pytest.raises(NoSuchAPIIdError, registry.get, 'xxx')
 
         registry.unregister('zzz')
         assert(secondary_registry['foo'] == 1)
         assert(secondary_registry['bar'] == 1)
         assert(secondary_registry['xxx'] == 1)
-        pytest.raises(WNoSuchAPIIdError, registry.get, 'xxx')
-        pytest.raises(WNoSuchAPIIdError, registry.get, 'zzz')
+        pytest.raises(NoSuchAPIIdError, registry.get, 'xxx')
+        pytest.raises(NoSuchAPIIdError, registry.get, 'zzz')
 
-        pytest.raises(WNoSuchAPIIdError, registry.unregister, 'zzz')
+        pytest.raises(NoSuchAPIIdError, registry.unregister, 'zzz')
 
         registry_ids_gen = tuple(registry.ids())
         assert(len(registry_ids_gen) == 2)
@@ -93,15 +93,15 @@ class TestWAPIRegistry:
         assert('zzz' in secondary_registry_ids_gen)
 
 
-def test_register_api():
+def test_register_api() -> None:
 
-    def foo(a, b):
+    def foo(a: int, b: int) -> int:
         return a + b
 
-    def bar(a, b):
+    def bar(a: int, b: int) -> int:
         return a - b
 
-    registry = WAPIRegistry()
+    registry = APIRegistry()
 
     decorated_foo = register_api(registry)(foo)
     decorated_bar = register_api(registry, api_id='zzz')(bar)
@@ -112,7 +112,8 @@ def test_register_api():
     assert(registry['test_register_api.<locals>.foo'](5, 2) == 7)
     assert(registry['zzz'](5, 2) == 3)
 
-    pytest.raises(WNoSuchAPIIdError, registry.get, 'bar')
+    pytest.raises(NoSuchAPIIdError, registry.get, 'bar')
+
     class C:
         api_id = 'bar'
 

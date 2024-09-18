@@ -23,20 +23,20 @@ from abc import ABCMeta, abstractmethod
 import typing
 
 
-class WNoSuchAPIIdError(Exception):
+class NoSuchAPIIdError(Exception):
     """ This exception is raised when a looked up API id is not found
     """
     pass
 
 
-class WDuplicateAPIIdError(Exception):
+class DuplicateAPIIdError(Exception):
     """ This exception is raised when an attempt to register a descriptor with an id, that has been already
     registered, is made
     """
     pass
 
 
-class WAPIRegistryProto(metaclass=ABCMeta):
+class APIRegistryProto(metaclass=ABCMeta):
     """ This is prototype for a general registry, object that stores anything by id. It may look like a dict object,
     but this class should be used in order to distinguish registry operation and commonly used dict
    """
@@ -48,7 +48,7 @@ class WAPIRegistryProto(metaclass=ABCMeta):
         :param api_id: unique id by which a descriptor may be found
         :param api_descriptor: descriptor that should be stored in this registry
 
-        :raise WDuplicateAPIIdError: when the specified API id has been registered already
+        :raise DuplicateAPIIdError: when the specified API id has been registered already
         """
         raise NotImplementedError('This method is abstract')
 
@@ -58,7 +58,7 @@ class WAPIRegistryProto(metaclass=ABCMeta):
 
         :param api_id: id that will be removed from this registry
 
-        :raise WNoSuchAPIIdError: when the specified API id has not been registered
+        :raise NoSuchAPIIdError: when the specified API id has not been registered
         """
         raise NotImplementedError('This method is abstract')
 
@@ -68,7 +68,7 @@ class WAPIRegistryProto(metaclass=ABCMeta):
 
         :param api_id: id of a target descriptor
 
-        :raise WNoSuchAPIIdError: when the specified API id has not been registered
+        :raise NoSuchAPIIdError: when the specified API id has not been registered
         """
         raise NotImplementedError('This method is abstract')
 
@@ -87,37 +87,37 @@ class WAPIRegistryProto(metaclass=ABCMeta):
         raise NotImplementedError('This method is abstract')
 
 
-class WAPIRegistry(WAPIRegistryProto):
+class APIRegistry(APIRegistryProto):
     """ This is a basic registry implementation. It behaves like a dict mostly
     """
 
-    def __init__(self, fallback_registry: typing.Optional[WAPIRegistryProto] = None):
+    def __init__(self, fallback_registry: typing.Optional[APIRegistryProto] = None):
         """ Create new registry
 
         :param fallback_registry: a registry where entries will be looked up if they are not found in
         this registry. This parameter helps to use all the items that are registered in other registry
         without registrations repeat
         """
-        WAPIRegistryProto.__init__(self)
+        APIRegistryProto.__init__(self)
         self.__descriptors: typing.Dict[typing.Hashable, typing.Any] = dict()
         self.__fallback_registry = fallback_registry
 
     def register(self, api_id: typing.Hashable, api_descriptor: typing.Any) -> None:
-        """ :meth:`.WAPIRegistryProto.register` method implementation
+        """ :meth:`.APIRegistryProto.register` method implementation
         """
         if api_id in self.__descriptors:
-            raise WDuplicateAPIIdError('The specified id "%s" has been used already' % str(api_id))
+            raise DuplicateAPIIdError('The specified id "%s" has been used already' % str(api_id))
         self.__descriptors[api_id] = api_descriptor
 
     def unregister(self, api_id: typing.Hashable) -> None:
-        """ :meth:`.WAPIRegistryProto.unregister` method implementation
+        """ :meth:`.APIRegistryProto.unregister` method implementation
         """
         if api_id not in self.__descriptors:
-            raise WNoSuchAPIIdError('No such entry: %s' % api_id)
+            raise NoSuchAPIIdError('No such entry: %s' % api_id)
         del self.__descriptors[api_id]
 
     def get(self, api_id: typing.Hashable) -> typing.Any:
-        """ :meth:`.WAPIRegistryProto.register` method implementation
+        """ :meth:`.APIRegistryProto.register` method implementation
         """
         try:
             return self.__descriptors[api_id]
@@ -127,32 +127,32 @@ class WAPIRegistry(WAPIRegistryProto):
         if self.__fallback_registry is not None:
             return self.__fallback_registry.get(api_id)
 
-        raise WNoSuchAPIIdError('No such entry: %s' % api_id)
+        raise NoSuchAPIIdError('No such entry: %s' % api_id)
 
     def __getitem__(self, item: typing.Hashable) -> typing.Any:
-        """ Shortcut to :meth:`.WAPIRegistryProto.get`
+        """ Shortcut to :meth:`.APIRegistryProto.get`
         """
         return self.get(item)
 
     def ids(self) -> typing.Generator[typing.Hashable, None, None]:
-        """ :meth:`.WAPIRegistryProto.ids` method implementation
+        """ :meth:`.APIRegistryProto.ids` method implementation
         """
         return (x for x in self.__descriptors.keys())
 
     def has(self, api_id: typing.Hashable) -> bool:
-        """ :meth:`.WAPIRegistryProto.has` method implementation
+        """ :meth:`.APIRegistryProto.has` method implementation
         """
         return api_id in self.__descriptors
 
     def __contains__(self, item: typing.Hashable) -> bool:
-        """ Shortcut to :meth:`.WAPIRegistryProto.has`
+        """ Shortcut to :meth:`.APIRegistryProto.has`
         """
         return self.has(item)
 
 
 def register_api(
-    registry: WAPIRegistry, api_id: typing.Optional[typing.Hashable] = None, callable_api_id: bool = False
-) -> typing.Callable[..., typing.Any]:
+    registry: APIRegistryProto, api_id: typing.Optional[typing.Hashable] = None, callable_api_id: bool = False
+) -> typing.Callable[..., typing.Callable[..., typing.Any]]:
     """ This decorator helps to register function, static method or class in the specified registry
 
     :param registry: registry to which a function should be registered
