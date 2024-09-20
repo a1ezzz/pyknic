@@ -28,6 +28,8 @@ import sys
 from decorator import decorator
 from inspect import getfullargspec, isclass, isfunction, getsource
 
+from pyknic.lib.typing import GenericFunc, P, R
+
 
 class Verifier:
     """ Base class for verifier implementation.
@@ -222,7 +224,9 @@ class Verifier:
                     self.help_info(e, original_function, kw_key, arg_specs[kw_key])
                     raise
 
-    def decorator(self, **arg_specs: typing.Any) -> typing.Callable[..., typing.Any]:
+    def decorator(
+        self, **arg_specs: typing.Any
+    ) -> typing.Callable[[GenericFunc[P, R]], GenericFunc[P, R]]:
         """ Return decorator that can decorate target function
 
         :param arg_specs: dictionary where keys are parameters name and values are theirs specification.\
@@ -471,7 +475,9 @@ class ValueVerifier(Verifier):
             raise RuntimeError('Invalid specification. Must be function or tuple/list/set of functions')
 
 
-def verify_type(**type_kwargs: typing.Union[type, typing.Tuple[type, None]]) -> typing.Callable[..., typing.Any]:
+def verify_type(
+    **type_kwargs: typing.Union[type, typing.Tuple[type, None]]
+) -> typing.Callable[[GenericFunc[P, R]], GenericFunc[P, R]]:
     """ Shortcut for :class:`.TypeVerifier`
 
     :param type_kwargs: verifier specification. See :meth:`.TypeVerifier.check`
@@ -480,7 +486,9 @@ def verify_type(**type_kwargs: typing.Union[type, typing.Tuple[type, None]]) -> 
     return TypeVerifier().decorator(**type_kwargs)
 
 
-def verify_subclass(**type_kwargs: typing.Union[type, typing.Tuple[type]]) -> typing.Callable[..., typing.Any]:
+def verify_subclass(
+    **type_kwargs: typing.Union[type, typing.Tuple[type]]
+) -> typing.Callable[[GenericFunc[P, R]], GenericFunc[P, R]]:
     """ Shortcut for :class:`.SubclassVerifier`
 
     :param type_kwargs: verifier specification. See :meth:`.SubclassVerifier.check`
@@ -494,7 +502,7 @@ def verify_value(
         typing.Callable[[typing.Any], bool],
         typing.Iterable[typing.Callable[[typing.Any], bool]]
     ]
-) -> typing.Callable[..., typing.Any]:
+) -> typing.Callable[[GenericFunc[P, R]], GenericFunc[P, R]]:
     """ Shortcut for :class:`.ValueVerifier`
 
     :param value_kwargs: verifier specification. See :meth:`.ValueVerifier.check`
