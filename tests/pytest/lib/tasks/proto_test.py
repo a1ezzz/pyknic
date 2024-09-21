@@ -5,7 +5,7 @@ import pytest
 from pyknic.lib.capability import iscapable, CapabilityDescriptor
 
 from pyknic.lib.tasks.proto import RequirementsLoopError, TaskStartError, TaskStopError, NoSuchTaskError, TaskProto
-from pyknic.lib.tasks.proto import TaskResult
+from pyknic.lib.tasks.proto import TaskResult, ScheduleRecordProto, SchedulerProto, ScheduledTaskPostponePolicy
 
 
 def test_exceptions() -> None:
@@ -18,6 +18,13 @@ def test_exceptions() -> None:
 def test_abstract() -> None:
     pytest.raises(TypeError, TaskProto)
     pytest.raises(NotImplementedError, TaskProto.start, None)
+
+    pytest.raises(TypeError, ScheduleRecordProto)
+    pytest.raises(NotImplementedError, ScheduleRecordProto.task, None)
+
+    pytest.raises(TypeError, SchedulerProto)
+    pytest.raises(NotImplementedError, SchedulerProto.subscribe, None, None)
+    pytest.raises(NotImplementedError, SchedulerProto.unsubscribe, None, None)
 
 
 class TestTaskProto:
@@ -48,3 +55,23 @@ class TestTaskProto:
         task.emit(TaskProto.task_stopped)
         task.emit(TaskProto.task_terminated)
         task.emit(TaskProto.task_completed, TaskResult())
+
+
+class TestScheduleRecordProto:
+
+    def test(self) -> None:
+
+        class Task(TaskProto):
+
+            def start(self) -> None:
+                pass
+
+        class Record(ScheduleRecordProto):
+            def task(self) -> TaskProto:
+                return Task()
+
+        record = Record()
+        assert(record.group_id() is None)
+        assert(record.ttl() is None)
+        assert(record.simultaneous_runs() == 0)
+        assert(record.postpone_policy() == ScheduledTaskPostponePolicy.wait)

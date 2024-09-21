@@ -22,13 +22,15 @@
 # TODO: document the code
 # TODO: write tests for the code
 
+import enum
 import typing
 
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 
 from pyknic.lib.x_mansion import CapabilitiesAndSignals
 from pyknic.lib.signals.proto import Signal
+from pyknic.lib.signals.source import SignalSource
 from pyknic.lib.capability import capability
 
 
@@ -70,7 +72,7 @@ class TaskResult:
 
 
 class TaskProto(CapabilitiesAndSignals):
-    """ Basic task prototype. Derived classes must implement the only thing - :meth:`WTaskProto.start`
+    """ Basic task prototype. Derived classes must implement the only thing - :meth:`TaskProto.start`
     """
 
     task_started = Signal()              # a task started
@@ -99,3 +101,106 @@ class TaskProto(CapabilitiesAndSignals):
         :raise NotImplementedError: if this task can not be terminated
         """
         raise NotImplementedError('The "terminate" method is not supported')
+
+
+@enum.unique
+class ScheduledTaskPostponePolicy(enum.Flag):
+    """ This is a policy that describes what should be done with a task if a scheduler won't be able to run
+    it (like if the scheduler's limit of running tasks is reached).
+    """
+    wait = enum.auto()        # will postpone the task to execute it later
+    drop = enum.auto()        # drop this task if it can't be executed at the moment
+    keep_first = enum.auto()  # if there are postponed tasks, then drop this task
+    keep_last = enum.auto()   # if there are postponed tasks, drop them and keep this task
+
+
+class ScheduleRecordProto(metaclass=ABCMeta):
+    """ This class describes a single request that scheduler (:class:`.SchedulerProto`) should process
+    (should start). It has a :class:`.ScheduledTaskProto` task to be started and postpone policy
+    (:class:`.TaskPostponePolicy`)
+
+    Postpone policy is a recommendation for a scheduler and a scheduler can omit it if (for example) a scheduler queue
+    is full. 'ScheduledTaskPostponePolicy.keep_first' and 'ScheduledTaskPostponePolicy.keep_last' postpone policies
+    (so as simultaneous policy) will be applied to this task and to tasks with the same group id (if it was set).
+    """
+
+    @abstractmethod
+    def task(self) -> TaskProto:
+        """ Return a task that should be started
+        """
+        raise NotImplementedError('This method is abstract')
+
+    def group_id(self) -> typing.Optional[str]:
+        """ Return group id that unite records (in order 'ScheduledTaskPostponePolicy.keep_first' and
+        'ScheduledTaskPostponePolicy.keep_last' to work; :meth:`.ScheduleRecordProto.simultaneous_policy` depends on
+        this id also)
+
+        :return: group id or None if this record is standalone
+        """
+        return None
+
+    def ttl(self) -> typing.Optional[typing.Union[int, float]]:
+        """ Return unix time when this record should be discarded
+
+        :return: unix time in seconds or None if this record can not be expired
+        """
+        return None
+
+    def simultaneous_runs(self) -> int:
+        """ Return how many records with the same group id may be run simultaneously. If non-positive value is return
+        then there is no restrictions
+        """
+        return 0
+
+    def postpone_policy(self) -> ScheduledTaskPostponePolicy:
+        """ Return a postpone policy
+        """
+        return ScheduledTaskPostponePolicy.wait
+
+
+class ScheduleSourceProto(SignalSource):
+    """ This class may generate :class:`.ScheduleRecordProto` requests for a scheduler (:class:`.SchedulerProto`).
+    This class decides what tasks and when should be run. When a time is come then this source emits
+    a ScheduleSourceProto.task_scheduled signal
+    """
+
+    task_scheduled = Signal(ScheduleRecordProto)   # a new task should be started
+
+
+@dataclass
+class ScheduledTaskResult:
+    """ This class is used by scheduler signal defining a result of a completed record
+    """
+    record: ScheduleRecordProto  # completed record
+    task_result: TaskResult      # a result of completed record
+
+
+# noinspection PyAbstractClass
+class SchedulerProto(TaskProto):
+    """ Represent a scheduler. A class that is able to execute tasks (:class:`.ScheduleRecordProto`) scheduled
+    by sources (:class:`.ScheduleSourceProto`). This class tracks state of tasks that are running
+    """
+
+    task_scheduled = Signal(ScheduleRecordProto)            # a new task received from some source
+    scheduled_task_dropped = Signal(ScheduleRecordProto)    # a scheduled task dropped and would not start
+    scheduled_task_postponed = Signal(ScheduleRecordProto)  # a scheduled task dropped and will start later
+    scheduled_task_expired = Signal(ScheduleRecordProto)    # a scheduled task dropped because of expired ttl
+    scheduled_task_started = Signal(ScheduleRecordProto)    # a scheduled task started
+    scheduled_task_completed = Signal(ScheduledTaskResult)  # a scheduled task completed
+    scheduled_task_stopped = Signal(ScheduleRecordProto)    # a stop request for a scheduled task completed
+
+    @abstractmethod
+    def subscribe(self, schedule_source: ScheduleSourceProto) -> None:
+        """ Subscribe this scheduler to a specified source in order to start tasks from it
+
+        :param schedule_source: source of records that should be subscribed
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @abstractmethod
+    def unsubscribe(self, schedule_source: ScheduleSourceProto) -> None:
+        """ Unsubscribe this scheduler from a specified sources and do process tasks from it
+
+        :param schedule_source: source of records to unsubscribe from
+        """
+        raise NotImplementedError('This method is abstract')
