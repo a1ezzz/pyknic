@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import functools
 import pytest
 import typing
 
@@ -206,3 +207,58 @@ class TestCapabilitiesHolder:
 
         assert(iscapable(c, D.foo) is False)
         assert(D.foo not in c)
+
+    def test_dynamic_capability(self) -> None:
+
+        class A(CapabilitiesHolder):
+            @capability
+            def foo(self, check_obj: typing.Any) -> None:
+                pass
+
+        assert(iscapable(A(), A.foo) is False)
+
+        class B(A):
+            pass
+
+        b = B()
+        assert(iscapable(b, A.foo) is False)
+
+        def bar(self: B, check_obj: typing.Any) -> None:
+            assert(self is check_obj)  # check that method is bound
+
+        b.append_capability(A.foo, functools.partial(bar, b))
+        assert(iscapable(b, A.foo) is True)
+
+        b.foo(b)
+
+    def test_dynamic_capability_exceptions(self) -> None:
+
+        class A(CapabilitiesHolder):
+            @capability
+            def foo(self) -> None:
+                pass
+
+        class B(A):
+            pass
+
+        class C(A):
+            def foo(self) -> None:
+                pass
+
+        b = B()
+        c = C()
+
+        assert(iscapable(b, A.foo) is False)
+        assert(iscapable(c, A.foo) is True)
+
+        def bar() -> None:
+            pass
+
+        with pytest.raises(ValueError):
+            c.append_capability(A.foo, bar)
+
+        b.append_capability(A.foo, bar)
+        assert(iscapable(b, A.foo) is True)
+
+        with pytest.raises(ValueError):
+            b.append_capability(A.foo, bar)

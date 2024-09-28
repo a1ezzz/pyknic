@@ -126,3 +126,19 @@ class CapabilitiesHolder(metaclass=CapabilitiesHolderMeta):
         :param item: capability to check
         """
         return iscapable(self, item)
+
+    def append_capability(
+        self, obj_capability_fn: typing.Callable[..., typing.Any], func: typing.Callable[..., typing.Any]
+    ) -> None:
+        """ Append capability implementation to the object
+
+        :param obj_capability_fn: capability to implement
+        :param func: capability implementation
+        """
+        cap_name = obj_capability_fn.__pyknic_capability__.name()  # type: ignore[attr-defined] # metaclass/decorators
+        # issues
+
+        if iscapable(self, obj_capability_fn):
+            raise ValueError(f'An object already has the "{cap_name}" capability')
+
+        setattr(self, cap_name, func)
