@@ -19,9 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
-
 import typing
 
 from abc import ABCMeta
@@ -36,7 +33,7 @@ class CapabilityDescriptor:
 
     @verify_value(capability_name=lambda x: len(x) > 0)
     def __init__(self, capability_cls: type, capability_name: str):
-        """ TODO: docs
+        """ Create a new descriptor for some capability (function)
 
         :param capability_cls: class that defines a capability
         :param capability_name: function name

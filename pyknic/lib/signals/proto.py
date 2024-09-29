@@ -19,9 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
-
 import typing
 
 from abc import ABCMeta, abstractmethod
@@ -144,4 +141,4 @@ class UnknownSignalException(Exception):
     pass
 
 
-SignalCallbackType = typing.Callable[[SignalSourceProto, Signal, typing.Any], None]
+SignalCallbackType = typing.Callable[[SignalSourceProto, Signal, typing.Any], None]  # shortcut for the signal callback

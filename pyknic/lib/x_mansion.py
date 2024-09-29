@@ -19,9 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
-
 import typing
 
 from pyknic.lib.signals.source import SignalSourceMeta, SignalSource
@@ -44,4 +41,6 @@ class CapabilitiesAndSignalsMeta(SignalSourceMeta, CapabilitiesHolderMeta):
 
 
 class CapabilitiesAndSignals(SignalSource, CapabilitiesHolder, metaclass=CapabilitiesAndSignalsMeta):
+    """ This is a base class for classes that may send signals and may have capabilities
+    """
     pass
