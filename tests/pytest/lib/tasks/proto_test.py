@@ -52,8 +52,6 @@ class TestTaskProto:
         assert(iscapable(task, TaskProto.terminate) is False)
 
         task.emit(TaskProto.task_started)
-        task.emit(TaskProto.task_stopped)
-        task.emit(TaskProto.task_terminated)
         task.emit(TaskProto.task_completed, TaskResult())
 
 

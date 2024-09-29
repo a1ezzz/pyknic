@@ -63,7 +63,7 @@ class ScheduleRecord(ScheduleRecordProto):
         """
         return self.__group_id
 
-    def ttl(self) -> typing.Optional[typing.Union[int, float]]:
+    def ttl(self) -> typing.Union[int, float, None]:
         """ The :meth:`.ScheduleRecordProto.ttl` method implementation
         """
         return self.__ttl

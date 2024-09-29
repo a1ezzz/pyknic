@@ -77,8 +77,6 @@ class TaskProto(CapabilitiesAndSignals):
 
     task_started = Signal()              # a task started
     task_completed = Signal(TaskResult)  # a task completed
-    task_stopped = Signal()              # a task stopped
-    task_terminated = Signal()           # a task terminated
 
     @abstractmethod
     def start(self) -> None:
@@ -139,7 +137,7 @@ class ScheduleRecordProto(metaclass=ABCMeta):
         """
         return None
 
-    def ttl(self) -> typing.Optional[typing.Union[int, float]]:
+    def ttl(self) -> typing.Union[int, float, None]:
         """ Return unix time when this record should be discarded
 
         :return: unix time in seconds or None if this record can not be expired
@@ -176,7 +174,7 @@ class ScheduledTaskResult:
 
 
 # noinspection PyAbstractClass
-class SchedulerProto(TaskProto):
+class SchedulerProto(SignalSource):
     """ Represent a scheduler. A class that is able to execute tasks (:class:`.ScheduleRecordProto`) scheduled
     by sources (:class:`.ScheduleSourceProto`). This class tracks state of tasks that are running
     """
@@ -187,7 +185,6 @@ class SchedulerProto(TaskProto):
     scheduled_task_expired = Signal(ScheduleRecordProto)    # a scheduled task dropped because of expired ttl
     scheduled_task_started = Signal(ScheduleRecordProto)    # a scheduled task started
     scheduled_task_completed = Signal(ScheduledTaskResult)  # a scheduled task completed
-    scheduled_task_stopped = Signal(ScheduleRecordProto)    # a stop request for a scheduled task completed
 
     @abstractmethod
     def subscribe(self, schedule_source: ScheduleSourceProto) -> None:
