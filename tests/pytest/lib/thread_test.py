@@ -11,6 +11,7 @@ from pyknic.lib.thread import CriticalSectionError
 
 
 def test_acquire_lock() -> None:
+
     lock = threading.Lock()
     assert(acquire_lock(lock) is True)  # blocking mode - may wait forever
     assert(acquire_lock(lock, timeout=-1) is False)  # lock is already locked and non-blocking mode is used
@@ -52,7 +53,14 @@ def test_critical_section_timeout() -> None:
     lock = threading.Lock()
     lock.acquire()
 
-    thread_dynamic_safe_fn = critical_section_dynamic_lock(lambda: lock, timeout=3)(lambda: None)
+    def fixed_timeout_fn(
+        timeout: typing.Union[int, float, None]
+    ) -> typing.Callable[..., typing.Union[int, float, None]]:
+        def result(*args: typing.Any, **kwargs: typing.Any) -> typing.Union[int, float, None]:
+            return timeout
+        return result
+
+    thread_dynamic_safe_fn = critical_section_dynamic_lock(lambda: lock, timeout_fn=fixed_timeout_fn(3))(lambda: None)
     with pytest.raises(CriticalSectionError):
         thread_dynamic_safe_fn()
 
@@ -68,10 +76,10 @@ def test_critical_section_timeout() -> None:
 class SharedResourceSample(CriticalResource):
 
     def __init__(self) -> None:
-        CriticalResource.__init__(self)
+        CriticalResource.__init__(self, timeout=3)
         self.counter = 0
 
-    @CriticalResource.critical_section(timeout=3)
+    @CriticalResource.critical_section
     def increase(self) -> None:
         self.counter += 1
 
@@ -98,7 +106,7 @@ class TestCriticalResource:
 
     def test_exceptions(self) -> None:
         class A:
-            @CriticalResource.critical_section()
+            @CriticalResource.critical_section
             def foo(self) -> None:
                 pass
         with pytest.raises(TypeError):
@@ -169,4 +177,4 @@ class TestLockFreeContext:
         sr.increase()  # the object was unlocked automatically
 
         with pytest.raises(CriticalSectionError):
-            _ = c2.increase  # access to a underlined methods are not allowed without a lock
+            _ = c2.increase  # access to underlined methods are not allowed without a lock

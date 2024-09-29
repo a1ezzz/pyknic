@@ -61,13 +61,15 @@ def acquire_lock(lock: threading.Lock, timeout: typing.Union[int, float, None] =
 
 def critical_section_dynamic_lock(
     lock_fn: typing.Callable[..., threading.Lock],
-    timeout: typing.Union[int, float, None] = None
+    timeout_fn: typing.Optional[typing.Callable[..., typing.Union[int, float, None]]] = None
 ) -> typing.Callable[[GenericFunc[P, R]], GenericFunc[P, R]]:
     """ Protect a function with a lock, that was get from the specified function. If a lock can not be acquired, then
     no function call will be made
 
     :param lock_fn: callable that returns a lock, with which a function may be protected
-    :param timeout: the same as 'timeout' in the :func:`.acquire_lock` function
+    :param timeout_fn: callable that returns a timeout that is used the same way as the 'timeout' in
+    the :func:`.acquire_lock` function
+
     :return: decorator with which a target function may be protected
     """
 
@@ -78,6 +80,7 @@ def critical_section_dynamic_lock(
             original_function: typing.Callable[..., typing.Any], *args: typing.Any, **kwargs: typing.Any
         ) -> typing.Any:
             lock = lock_fn(*args, **kwargs)
+            timeout = timeout_fn(*args, **kwargs) if timeout_fn else None
             if acquire_lock(lock, timeout=timeout) is True:
                 try:
                     result = original_function(*args, **kwargs)
@@ -94,11 +97,11 @@ def critical_section_dynamic_lock(
 def critical_section_lock(
     lock: threading.Lock, timeout: typing.Union[int, float, None] = None
 ) -> typing.Callable[[GenericFunc[P, R]], GenericFunc[P, R]]:
-    """ A wrapper for :func:`.critical_section_dynamic_lock` function call, but with a static lock object
-    instead of a function that returns a lock
+    """ A wrapper for :func:`.critical_section_dynamic_lock` function call, but with a static lock and timeout objects
+    instead of functions
 
     :param lock: lock with which a function will be protected
-    :param timeout: the same as 'timeout' in the :func:`.critical_section_dynamic_lock` function
+    :param timeout: timeout for acquiring lock
 
     :return: decorator with which a target function may be protected
     """
@@ -106,7 +109,10 @@ def critical_section_lock(
     def lock_getter(*args: typing.Any, **kwargs: typing.Any) -> threading.Lock:
         return lock
 
-    return critical_section_dynamic_lock(lock_fn=lock_getter, timeout=timeout)
+    def timeout_getter(*args: typing.Any, **kwargs: typing.Any) -> typing.Union[int, float, None]:
+        return timeout
+
+    return critical_section_dynamic_lock(lock_fn=lock_getter, timeout_fn=timeout_getter)
 
 
 class CriticalResource:
@@ -183,30 +189,35 @@ class CriticalResource:
                 self.__unlock = False
                 self.__resource.thread_lock().release()
 
-    def __init__(self) -> None:
+    def __init__(self, timeout: typing.Union[int, float, None] = None) -> None:
         """ Create a lock
+
+        :param timeout: the same as 'timeout' in the :func:`.acquire_lock` function
         """
         self.__lock = threading.Lock()
+        self.__timeout = timeout
 
     def thread_lock(self) -> threading.Lock:
         """ Return a lock with which a bounded methods may be protected
         """
         return self.__lock
 
+    def lock_timeout(self) -> typing.Union[int, float, None]:
+        return self.__timeout
+
     def critical_context(self, timeout: typing.Union[int, float, None] = None) -> 'LockFreeContext':
         """ Create a lock free context for this object
 
-        :param timeout: the same as 'timeout' in the :meth:`.CriticalResource.LockFreeContext.__init__` method
+        :param timeout: timeout for acquiring lock. the same as 'timeout' in
+        the :meth:`.CriticalResource.LockFreeContext.__init__` method
         """
         return CriticalResource.LockFreeContext(self, timeout=timeout)
 
     @staticmethod
     def critical_section(
-        timeout: typing.Union[int, float, None] = None
-    ) -> typing.Callable[[GenericFunc[P, R]], GenericFunc[P, R]]:
+        decorated_function: typing.Callable[..., typing.Any]
+    ) -> typing.Callable[..., typing.Any]:
         """ Decorate a method with a lock protection (class methods and static methods are unsupported)
-
-        :param timeout: the same as 'timeout' in the :func:`.critical_section_dynamic_lock` function
         """
 
         def lock_fn(self: CriticalResource, *args: typing.Any, **kwargs: typing.Any) -> threading.Lock:
@@ -217,11 +228,16 @@ class CriticalResource:
                 )
             return self.thread_lock()
 
-        def decorator_fn(
-            decorated_function: typing.Callable[..., typing.Any]
-        ) -> typing.Callable[..., typing.Any]:
-            decorated_function.__pyknic_lock_free_fn__ = decorated_function  # type: ignore[attr-defined] # we are
-            # force the attribute to be
-            return critical_section_dynamic_lock(lock_fn=lock_fn, timeout=timeout)(decorated_function)
+        def timeout_fn(
+            self: CriticalResource, *args: typing.Any, **kwargs: typing.Any
+        ) -> typing.Union[int, float, None]:
+            if isinstance(self, CriticalResource) is False:
+                raise TypeError(
+                    'Invalid object type. It must be inherited from CriticalResource class and'
+                    ' decorated method must be bounded'
+                )
+            return self.lock_timeout()
 
-        return decorator_fn
+        decorated_function.__pyknic_lock_free_fn__ = decorated_function  # type: ignore[attr-defined] # we are force
+        # the attribute to be
+        return critical_section_dynamic_lock(lock_fn=lock_fn, timeout_fn=timeout_fn)(decorated_function)
