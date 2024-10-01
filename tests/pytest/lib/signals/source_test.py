@@ -77,3 +77,26 @@ class TestSignalSource:
         s.emit(Source.signal1)
         s.emit(Source.signal2, 1)
         assert(results == [(s, Source.signal2, 1)])
+
+    def test_bounded_callbacks(self) -> None:
+
+        class Source(SignalSource):
+            signal1 = Signal()
+
+        class A:
+            def callback(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+                pass
+
+            @classmethod
+            def cls_callback(cls, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+                pass
+
+            def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+                pass
+
+        s = Source()
+        with pytest.raises(ValueError):
+            s.callback(Source.signal1, A().callback)
+
+        s.callback(Source.signal1, A.cls_callback)  # classmethods are ok
+        s.callback(Source.signal1, A())  # callable objects are ok too

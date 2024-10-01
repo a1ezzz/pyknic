@@ -23,6 +23,7 @@ import typing
 
 from abc import ABCMeta
 from weakref import WeakSet
+from inspect import isclass
 
 from pyknic.lib.signals.proto import Signal, SignalSourceProto, UnknownSignalException, SignalCallbackType
 
@@ -99,6 +100,8 @@ class SignalSource(SignalSourceProto, metaclass=SignalSourceMeta):
         """ :meth:`.SignalSourceProto.callback` implementation
         """
         try:
+            if hasattr(callback, '__self__') and not isclass(callback.__self__):
+                raise ValueError('Bounded methods are unsupported')  # since they are discarded by gc
             self.__callbacks[signal].add(callback)
         except KeyError:
             raise UnknownSignalException('Unknown signal subscribed')
