@@ -140,7 +140,7 @@ class ScheduleRecordProto(metaclass=ABCMeta):
     def ttl(self) -> typing.Union[int, float, None]:
         """ Return unix time when this record should be discarded
 
-        :return: unix time in seconds or None if this record can not be expired
+        :return: unix time in seconds or None if this record can not be expired. A timestamp must be return in UTC
         """
         return None
 
