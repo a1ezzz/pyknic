@@ -9,6 +9,8 @@ from decorator import decorator
 from pyknic.lib.capability import CapabilityDescriptor, capability, CapabilitiesHolderMeta, iscapable
 from pyknic.lib.capability import CapabilitiesHolder
 
+from pyknic.lib.x_mansion import CapabilitiesAndSignals
+
 from pyknic.lib.typing import GenericFunc, P, R
 
 
@@ -148,10 +150,16 @@ class TestCapabilitiesHolderMeta:
 
 class TestCapabilitiesHolder:
 
-    def test(self) -> None:
-        assert(isinstance(CapabilitiesHolder, CapabilitiesHolderMeta) is True)
+    @pytest.mark.parametrize(
+        "test_cls", [
+            CapabilitiesHolder,
+            CapabilitiesAndSignals,
+        ]
+    )
+    def test(self, test_cls: typing.Type[CapabilitiesHolder]) -> None:
+        assert(isinstance(test_cls, CapabilitiesHolderMeta) is True)
 
-        class A(CapabilitiesHolder):
+        class A(test_cls):  # type: ignore[valid-type, misc]  # mypy issues will be fixed in future releases
             @capability
             def foo(self) -> None:
                 pass
@@ -196,7 +204,7 @@ class TestCapabilitiesHolder:
         assert(A.bar not in a)
         assert(A.bar not in a)
 
-        class D(CapabilitiesHolder):
+        class D(test_cls):  # type: ignore[valid-type, misc]  # mypy issues will be fixed in future releases
             @capability
             def foo(self) -> None:
                 pass
@@ -208,9 +216,15 @@ class TestCapabilitiesHolder:
         assert(iscapable(c, D.foo) is False)
         assert(D.foo not in c)
 
-    def test_dynamic_capability(self) -> None:
+    @pytest.mark.parametrize(
+        "test_cls", [
+            CapabilitiesHolder,
+            CapabilitiesAndSignals,
+        ]
+    )
+    def test_dynamic_capability(self, test_cls: typing.Type[CapabilitiesHolder]) -> None:
 
-        class A(CapabilitiesHolder):
+        class A(test_cls):  # type: ignore[valid-type, misc]  # mypy issues will be fixed in future releases
             @capability
             def foo(self, check_obj: typing.Any) -> None:
                 pass
@@ -231,9 +245,15 @@ class TestCapabilitiesHolder:
 
         b.foo(b)
 
-    def test_dynamic_capability_exceptions(self) -> None:
+    @pytest.mark.parametrize(
+        "test_cls", [
+            CapabilitiesHolder,
+            CapabilitiesAndSignals,
+        ]
+    )
+    def test_dynamic_capability_exceptions(self, test_cls: typing.Type[CapabilitiesHolder]) -> None:
 
-        class A(CapabilitiesHolder):
+        class A(test_cls):  # type: ignore[valid-type, misc]  # mypy issues will be fixed in future releases
             @capability
             def foo(self) -> None:
                 pass

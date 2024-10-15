@@ -7,6 +7,8 @@ import pytest
 from pyknic.lib.signals.proto import Signal, SignalSourceProto, UnknownSignalException
 from pyknic.lib.signals.source import SignalSourceMeta, SignalSource, BoundedCallback
 
+from pyknic.lib.x_mansion import CapabilitiesAndSignals
+
 
 class TestSignalSourceMeta:
 
@@ -38,8 +40,14 @@ class TestSignalSourceMeta:
 
 class TestSignalSource:
 
-    def test(self) -> None:
-        source = SignalSource()
+    @pytest.mark.parametrize(
+        "test_cls", [
+            SignalSource,
+            CapabilitiesAndSignals,
+        ]
+    )
+    def test(self, test_cls: typing.Type[SignalSource]) -> None:
+        source = test_cls()
         assert(isinstance(source, SignalSource) is True)
         assert(isinstance(source, SignalSourceProto) is True)
 
@@ -47,8 +55,15 @@ class TestSignalSource:
         pytest.raises(UnknownSignalException, source.callback, Signal(), lambda: None)
         pytest.raises(UnknownSignalException, source.remove_callback, Signal(), lambda: None)
 
-    def test_emit(self) -> None:
-        class Source(SignalSource):
+    @pytest.mark.parametrize(
+        "test_cls", [
+            SignalSource,
+            CapabilitiesAndSignals,
+        ]
+    )
+    def test_emit(self, test_cls: typing.Type[SignalSource]) -> None:
+
+        class Source(test_cls):  # type: ignore[valid-type, misc]  # mypy issues will be fixed in future releases
             signal1 = Signal()
             signal2 = Signal(int)
 
@@ -79,9 +94,15 @@ class TestSignalSource:
         s.emit(Source.signal2, 1)
         assert(results == [(s, Source.signal2, 1)])
 
-    def test_bounded_callbacks(self) -> None:
+    @pytest.mark.parametrize(
+        "test_cls", [
+            SignalSource,
+            CapabilitiesAndSignals,
+        ]
+    )
+    def test_bounded_callbacks(self, test_cls: typing.Type[SignalSource]) -> None:
 
-        class Source(SignalSource):
+        class Source(test_cls):  # type: ignore[valid-type, misc]  # mypy issues will be fixed in future releases
             signal1 = Signal()
 
         class A:

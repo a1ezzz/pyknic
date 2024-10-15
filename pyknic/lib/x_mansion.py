@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/mutant.py
+# pyknic/lib/x_mansion.py
 #
 # Copyright (C) 2024 the pyknic authors and contributors
 # <see AUTHORS file>
