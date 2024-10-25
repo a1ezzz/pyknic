@@ -5,7 +5,7 @@ import typing
 import pytest
 
 from pyknic.lib.signals.proto import Signal, SignalSourceProto, UnknownSignalException
-from pyknic.lib.signals.source import SignalSourceMeta, SignalSource, BoundedCallback
+from pyknic.lib.signals.source import SignalSourceMeta, SignalSource
 
 from pyknic.lib.x_mansion import CapabilitiesAndSignals
 
@@ -122,39 +122,3 @@ class TestSignalSource:
 
         s.callback(Source.signal1, A.cls_callback)  # classmethods are ok
         s.callback(Source.signal1, A())  # callable objects are ok too
-
-
-class TestBoundedCallback:
-
-    def test(self) -> None:
-        results = []
-
-        class Source(SignalSource):
-            signal1 = Signal()
-
-        class A:
-
-            def callback(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
-                nonlocal results
-                results.append((source, signal, value))
-
-        s = Source()
-
-        b = BoundedCallback(A().callback)
-        s.callback(Source.signal1, b)  # this is ok, but callback will not be executed
-        # since 'A()' will be collected
-        gc.collect()
-        s.emit(Source.signal1)
-        assert (results == [])
-
-        a = A()
-        b = BoundedCallback(a.callback)
-        s.callback(Source.signal1, b)  # this is ok totally
-        gc.collect()
-        s.emit(Source.signal1)
-        assert (results == [(s, Source.signal1, None)])
-
-        del a
-        gc.collect()
-        s.emit(Source.signal1)
-        assert (results == [(s, Source.signal1, None)])

@@ -115,26 +115,3 @@ class SignalSource(SignalSourceProto, metaclass=SignalSourceMeta):
             callbacks.remove(callback)
         except KeyError:
             raise UnknownSignalException('Signal does not have the specified callback')
-
-
-class BoundedCallback:
-    """ This class allows to use a bounded method as a signal callback
-    """
-
-    @verify_value(callback=lambda x: hasattr(x, '__self__'))
-    @verify_value(callback=lambda x: getattr(x.__self__, x.__name__) == x)
-    def __init__(self, callback: SignalCallbackType):
-        """ Create a bounded callback
-
-        :param callback: a function to call
-        """
-        self.__callback_self = ref(callback.__self__)  # type: ignore[attr-defined]  # callback may have __self__
-        self.__callback_name = callback.__name__
-
-    def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
-        """ Execute original function
-        """
-        s = self.__callback_self()
-        if s:
-            callback = getattr(s, self.__callback_name)
-            callback(source, signal, value)
