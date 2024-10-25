@@ -4,6 +4,7 @@ import typing
 import pytest
 
 from pyknic.lib.signals.proto import Signal, UnknownSignalException, SignalSourceProto, SignalCallbackProto
+from pyknic.lib.signals.proto import SignalProxyProto
 
 
 def test_exceptions() -> None:
@@ -18,6 +19,10 @@ def test_abstract() -> None:
 
     pytest.raises(TypeError, SignalCallbackProto)
     pytest.raises(NotImplementedError, SignalCallbackProto.__call__, None, None, Signal())
+
+    pytest.raises(TypeError, SignalProxyProto)
+    pytest.raises(NotImplementedError, SignalProxyProto.proxy, None, None)
+    pytest.raises(NotImplementedError, SignalProxyProto.discard_proxy, None, None)
 
 
 class TestSignal:
