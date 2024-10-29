@@ -100,10 +100,11 @@ class TestCallbackWrapper:
 
             def _pre_hook(
                 self, callback: SignalCallbackType, source: SignalSourceProto, signal: Signal, value: typing.Any
-            ) -> None:
+            ) -> bool:
                 nonlocal increment_value
                 increment_value += 1
                 signals_registry(source, signal, {"callback": callback, "value": increment_value, "mode": "pre"})
+                return True
 
             def _post_hook(
                 self, callback: SignalCallbackType, source: SignalSourceProto, signal: Signal, value: typing.Any
@@ -126,3 +127,34 @@ class TestCallbackWrapper:
         gc.collect()
         callback_wrapper(None, None, None)  # type: ignore[arg-type]  # it's just a test
         assert(signals_registry.dump(True) == [])
+
+    def test_pre_hook(
+        self,
+        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+
+        class CallbackCls:
+
+            def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+                signals_registry(source, signal, value)
+
+        class CustomWrapper(CallbackWrapper):
+
+            def _pre_hook(
+                self, callback: SignalCallbackType, source: SignalSourceProto, signal: Signal, value: typing.Any
+            ) -> bool:
+                signals_registry(source, signal, "pre")
+                return False
+
+            def _post_hook(
+                self, callback: SignalCallbackType, source: SignalSourceProto, signal: Signal, value: typing.Any
+            ) -> None:
+                signals_registry(source, signal, "post")
+
+        callback_obj = CallbackCls()
+        callback_wrapper = CustomWrapper.wrapper(callback_obj, weak_callback=True)
+
+        callback_wrapper(None, None, None)  # type: ignore[arg-type]  # it's just a test
+        assert(signals_registry.dump(True) == [
+            (None, None, "pre"),
+        ])
