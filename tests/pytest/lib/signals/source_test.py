@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import gc
 import typing
 import pytest
 

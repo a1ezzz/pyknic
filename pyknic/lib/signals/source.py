@@ -22,10 +22,9 @@
 import typing
 
 from abc import ABCMeta
-from weakref import WeakSet, ref
+from weakref import WeakSet
 from inspect import isclass
 
-from pyknic.lib.verify import verify_value
 from pyknic.lib.signals.proto import Signal, SignalSourceProto, UnknownSignalException, SignalCallbackType
 
 
