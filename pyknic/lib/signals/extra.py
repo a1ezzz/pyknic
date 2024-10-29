@@ -65,6 +65,18 @@ class CallbackWrapper:
         self.__weak = weak_callback
         self.__callback = weakref.ref(callback) if weak_callback else callback
 
+    def _pre_hook(
+        self, callback: SignalCallbackType, source: SignalSourceProto, signal: Signal, value: typing.Any
+    ) -> None:
+        """ This method is called before a callback
+
+        :param callback: a callback this wrapper has
+        :param source: signal origin
+        :param signal: emitted signal
+        :param value: value that was emitted with a signal
+        """
+        pass
+
     def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
         """ Execute an original callback
 
@@ -76,7 +88,21 @@ class CallbackWrapper:
             self.__callback() if self.__weak else self.__callback  # type: ignore[call-arg, assignment]  # mypy issue
         )
         if callback_obj is not None:
+            self._pre_hook(callback_obj, source, signal, value)
             callback_obj(source, signal, value)
+            self._post_hook(callback_obj, source, signal, value)
+
+    def _post_hook(
+        self, callback: SignalCallbackType, source: SignalSourceProto, signal: Signal, value: typing.Any
+    ) -> None:
+        """ This method is called after a callback
+
+        :param callback: a callback this wrapper has
+        :param source: signal origin
+        :param signal: emitted signal
+        :param value: value that was emitted with a signal
+        """
+        pass
 
     @classmethod
     def wrapper(cls, callback: SignalCallbackType, weak_callback: bool = False) -> 'CallbackWrapper':

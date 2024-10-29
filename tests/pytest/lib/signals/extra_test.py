@@ -4,7 +4,7 @@ import gc
 import typing
 import pytest
 
-from pyknic.lib.signals.proto import SignalSourceProto, Signal
+from pyknic.lib.signals.proto import SignalSourceProto, Signal, SignalCallbackType
 from pyknic.lib.signals.source import SignalSource
 from pyknic.lib.signals.extra import BoundedCallback, CallbackWrapper
 
@@ -81,3 +81,43 @@ class TestCallbackWrapper:
             assert (signals_registry.dump(True) == callback_result)
         else:
             assert(signals_registry.dump(True) == [])  # since signal_proxy is collected
+
+    def test_hooks(
+        self,
+        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+
+        increment_value = 0
+
+        class CallbackCls:
+
+            def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+                nonlocal increment_value
+                increment_value += 1
+                signals_registry(source, signal, increment_value)
+
+        class CustomWrapper(CallbackWrapper):
+
+            def _pre_hook(
+                self, callback: SignalCallbackType, source: SignalSourceProto, signal: Signal, value: typing.Any
+            ) -> None:
+                nonlocal increment_value
+                increment_value += 1
+                signals_registry(source, signal, {"callback": callback, "value": increment_value, "mode": "pre"})
+
+            def _post_hook(
+                self, callback: SignalCallbackType, source: SignalSourceProto, signal: Signal, value: typing.Any
+            ) -> None:
+                nonlocal increment_value
+                increment_value += 1
+                signals_registry(source, signal, {"callback": callback, "value": increment_value, "mode": "post"})
+
+        callback_obj = CallbackCls()
+        callback_wrapper = CustomWrapper.wrapper(callback_obj, weak_callback=True)
+
+        callback_wrapper(None, None, None)  # type: ignore[arg-type]  # it's just a test
+        assert(signals_registry.dump(True) == [
+            (None, None, {"callback": callback_obj, "value": 1, "mode": "pre"}),
+            (None, None, 2),
+            (None, None, {"callback": callback_obj, "value": 3, "mode": "post"}),
+        ])
