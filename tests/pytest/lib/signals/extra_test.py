@@ -121,3 +121,8 @@ class TestCallbackWrapper:
             (None, None, 2),
             (None, None, {"callback": callback_obj, "value": 3, "mode": "post"}),
         ])
+
+        del callback_obj
+        gc.collect()
+        callback_wrapper(None, None, None)  # type: ignore[arg-type]  # it's just a test
+        assert(signals_registry.dump(True) == [])
