@@ -4,7 +4,7 @@ from pyknic.lib.signals.proto import Signal, SignalSourceProto
 
 from pyknic.lib.tasks.proto import ScheduleSourceProto, TaskProto
 from pyknic.lib.tasks.scheduler.record import ScheduleRecord
-from pyknic.lib.tasks.scheduler.source import InstantTaskSource
+from pyknic.lib.tasks.scheduler.plain_sources import InstantTaskSource
 
 
 class TestInstantTaskSource:
