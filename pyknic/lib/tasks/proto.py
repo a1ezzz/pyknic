@@ -201,3 +201,38 @@ class SchedulerProto(SignalSource):
         :param schedule_source: source of records to unsubscribe from
         """
         raise NotImplementedError('This method is abstract')
+
+
+class TaskExecutorProto(metaclass=ABCMeta):
+    """ This is a class that executes tasks
+    """
+
+    @abstractmethod
+    def submit_task(self, task: TaskProto) -> bool:
+        """ Try to execute a task and return True if the task will be/or is already executed (return False otherwise)
+
+        :param task: a task to execute
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @abstractmethod
+    def tasks(self) -> typing.Generator[TaskProto, None, None]:
+        """ Return generator that yields currently running tasks
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @abstractmethod
+    def stop_task(self, task: TaskProto) -> None:
+        """ Try to request a task to stop
+
+        :param task: a task to stop
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @abstractmethod
+    def terminate_task(self, task: TaskProto) -> None:
+        """ Try to request a task to terminate
+
+        :param task: a task to terminate
+        """
+        raise NotImplementedError('This method is abstract')
