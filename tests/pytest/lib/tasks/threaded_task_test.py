@@ -2,7 +2,6 @@
 
 import functools
 import threading
-import time
 import pytest
 
 from pyknic.lib.tasks.proto import TaskProto, TaskResult, TaskStartError
@@ -14,11 +13,6 @@ def sample_function(event: threading.Event) -> threading.Event:
     return event
 
 
-def join_task(task: ThreadedTask) -> None:
-    while not task.join():
-        time.sleep(0.1)
-
-
 class TestThreadTask:
 
     def test_plain(self) -> None:
@@ -26,7 +20,7 @@ class TestThreadTask:
         task = ThreadedTask.plain_task(functools.partial(sample_function, event))
         task.start()
         event.set()
-        join_task(task)
+        task.wait()
 
     def test_start_event(
         self,
@@ -38,7 +32,7 @@ class TestThreadTask:
 
         task.start()
         event.set()
-        join_task(task)
+        task.wait()
 
         assert(signals_registry.dump(True) == [
             (task, TaskProto.task_started, None),
@@ -61,7 +55,7 @@ class TestThreadTask:
         task = ThreadedTask(Task())
         task.start()
         task.stop()
-        join_task(task)
+        task.wait()
 
     def test_terminate(self) -> None:
 
@@ -80,7 +74,7 @@ class TestThreadTask:
         task = ThreadedTask(Task())
         task.start()
         task.terminate()
-        join_task(task)
+        task.wait()
 
     def test_start_exception(self) -> None:
         event = threading.Event()
@@ -91,7 +85,7 @@ class TestThreadTask:
             task.start()
 
         event.set()
-        join_task(task)
+        task.wait()
 
     def test_task_result(
         self,
@@ -103,7 +97,7 @@ class TestThreadTask:
 
         task.start()
         event.set()
-        join_task(task)
+        task.wait()
 
         assert(signals_registry.dump(True) == [
             (task, TaskProto.task_completed, TaskResult()),
@@ -128,7 +122,7 @@ class TestThreadTask:
         task.callback(TaskProto.task_completed, signals_registry)
 
         task.start()
-        join_task(task)
+        task.wait()
 
         assert(signals_registry.dump(True) == [
             (task, TaskProto.task_completed, TaskResult(exception=task_exception)),

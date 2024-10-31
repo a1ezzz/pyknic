@@ -99,6 +99,16 @@ class ThreadedTask(TaskProto, CriticalResource):
                 self.__thread = None
         return not is_alive
 
+    @CriticalResource.critical_section
+    def wait(self) -> None:
+        """ Do not call a threaded task to stop, but wait till it stops
+
+        :note: Use this method as a last resort only. Since it blocks other methods of this class
+        """
+        if self.__thread:
+            self.__thread.join()
+            self.__thread = None
+
     @staticmethod
     def plain_task(
         fn: typing.Callable[[], typing.Any], cr_timeout: typing.Union[int, float, None] = None
