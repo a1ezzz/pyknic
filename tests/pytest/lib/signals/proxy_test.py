@@ -4,12 +4,19 @@ import gc
 import threading
 import typing
 
+import pytest
+
 from pyknic.lib.signals.extra import CallbackWrapper
 from pyknic.lib.signals.proto import Signal, SignalCallbackType, SignalSourceProto, SignalProxyProto
 from pyknic.lib.signals.source import SignalSource
 from pyknic.lib.tasks.threaded_task import ThreadedTask
 
-from pyknic.lib.signals.proxy import SignalProxy, QueueProxy
+from pyknic.lib.signals.proxy import SignalProxy, QueueProxy, QueueProxyStateError, QueueCallbackException
+
+
+def test_exceptions() -> None:
+    assert(issubclass(QueueProxyStateError, Exception) is True)
+    assert(issubclass(QueueCallbackException, Exception) is True)
 
 
 class TestSignalProxy:
@@ -144,3 +151,87 @@ class TestQueueProxy:
             (source1, Source.signal2, 0),
             (source2, Source.signal1, None),
         ])
+
+    def test_exec(self) -> None:
+        queue_proxy = QueueProxy()
+        threaded_task = ThreadedTask(queue_proxy)
+        clbk_event = threading.Event()
+
+        assert(queue_proxy.is_running() is False)
+
+        threaded_task.start()
+
+        def callback() -> None:
+            nonlocal clbk_event
+            clbk_event.set()
+
+        queue_proxy.exec(callback)
+        clbk_event.wait()
+        assert(queue_proxy.is_running() is True)
+
+        threaded_task.stop()
+        threaded_task.join()
+        assert(queue_proxy.is_running() is False)
+
+    def test_exec_wait(self) -> None:
+        queue_proxy = QueueProxy()
+        callback_result = object()
+        threaded_task = ThreadedTask(queue_proxy)
+        threaded_task.start()
+
+        def callback() -> object:
+            nonlocal callback_result
+            return callback_result
+
+        assert(queue_proxy.exec(callback, blocking=True) is callback_result)
+
+        threaded_task.stop()
+        threaded_task.join()
+
+    def test_exec_wait_exception(self) -> None:
+        queue_proxy = QueueProxy()
+        callback_exception = ValueError('!')
+        threaded_task = ThreadedTask(queue_proxy)
+        threaded_task.start()
+
+        def callback() -> None:
+            nonlocal callback_exception
+            raise callback_exception
+
+        with pytest.raises(QueueCallbackException):
+            queue_proxy.exec(callback, blocking=True)
+
+        try:
+            queue_proxy.exec(callback, blocking=True)
+        except QueueCallbackException as e:
+            assert(e.__cause__ is callback_exception)
+
+        threaded_task.stop()
+        threaded_task.join()
+
+    def test_state_exception(self) -> None:
+        queue_proxy = QueueProxy()
+        threaded_task = ThreadedTask(queue_proxy)
+
+        with pytest.raises(QueueProxyStateError):
+            queue_proxy.stop()
+
+        with pytest.raises(QueueProxyStateError):
+            queue_proxy.exec(lambda: None)
+
+        threaded_task.start()
+
+        with pytest.raises(QueueProxyStateError):
+            queue_proxy.start()
+
+        threaded_task.stop()
+        threaded_task.join()
+
+        with pytest.raises(QueueProxyStateError):
+            queue_proxy.exec(lambda: None)
+
+        with pytest.raises(QueueProxyStateError):
+            queue_proxy.stop()
+
+        with pytest.raises(QueueProxyStateError):
+            queue_proxy.start()

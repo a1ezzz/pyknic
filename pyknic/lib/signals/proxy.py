@@ -25,7 +25,6 @@ import typing
 import queue
 import weakref
 
-
 from pyknic.lib.signals.proto import SignalCallbackType, SignalProxyProto, SignalSourceProto, Signal
 from pyknic.lib.signals.extra import CallbackWrapper
 
@@ -65,11 +64,55 @@ class SignalProxy(SignalProxyProto):
             self.__callbacks.pop(i)
 
 
+class QueueProxyStateError(Exception):
+    """ This exception is raised when requested operation is not suitable in a current queue state
+    """
+    pass
+
+
+class QueueCallbackException(Exception):
+    """ This exception is raised when executed callback fails with exception
+    """
+    pass
+
+
 class QueueProxy(SignalProxy, TaskProto):
     """ This "proxy" helps to execute "proxified" callbacks in a dedicated thread
     """
 
-    class QueueWrapper(CallbackWrapper):
+    class Item:
+        """ This class represent a single callable item in a queue
+        """
+
+        def __init__(self, fn: typing.Callable[[], typing.Any]):
+            """ Create new item for a queue
+            """
+
+            self.__fn = fn
+            self.__wait_event = threading.Event()
+            self.__result = None
+            self.__raised_exception: typing.Optional[BaseException] = None
+
+        def __call__(self) -> None:
+            """ Execute a callback and check result
+            """
+            try:
+                self.__result = self.__fn()
+            except BaseException as e:
+                self.__raised_exception = e
+            self.__wait_event.set()
+
+        def wait(self, timeout: typing.Union[int, float, None]) -> typing.Any:
+            """ Wait for a callback result
+
+            :param timeout: timeout with which a result will be awaited. If the timeout is None then wait forever
+            """
+            self.__wait_event.wait(timeout)
+            if self.__raised_exception:
+                raise QueueCallbackException('Callback completed with an exception') from self.__raised_exception
+            return self.__result
+
+    class Wrapper(CallbackWrapper):
         """ Alternate :class:`.CallbackWrapper` implementation that work in conjunction with the :class:`.QueueProxy`
         """
 
@@ -81,21 +124,21 @@ class QueueProxy(SignalProxy, TaskProto):
             """
             CallbackWrapper.__init__(self, callback, weak_callback=weak_callback)
 
-            self.__queue: typing.Optional[queue.Queue[typing.Callable[[], None]]] = None
-            self.__running: typing.Optional[threading.Event] = None
+            self.__queue: typing.Optional[queue.Queue[QueueProxy.Item]] = None
+            self.__stop_event: typing.Optional[threading.Event] = None
 
         def setup_wrapper(
             self,
-            queue_value: queue.Queue[typing.Callable[[], None]],
-            running_event: threading.Event
+            queue_value: queue.Queue['QueueProxy.Item'],
+            stop_event: threading.Event
         ) -> None:
             """ Setup this wrapper. Without this setup a wrapper will crash
             """
             assert(not self.__queue)
-            assert(not self.__running)
+            assert(not self.__stop_event)
 
             self.__queue = queue_value
-            self.__running = running_event
+            self.__stop_event = stop_event
 
         def _pre_hook(
             self, callback: SignalCallbackType, source: SignalSourceProto, signal: Signal, value: typing.Any
@@ -109,10 +152,12 @@ class QueueProxy(SignalProxy, TaskProto):
             :param value: a value of an emitted signal
             """
             assert(self.__queue)
-            assert(self.__running)
+            assert(self.__stop_event)
 
-            if self.__running.is_set():
-                self.__queue.put(functools.partial(callback, source, signal, value))
+            if not self.__stop_event.is_set():
+                self.__queue.put(QueueProxy.Item(functools.partial(
+                    callback, source=source, signal=signal, value=value
+                )))  # type: ignore[call-arg]  # mypy issue with functools.partial
             return False
 
     def __init__(self, flash_flush: bool = False) -> None:
@@ -121,41 +166,76 @@ class QueueProxy(SignalProxy, TaskProto):
         :param flash_flush: if True then every submitted callback will be executed just before the stop event.
         Such callbacks may be omitted otherwise
         """
-        SignalProxy.__init__(self, wrapper_factory=QueueProxy.QueueWrapper)
+        SignalProxy.__init__(self, wrapper_factory=QueueProxy.Wrapper)
         TaskProto.__init__(self)
 
-        self.__queue: queue.Queue[typing.Callable[[], None]] = queue.Queue()
+        self.__queue: queue.Queue[QueueProxy.Item] = queue.Queue()
 
-        self.__running = threading.Event()
+        self.__start_once_lock = threading.Lock()
+        self.__stop_once_lock = threading.Lock()
+        self.__started = False
+        self.__stop_event = threading.Event()
         self.__flash_flush = flash_flush
+
+    def exec(
+        self,
+        fn: typing.Callable[[], typing.Any],
+        blocking: bool = False,
+        timeout: typing.Union[int, float, None] = None
+    ) -> typing.Any:
+        """ Execute a function inside a queue-thread
+
+        :param fn: a callable to execute
+        :param blocking: if True then the function result will be awaited
+        :param timeout: timeout with which a result should be awaited. This parameter takes effect only when
+        the "blocking" parameter is True
+        """
+        if not self.__started or self.__stop_event.is_set():
+            raise QueueProxyStateError(
+                'The "exec" method of the QueueProxy class may be called only if the QueueProxy is running'
+            )
+
+        queue_item = QueueProxy.Item(fn)
+        self.__queue.put(queue_item)
+        if blocking:
+            return queue_item.wait(timeout)
 
     def proxy(self, callback: SignalCallbackType) -> SignalCallbackType:
         """ The :meth:`.SignalProxyProto.proxy` method implementation
         """
-        callback_wrapper: QueueProxy.QueueWrapper = \
-            SignalProxy.proxy(  # type: ignore[assignment]  # the SignalProxy.proxy method will return QueueWrapper
+        callback_wrapper: QueueProxy.Wrapper = \
+            SignalProxy.proxy(  # type: ignore[assignment]  # the SignalProxy.proxy method will return Wrapper
                 self, callback
             )
 
-        callback_wrapper.setup_wrapper(self.__queue, self.__running)
+        callback_wrapper.setup_wrapper(self.__queue, self.__stop_event)
         return callback_wrapper
 
     def __flush(self) -> None:
         """ Execute all the functions that have been stored in the queue
         """
         callback = self.__queue.get(False)
-        while callback:  # type: ignore[truthy-function]  # mypy is incorrect here since the get method is called
+        while callback:
             # with the False value
             if not self.__flash_flush:
                 callback()
             self.__queue.task_done()
             callback = self.__queue.get(False)
 
+    def is_running(self) -> bool:
+        """ Return True if this queue is running and may accept items and return False otherwise
+        """
+        return self.__started and not self.__stop_event.is_set()
+
     def start(self) -> None:
         """ The :meth:`.TaskProto.start` method implementation
         """
-        self.__running.set()
-        while self.__running.is_set():
+        with self.__start_once_lock:
+            if self.__started:
+                raise QueueProxyStateError("Unable to start QueueProxy twice")
+            self.__started = True
+
+        while not self.__stop_event.is_set():
             next_callback = self.__queue.get()
             next_callback()
             self.__queue.task_done()
@@ -165,6 +245,15 @@ class QueueProxy(SignalProxy, TaskProto):
     def stop(self) -> None:
         """ The :meth:`.TaskProto.stop` method implementation
         """
-        self.__running.clear()
-        self.__queue.put(lambda: None)  # force the "self.__queue.get()" to return something
-        self.__queue.join()
+
+        with self.__start_once_lock:
+            if not self.__started:
+                raise QueueProxyStateError("QueueProxy hasn't started yet")
+
+        lock_acquire = self.__stop_once_lock.acquire(False)
+        if lock_acquire:
+            self.__stop_event.set()
+            self.__queue.put(QueueProxy.Item(lambda: None))  # force the "self.__queue.get()" to return something
+            self.__queue.join()
+        else:
+            raise QueueProxyStateError("QueueProxy can not br stopped twice")
