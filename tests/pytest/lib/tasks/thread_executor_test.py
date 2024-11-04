@@ -54,6 +54,22 @@ class TestThreadExecutor:
         while not executor.join_task(task):
             time.sleep(0.1)
 
+    def test_awaited_join(self) -> None:
+        task = TestThreadExecutor.Task()
+        executor = ThreadExecutor()
+        assert(executor.submit_task(task) is True)
+        executor.stop_task(task)
+
+        def thread_fn() -> None:
+            time.sleep(0.5)
+            task.stop()
+
+        thread = threading.Thread(target=thread_fn)
+        thread.start()
+
+        executor.join_task(task, await_task=True)
+        thread.join()
+
     def test_threads_number(self) -> None:
         task1 = TestThreadExecutor.Task()
         task2 = TestThreadExecutor.Task()
@@ -64,8 +80,7 @@ class TestThreadExecutor:
         assert(len(executor) == 1)
         assert(set(executor.tasks()) == {task1})
 
-        with pytest.raises(ValueError):
-            executor.submit_task(task1)
+        assert(executor.submit_task(task1) is False)
 
         assert(len(executor) == 1)
         assert(executor.submit_task(task2) is True)
@@ -107,3 +122,25 @@ class TestThreadExecutor:
                 ThreadedTaskCompleted(task, TaskResult(None, exception=None))
             )]
         )
+
+    def test_context(self) -> None:
+        task1 = TestThreadExecutor.Task()
+        task2 = TestThreadExecutor.Task()
+
+        executor = ThreadExecutor(2)
+        with executor.executor_context():
+            with executor.executor_context():
+                with pytest.raises(ValueError):
+                    with executor.executor_context():
+                        pass
+
+        with executor.executor_context() as c:
+            c.submit_task(task1)
+            assert(set(executor.tasks()) == {task1})
+
+            with pytest.raises(ValueError):
+                c.submit_task(task2)
+
+        task1.stop()
+        while not executor.join_threads():
+            time.sleep(0.1)

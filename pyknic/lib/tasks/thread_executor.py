@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import threading
+import types
 import typing
 
 from dataclasses import dataclass
@@ -75,6 +77,56 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
         threaded_task: ThreadedTask                                 # a started thread
         task_completed_clbk: 'ThreadExecutor.TaskCompleteCallback'  # a callback object for signal resending
 
+    class Context:
+        """ A context that is allocated with a free slot in a pool
+        """
+
+        def __init__(
+            self,
+            executor: 'ThreadExecutor',
+            submit_fn: typing.Callable[[TaskProto], None],
+            release_fn: typing.Callable[[], None]
+        ):
+            """ Prepare a context
+
+            :param executor: executor that creates this context
+            :param submit_fn: a function that submits a task
+            :param release_fn: a function that release a slot if a task wasn't started
+            """
+            self.__executor = executor
+            self.__submit_fn = submit_fn
+            self.__release_fn = release_fn
+            self.__task_submitted = False
+
+        def __enter__(self) -> 'ThreadExecutor.Context':
+            """ Enter a context
+            """
+            return self
+
+        def __exit__(
+            self,
+            exc_type: typing.Optional[typing.Type[BaseException]],
+            exc_val: typing.Optional[BaseException],
+            exc_tb: typing.Optional[types.TracebackType]
+        ) -> None:
+            """ Exit this context and free slot if a task wasn't started
+            """
+            with self.__executor.critical_context():
+                if not self.__task_submitted:
+                    self.__release_fn()
+
+        def submit_task(self, task: TaskProto) -> None:
+            """ Try to submit a task
+
+            :param task: a task to start
+            """
+            self.__executor.join_threads()
+            if self.__task_submitted:
+                raise ValueError('A task has been submitted already')
+
+            self.__submit_fn(task)
+            self.__task_submitted = True
+
     @verify_value(threads_number=lambda x: x is None or x > 0)
     def __init__(
         self,
@@ -93,7 +145,7 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
         CriticalResource.__init__(self, executor_cr_timeout)
         SignalSource.__init__(self)
 
-        self.__threads_number = threads_number
+        self.__threads_number = threading.Semaphore(threads_number) if threads_number else None
         self.__thread_cr_timeout = thread_cr_timeout
         self.__running_threads: typing.Dict[TaskProto, ThreadExecutor.TaskDescriptor] = dict()
 
@@ -116,13 +168,9 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
             self.__running_threads.pop(i)
 
     @CriticalResource.critical_section
-    def submit_task(self, task: TaskProto) -> bool:
-        """ The :meth:`.TaskExecutorProto.submit_task` implementation
+    def __submit_task(self, task: TaskProto) -> None:
+        """ Try to start a task
         """
-        self.__join_threads()
-        if self.__threads_number is not None and len(self.__running_threads) >= self.__threads_number:
-            return False
-
         if task in self.__running_threads:
             raise ValueError('The task is already executed')
 
@@ -130,7 +178,31 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
         callback = ThreadExecutor.TaskCompleteCallback(self, threaded_task, task)
         threaded_task.start()
         self.__running_threads[task] = ThreadExecutor.TaskDescriptor(threaded_task, callback)
-        return True
+
+    def __release_slot(self) -> None:
+        """ Release a slot (if they are limited)
+        """
+        if self.__threads_number:
+            self.__threads_number.release()
+
+    def submit_task(self, task: TaskProto) -> bool:
+        """ The :meth:`.TaskExecutorProto.submit_task` implementation
+        """
+
+        try:
+            with self.executor_context() as c:
+                c.submit_task(task)
+                return True
+        except ValueError:
+            return False
+
+    def executor_context(self) -> 'ThreadExecutor.Context':
+        """ Allocate a slot for a task and return a context
+        """
+        if self.__threads_number and not self.__threads_number.acquire(False):
+            raise ValueError("Unable to allocate a slot of the executor's pool")
+
+        return ThreadExecutor.Context(self, self.__submit_task, self.__release_slot)
 
     @CriticalResource.critical_section
     def join_threads(self) -> int:
@@ -162,17 +234,23 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
         threaded_task = self.__running_threads[task].threaded_task
         getattr(threaded_task, stop_method)()
 
-    @CriticalResource.critical_section
-    def join_task(self, task: TaskProto) -> bool:
+    def join_task(self, task: TaskProto, await_task: bool = False) -> bool:
         """ Try to "join" a task and return True if task is joined (and return False otherwise)
         """
-        if task not in self.__running_threads:
-            raise NoSuchTaskError(f"Unable to find a task -- {task}")
+        with self.critical_context():
+            if task not in self.__running_threads:
+                raise NoSuchTaskError(f"Unable to find a task -- {task}")
 
-        threaded_task = self.__running_threads[task].threaded_task
-        if threaded_task.join():
-            self.__running_threads.pop(task)
-            return True
+            threaded_task = self.__running_threads[task].threaded_task
+
+        if await_task:
+            threaded_task.wait()
+
+        with self.critical_context():
+            if threaded_task.join():
+                self.__running_threads.pop(task)
+                self.__release_slot()
+                return True
 
         return False
 
