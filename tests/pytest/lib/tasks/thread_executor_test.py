@@ -4,7 +4,7 @@ import time
 import threading
 import pytest
 
-from pyknic.lib.tasks.thread_executor import ThreadExecutor
+from pyknic.lib.tasks.thread_executor import ThreadExecutor, ThreadedTaskCompleted
 from pyknic.lib.tasks.proto import TaskExecutorProto, TaskProto, NoSuchTaskError, TaskResult
 
 
@@ -101,7 +101,9 @@ class TestThreadExecutor:
             time.sleep(0.1)
 
         assert(
-            signals_registry.dump(True) == [
-                (executor, ThreadExecutor.task_completed, TaskResult(None, exception=None)),
-            ]
+            signals_registry.dump(True) == [(
+                executor,
+                ThreadExecutor.task_completed,
+                ThreadedTaskCompleted(task, TaskResult(None, exception=None))
+            )]
         )

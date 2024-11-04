@@ -25,26 +25,55 @@ from dataclasses import dataclass
 
 from pyknic.lib.verify import verify_value
 from pyknic.lib.thread import CriticalResource
-from pyknic.lib.signals.proto import Signal
+from pyknic.lib.signals.proto import Signal, SignalSourceProto
 from pyknic.lib.signals.source import SignalSource
-from pyknic.lib.signals.extra import SignalResender
 
 from pyknic.lib.tasks.proto import TaskExecutorProto, TaskProto, NoSuchTaskError, TaskResult
 from pyknic.lib.tasks.threaded_task import ThreadedTask
+
+
+@dataclass
+class ThreadedTaskCompleted:
+    """ This class represent a task completion result
+    """
+    task: TaskProto     # a task that has been completed
+    result: TaskResult  # a result of a completed task
 
 
 class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
     """ The :class:`.TaskExecutorProto` class implementation, that executes tasks in dedicated threads
     """
 
-    task_completed = Signal(TaskResult)  # a result of completed task
+    task_completed = Signal(ThreadedTaskCompleted)  # a result of completed task
+
+    class TaskCompleteCallback:
+        """ This callback is used for resending of completion signal
+        """
+
+        def __init__(self, executor: 'ThreadExecutor', threaded_task: ThreadedTask, task: TaskProto):
+            """ Create callback
+
+            :param executor: executor with which a task was started
+            :param threaded_task: a thread of a task which signal will be caught. It is much better to use this object
+            instead of TaskProto since a custom TaskProto may not implement such signal
+            :param task: task which result will be emitted
+            """
+            self.__executor = executor
+            self.__task = task
+
+            threaded_task.callback(ThreadedTask.task_completed, self)
+
+        def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+            """ Receive completion event and resend
+            """
+            self.__executor.emit(ThreadExecutor.task_completed, ThreadedTaskCompleted(self.__task, value))
 
     @dataclass
     class TaskDescriptor:
         """ This descriptor is generated for each running task (the :class:`.TaskProto` object)
         """
-        threaded_task: ThreadedTask         # a started thread
-        signal_resender_tc: SignalResender  # a callback object for signal resending
+        threaded_task: ThreadedTask                                 # a started thread
+        task_completed_clbk: 'ThreadExecutor.TaskCompleteCallback'  # a callback object for signal resending
 
     @verify_value(threads_number=lambda x: x is None or x > 0)
     def __init__(
@@ -98,13 +127,9 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
             raise ValueError('The task is already executed')
 
         threaded_task = ThreadedTask(task, self.__thread_cr_timeout)
+        callback = ThreadExecutor.TaskCompleteCallback(self, threaded_task, task)
         threaded_task.start()
-        self.__running_threads[task] = ThreadExecutor.TaskDescriptor(
-            threaded_task,
-            SignalResender(
-                threaded_task, self, ThreadedTask.task_completed, target_signal=ThreadExecutor.task_completed
-            )
-        )
+        self.__running_threads[task] = ThreadExecutor.TaskDescriptor(threaded_task, callback)
         return True
 
     @CriticalResource.critical_section
