@@ -114,3 +114,37 @@ class CallbackWrapper:
         :param weak_callback: same as the "weak_callback" in the :meth:`.CallbackWrapper.__init__` method
         """
         return cls(callback, weak_callback=weak_callback)
+
+
+class SignalResender:
+    """ This class helps to resend signals with a new origin
+    """
+
+    def __init__(
+        self,
+        original_source: SignalSourceProto,
+        target_source: SignalSourceProto,
+        signal: Signal,
+        weak_target: bool = False
+    ):
+        """ Create a callback that re-emits signal with a new origin
+
+        :param original_source: source that originally emits signal
+        :param target_source: source that will send signal as a new origin
+        :param signal: signal to resend
+        :param weak_target: whether a target reference should be kept as a weak reference
+        """
+        self.__weak_target = weak_target
+        self.__target_source = weakref.ref(target_source) if weak_target else target_source
+
+        original_source.callback(signal, self)
+
+    def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+        """ A callback that to the job
+        """
+        target_src = self.__target_source
+        target: SignalSourceProto = (
+            target_src() if self.__weak_target else target_src  # type: ignore[operator, assignment]  # mypy issue
+        )
+        if target is not None:
+            target.emit(signal, value)

@@ -6,7 +6,7 @@ import pytest
 
 from pyknic.lib.signals.proto import SignalSourceProto, Signal, SignalCallbackType
 from pyknic.lib.signals.source import SignalSource
-from pyknic.lib.signals.extra import BoundedCallback, CallbackWrapper
+from pyknic.lib.signals.extra import BoundedCallback, CallbackWrapper, SignalResender
 
 
 class TestBoundedCallback:
@@ -158,3 +158,41 @@ class TestCallbackWrapper:
         assert(signals_registry.dump(True) == [
             (None, None, "pre"),
         ])
+
+
+class TestSignalResender:
+
+    def test_plain(
+        self,
+        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+        class Source(SignalSource):
+            signal = Signal()
+
+        source1 = Source()
+        source2 = Source()
+        source2.callback(Source.signal, signals_registry)
+
+        resender = SignalResender(source1, source2, Source.signal)  # noqa: F841  # it must be so
+        source1.emit(Source.signal)  # source1 emitted, source2 re-emitted
+        assert(signals_registry.dump(True) == [
+            (source2, Source.signal, None),
+        ])
+
+    def test_weak(
+        self,
+        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+
+        class Source(SignalSource):
+            signal = Signal()
+
+        source1 = Source()
+        source2 = Source()
+        source2.callback(Source.signal, signals_registry)
+
+        resender = SignalResender(source1, source2, Source.signal, weak_target=True)  # noqa: F841  # it must be so
+        del source2
+        gc.collect()
+        source1.emit(Source.signal)  # source1 emitted, source2 re-emitted
+        assert(signals_registry.dump(True) == [])
