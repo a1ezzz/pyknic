@@ -40,7 +40,7 @@ class BoundedCallback:
         self.__callback_self = weakref.ref(
             callback.__self__  # type: ignore[attr-defined]  # callback may have __self__
         )
-        self.__callback = callback.__func__
+        self.__callback = callback.__func__  # type: ignore[attr-defined]  # callback may have __func__
 
     def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
         """ Execute original function

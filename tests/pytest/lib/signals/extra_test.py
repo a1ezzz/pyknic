@@ -48,19 +48,19 @@ class TestBoundedCallback:
     def test_private_method(
         self,
         callbacks_registry: 'CallbackRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ):
+    ) -> None:
         class Source(SignalSource):
             signal = Signal()
 
         class Callback:
 
-            def __init__(self):
+            def __init__(self) -> None:
                 self.__bounded_callback = BoundedCallback(self.__callback)
 
             def __callback(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
                 callbacks_registry.callback('test_callback')()
 
-            def register(self, source: Source):
+            def register(self, source: Source) -> None:
                 source.callback(Source.signal, self.__bounded_callback)
 
         s = Source()
