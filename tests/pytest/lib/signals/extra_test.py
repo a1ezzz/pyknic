@@ -179,6 +179,29 @@ class TestSignalResender:
             (source2, Source.signal, None),
         ])
 
+    def test_different_signal(
+        self,
+        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ):
+
+        class Source1(SignalSource):
+            signal = Signal()
+
+        class Source2(SignalSource):
+            signal = Signal()
+
+        source1 = Source1()
+        source2 = Source2()
+        source2.callback(Source2.signal, signals_registry)
+
+        resender = SignalResender(  # noqa: F841  # it must be so
+            source1, source2, Source1.signal, target_signal=Source2.signal
+        )
+        source1.emit(Source1.signal)  # source1 emitted, source2 re-emitted
+        assert(signals_registry.dump(True) == [
+            (source2, Source2.signal, None),
+        ])
+
     def test_weak(
         self,
         signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue

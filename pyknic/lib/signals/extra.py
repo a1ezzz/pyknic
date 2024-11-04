@@ -125,17 +125,20 @@ class SignalResender:
         original_source: SignalSourceProto,
         target_source: SignalSourceProto,
         signal: Signal,
+        target_signal: typing.Optional[Signal] = None,
         weak_target: bool = False
     ):
         """ Create a callback that re-emits signal with a new origin
 
         :param original_source: source that originally emits signal
         :param target_source: source that will send signal as a new origin
-        :param signal: signal to resend
+        :param signal: signal to catch
+        :param target_signal: signal to send (if not defined then the "signal" value is used)
         :param weak_target: whether a target reference should be kept as a weak reference
         """
         self.__weak_target = weak_target
         self.__target_source = weakref.ref(target_source) if weak_target else target_source
+        self.__target_signal = target_signal
 
         original_source.callback(signal, self)
 
@@ -147,4 +150,5 @@ class SignalResender:
             target_src() if self.__weak_target else target_src  # type: ignore[operator, assignment]  # mypy issue
         )
         if target is not None:
-            target.emit(signal, value)
+            sig = self.__target_signal if self.__target_signal else signal
+            target.emit(sig, value)

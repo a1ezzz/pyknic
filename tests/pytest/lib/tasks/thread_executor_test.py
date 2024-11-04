@@ -5,7 +5,7 @@ import threading
 import pytest
 
 from pyknic.lib.tasks.thread_executor import ThreadExecutor
-from pyknic.lib.tasks.proto import TaskExecutorProto, TaskProto, NoSuchTaskError
+from pyknic.lib.tasks.proto import TaskExecutorProto, TaskProto, NoSuchTaskError, TaskResult
 
 
 class TestThreadExecutor:
@@ -84,3 +84,24 @@ class TestThreadExecutor:
 
         assert(len(executor) == 0)
         assert(set(executor.tasks()) == set())
+
+    def test_signals(
+        self,
+        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+        task = TestThreadExecutor.Task()
+
+        executor = ThreadExecutor()
+        executor.callback(ThreadExecutor.task_completed, signals_registry)
+        executor.submit_task(task)
+
+        task.stop()
+
+        while not executor.join_threads():
+            time.sleep(0.1)
+
+        assert(
+            signals_registry.dump(True) == [
+                (executor, ThreadExecutor.task_completed, TaskResult(None, exception=None)),
+            ]
+        )

@@ -19,20 +19,32 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-
 import typing
+
+from dataclasses import dataclass
 
 from pyknic.lib.verify import verify_value
 from pyknic.lib.thread import CriticalResource
+from pyknic.lib.signals.proto import Signal
+from pyknic.lib.signals.source import SignalSource
+from pyknic.lib.signals.extra import SignalResender
 
-from pyknic.lib.tasks.proto import TaskExecutorProto, TaskProto, NoSuchTaskError
+from pyknic.lib.tasks.proto import TaskExecutorProto, TaskProto, NoSuchTaskError, TaskResult
 from pyknic.lib.tasks.threaded_task import ThreadedTask
 
 
-class ThreadExecutor(TaskExecutorProto, CriticalResource):
+class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
     """ The :class:`.TaskExecutorProto` class implementation, that executes tasks in dedicated threads
     """
+
+    task_completed = Signal(TaskResult)  # a result of completed task
+
+    @dataclass
+    class TaskDescriptor:
+        """ This descriptor is generated for each running task (the :class:`.TaskProto` object)
+        """
+        threaded_task: ThreadedTask         # a started thread
+        signal_resender_tc: SignalResender  # a callback object for signal resending
 
     @verify_value(threads_number=lambda x: x is None or x > 0)
     def __init__(
@@ -50,9 +62,11 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource):
         """
         TaskExecutorProto.__init__(self)
         CriticalResource.__init__(self, executor_cr_timeout)
+        SignalSource.__init__(self)
+
         self.__threads_number = threads_number
         self.__thread_cr_timeout = thread_cr_timeout
-        self.__running_threads: typing.Dict[TaskProto, ThreadedTask] = dict()
+        self.__running_threads: typing.Dict[TaskProto, ThreadExecutor.TaskDescriptor] = dict()
 
     @CriticalResource.critical_section
     def __len__(self) -> int:
@@ -65,8 +79,8 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource):
         """ Try to "join" threads that are ready and forget about them
         """
         ready_threads = set()
-        for task, threaded_task in self.__running_threads.items():
-            if threaded_task.join():
+        for task, descriptor in self.__running_threads.items():
+            if descriptor.threaded_task.join():
                 ready_threads.add(task)
 
         for i in ready_threads:
@@ -85,7 +99,12 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource):
 
         threaded_task = ThreadedTask(task, self.__thread_cr_timeout)
         threaded_task.start()
-        self.__running_threads[task] = threaded_task
+        self.__running_threads[task] = ThreadExecutor.TaskDescriptor(
+            threaded_task,
+            SignalResender(
+                threaded_task, self, ThreadedTask.task_completed, target_signal=ThreadExecutor.task_completed
+            )
+        )
         return True
 
     @CriticalResource.critical_section
@@ -115,7 +134,7 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource):
         if task not in self.__running_threads:
             raise NoSuchTaskError(f"Unable to find a task -- {task}")
 
-        threaded_task = self.__running_threads[task]
+        threaded_task = self.__running_threads[task].threaded_task
         getattr(threaded_task, stop_method)()
 
     @CriticalResource.critical_section
@@ -125,7 +144,7 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource):
         if task not in self.__running_threads:
             raise NoSuchTaskError(f"Unable to find a task -- {task}")
 
-        threaded_task = self.__running_threads[task]
+        threaded_task = self.__running_threads[task].threaded_task
         if threaded_task.join():
             self.__running_threads.pop(task)
             return True
