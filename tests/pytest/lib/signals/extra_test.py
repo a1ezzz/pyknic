@@ -11,8 +11,10 @@ from pyknic.lib.signals.extra import BoundedCallback, CallbackWrapper, SignalRes
 
 class TestBoundedCallback:
 
-    def test(self) -> None:
-        results = []
+    def test(
+        self,
+        callbacks_registry: 'CallbackRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
 
         class Source(SignalSource):
             signal1 = Signal()
@@ -20,8 +22,7 @@ class TestBoundedCallback:
         class A:
 
             def callback(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
-                nonlocal results
-                results.append((source, signal, value))
+                callbacks_registry.callback('test_callback')()
 
         s = Source()
 
@@ -30,19 +31,48 @@ class TestBoundedCallback:
         # since 'A()' will be collected
         gc.collect()
         s.emit(Source.signal1)
-        assert (results == [])
+        assert(callbacks_registry.calls('test_callback') == 0)
 
         a = A()
         b = BoundedCallback(a.callback)
         s.callback(Source.signal1, b)  # this is ok totally
         gc.collect()
         s.emit(Source.signal1)
-        assert (results == [(s, Source.signal1, None)])
+        assert(callbacks_registry.calls('test_callback') == 1)
 
         del a
         gc.collect()
         s.emit(Source.signal1)
-        assert (results == [(s, Source.signal1, None)])
+        assert(callbacks_registry.calls('test_callback') == 1)
+
+    def test_private_method(
+        self,
+        callbacks_registry: 'CallbackRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ):
+        class Source(SignalSource):
+            signal = Signal()
+
+        class Callback:
+
+            def __init__(self):
+                self.__bounded_callback = BoundedCallback(self.__callback)
+
+            def __callback(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+                callbacks_registry.callback('test_callback')()
+
+            def register(self, source: Source):
+                source.callback(Source.signal, self.__bounded_callback)
+
+        s = Source()
+        c = Callback()
+        c.register(s)
+        s.emit(Source.signal)
+        assert(callbacks_registry.calls('test_callback') == 1)
+
+        del c
+        gc.collect()
+        s.emit(Source.signal)
+        assert(callbacks_registry.calls('test_callback') == 1)
 
 
 class TestCallbackWrapper:
@@ -182,7 +212,7 @@ class TestSignalResender:
     def test_different_signal(
         self,
         signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ):
+    ) -> None:
 
         class Source1(SignalSource):
             signal = Signal()

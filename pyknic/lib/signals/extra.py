@@ -31,8 +31,7 @@ class BoundedCallback:
     """ This class allows to use a bounded method as a signal callback
     """
 
-    @verify_value(callback=lambda x: hasattr(x, '__self__'))
-    @verify_value(callback=lambda x: getattr(x.__self__, x.__name__) == x)
+    @verify_value(callback=lambda x: hasattr(x, '__self__') and hasattr(x, '__func__'))
     def __init__(self, callback: SignalCallbackType):
         """ Create a bounded callback
 
@@ -41,15 +40,14 @@ class BoundedCallback:
         self.__callback_self = weakref.ref(
             callback.__self__  # type: ignore[attr-defined]  # callback may have __self__
         )
-        self.__callback_name = callback.__name__
+        self.__callback = callback.__func__
 
     def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
         """ Execute original function
         """
         s = self.__callback_self()
         if s:
-            callback = getattr(s, self.__callback_name)
-            callback(source, signal, value)
+            self.__callback(s, source, signal, value)
 
 
 class CallbackWrapper:
