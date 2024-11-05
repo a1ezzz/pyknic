@@ -219,3 +219,19 @@ class TestSchedulerPostponeQueue:
         assert(queue.next_record(lambda x: x.group_id() == 'group2') is None)
         assert(queue.next_record() is record1)
         assert(queue.next_record() is None)
+
+    def test_len(self):
+        queue = SchedulerQueue()
+        task = PlainTask(lambda: None)
+        assert(len(queue) == 0)
+
+        record1 = ScheduleRecord(task, group_id='group1')
+        record2 = ScheduleRecord(task, group_id='group2')
+        queue.postpone(record1)
+        queue.postpone(record2)
+        assert(len(queue) == 2)
+
+        queue.next_record()
+        assert(len(queue) == 1)
+        queue.next_record()
+        assert(len(queue) == 0)

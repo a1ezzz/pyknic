@@ -45,6 +45,11 @@ class SchedulerQueue(SignalSource):
         SignalSource.__init__(self)
         self.__postponed_records: typing.List[ScheduleRecordProto] = []
 
+    def __len__(self) -> int:
+        """ Return number of postponed tasks
+        """
+        return len(self.__postponed_records)
+
     def __drop_all(self, group_id: str) -> None:
         """ Drop from a queue all record with the specified group_id
 
