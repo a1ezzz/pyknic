@@ -7,6 +7,7 @@ import typing
 
 import pytest
 
+from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.tasks.proto import TaskProto, TaskResult, TaskStartError
 from pyknic.lib.tasks.threaded_task import ThreadedTask
 
@@ -66,6 +67,23 @@ class TestThreadTask:
 
         assert(signals_registry.dump(True) == [
             (task, TaskProto.task_started, None),
+        ])
+
+    def test_complete_event(
+        self,
+        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+        plain_task = PlainTask(lambda: None)
+        task = ThreadedTask(plain_task)
+        task.callback(TaskProto.task_completed, signals_registry)
+        task.callback(ThreadedTask.thread_ready, signals_registry)
+
+        task.start()
+        task.wait()
+
+        assert(signals_registry.dump(True) == [
+            (task, ThreadedTask.thread_ready, plain_task),
+            (task, TaskProto.task_completed, TaskResult())
         ])
 
     def test_stop(self) -> None:

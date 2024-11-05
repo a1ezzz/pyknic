@@ -220,7 +220,7 @@ class TestSchedulerPostponeQueue:
         assert(queue.next_record() is record1)
         assert(queue.next_record() is None)
 
-    def test_len(self):
+    def test_len(self) -> None:
         queue = SchedulerQueue()
         task = PlainTask(lambda: None)
         assert(len(queue) == 0)

@@ -23,6 +23,7 @@ import threading
 import typing
 
 from pyknic.lib.capability import iscapable
+from pyknic.lib.signals.proto import Signal
 from pyknic.lib.tasks.proto import TaskProto, TaskResult, TaskStartError
 from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.thread import CriticalResource
@@ -31,6 +32,8 @@ from pyknic.lib.thread import CriticalResource
 class ThreadedTask(TaskProto, CriticalResource):
     """ This class helps to run a task in a separate thread
     """
+
+    thread_ready = Signal(TaskProto)  # signal is emitted when a thread is ready to join
 
     def __init__(self, task: TaskProto, cr_timeout: typing.Union[int, float, None] = None):
         """ Create a task that will start a thread
@@ -70,6 +73,7 @@ class ThreadedTask(TaskProto, CriticalResource):
             self.emit(self.task_completed, TaskResult(exception=e))
             return
 
+        self.emit(self.thread_ready, self.__task)
         self.emit(self.task_completed, TaskResult())
 
     @CriticalResource.critical_section
