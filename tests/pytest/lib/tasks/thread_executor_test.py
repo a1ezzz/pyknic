@@ -70,6 +70,24 @@ class TestThreadExecutor:
 
         thread.join()
 
+    def test_awaited_w_timeout_join(self) -> None:
+        task = TestThreadExecutor.Task()
+        executor = ThreadExecutor()
+        assert (executor.submit_task(task) is True)
+
+        def thread_fn() -> None:
+            nonlocal task
+            time.sleep(0.5)
+            task.stop()
+
+        thread = threading.Thread(target=thread_fn)
+        thread.start()
+
+        executor.wait_task(task, timeout=100)
+        executor.complete_task(task)
+
+        thread.join()
+
     def test_threads_number(self) -> None:
         task1 = TestThreadExecutor.Task()
         task2 = TestThreadExecutor.Task()

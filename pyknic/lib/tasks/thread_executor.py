@@ -23,6 +23,9 @@ import threading
 import types
 import typing
 
+from pyknic.lib.signals.extra import SignalResender
+from pyknic.lib.signals.proto import Signal
+from pyknic.lib.signals.source import SignalSource
 from pyknic.lib.thread import CriticalResource
 from pyknic.lib.verify import verify_value
 
@@ -31,12 +34,16 @@ from pyknic.lib.tasks.threaded_task import ThreadedTask
 
 
 class NoFreeSlotError(Exception):
+    """ This exception is raised when there is no free slots available
+    """
     pass
 
 
-class ThreadExecutor(TaskExecutorProto, CriticalResource):
+class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
     """ The :class:`.TaskExecutorProto` class implementation, that executes tasks in dedicated threads
     """
+
+    task_completed = Signal(TaskProto)  # this signal is emitted when a task is about to complete
 
     class Context:
         """ A context that is allocated with a free slot in a pool
@@ -97,26 +104,34 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource):
         """ Create a new executor
 
         :param threads_number: if defined then this is a maximum number of concurrent running tasks
-        :param executor_cr_timeout: TODO: add description!
+        :param executor_cr_timeout: this timeout for accessing internal critical resources
         :param thread_cr_timeout: a timeout with which an :class:`.ThreadedTask` object will be created (the same
         as the cr_timeout in the ::meth:`.ThreadedTask.__init__` method)
         """
         TaskExecutorProto.__init__(self)
         CriticalResource.__init__(self, executor_cr_timeout)
+        SignalSource.__init__(self)
 
         self.__threads_semaphore = threading.Semaphore(threads_number) if threads_number else None
         self.__thread_cr_timeout = thread_cr_timeout
 
         self.__running_threads: typing.Dict[TaskProto, ThreadedTask] = dict()
 
+        self.__signal_resender = SignalResender(self, target_signal=ThreadExecutor.task_completed)
+
     def __submit_task(self, task: TaskProto) -> ThreadedTask:
         """ Try to start a task
+
+        :param task: a task to start
         """
         result = ThreadedTask(task, self.__thread_cr_timeout)
+
         with self.critical_context():
             if task in self.__running_threads:
                 raise TaskStartError('A task has been submitted already')
             self.__running_threads[task] = result
+
+        result.callback(ThreadedTask.thread_ready, self.__signal_resender)
         result.start()
         return result
 
@@ -138,6 +153,8 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource):
             return False
 
     def complete_task(self, task: TaskProto) -> bool:
+        """ The :meth:`.TaskExecutorProto.complete_task` implementation
+        """
         with self.critical_context():
             if task not in self.__running_threads:
                 raise NoSuchTaskError('Unable to find a task')
@@ -161,6 +178,8 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource):
         return ThreadExecutor.Context(self, self.__submit_task, self.__release_slot)
 
     def tasks(self) -> typing.Generator[TaskProto, None, None]:
+        """ Return started tasks
+        """
         with self.critical_context():
             tasks = list(self.__running_threads.keys())
 
@@ -168,6 +187,8 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource):
             yield i
 
     def wait_task(self, task: TaskProto, timeout: typing.Union[int, float, None] = None) -> bool:
+        """ The :meth:`.TaskExecutorProto.wait_task` implementation
+        """
         with self.critical_context():
             if task not in self.__running_threads:
                 raise NoSuchTaskError('Unable to find a task')
