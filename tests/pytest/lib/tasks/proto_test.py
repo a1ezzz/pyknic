@@ -4,12 +4,12 @@ import pytest
 
 from pyknic.lib.capability import iscapable, CapabilityDescriptor
 
-from pyknic.lib.tasks.proto import RequirementsLoopError, TaskStartError, TaskStopError, NoSuchTaskError, TaskProto
+from pyknic.lib.tasks.proto import TaskStartError, TaskStopError, NoSuchTaskError, TaskProto
 from pyknic.lib.tasks.proto import TaskResult, ScheduleRecordProto, SchedulerProto, ScheduledTaskPostponePolicy
+from pyknic.lib.tasks.proto import TaskExecutorProto
 
 
 def test_exceptions() -> None:
-    assert(issubclass(RequirementsLoopError, Exception) is True)
     assert(issubclass(TaskStartError, Exception) is True)
     assert(issubclass(TaskStopError, Exception) is True)
     assert(issubclass(NoSuchTaskError, Exception) is True)
@@ -25,6 +25,12 @@ def test_abstract() -> None:
     pytest.raises(TypeError, SchedulerProto)
     pytest.raises(NotImplementedError, SchedulerProto.subscribe, None, None)
     pytest.raises(NotImplementedError, SchedulerProto.unsubscribe, None, None)
+
+    pytest.raises(TypeError, TaskExecutorProto)
+    pytest.raises(NotImplementedError, TaskExecutorProto.submit_task, None, None)
+    pytest.raises(NotImplementedError, TaskExecutorProto.complete_task, None, None)
+    pytest.raises(NotImplementedError, TaskExecutorProto.wait_task, None, None, None)
+    pytest.raises(NotImplementedError, TaskExecutorProto.tasks, None)
 
 
 class TestTaskProto:

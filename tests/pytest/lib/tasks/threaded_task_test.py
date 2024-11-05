@@ -2,13 +2,18 @@
 
 import functools
 import threading
+import time
+import typing
+
 import pytest
 
 from pyknic.lib.tasks.proto import TaskProto, TaskResult, TaskStartError
 from pyknic.lib.tasks.threaded_task import ThreadedTask
 
 
-def sample_function(event: threading.Event) -> threading.Event:
+def sample_function(event: threading.Event, start_event: typing.Optional[threading.Event] = None) -> threading.Event:
+    if start_event:
+        start_event.set()
     event.wait()
     return event
 
@@ -21,6 +26,31 @@ class TestThreadTask:
         task.start()
         event.set()
         task.wait()
+
+    def test_wait_w_timeout(self) -> None:
+        event = threading.Event()
+        task = ThreadedTask.plain_task(functools.partial(sample_function, event))
+        task.start()
+        event.set()
+        task.wait(100)
+
+    def test_join(self) -> None:
+        start_event = threading.Event()
+        stop_event = threading.Event()
+
+        task = ThreadedTask.plain_task(functools.partial(sample_function, stop_event, start_event))
+        assert(task.join() is True)
+
+        task.start()
+        start_event.wait()
+        assert(task.join() is False)
+
+        stop_event.set()
+
+        while not task.join():  # this loop is a test itself =)
+            time.sleep(0.1)
+
+        assert(task.join() is True)
 
     def test_start_event(
         self,

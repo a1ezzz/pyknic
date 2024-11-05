@@ -19,9 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
-
 import enum
 import typing
 
@@ -32,12 +29,6 @@ from pyknic.lib.x_mansion import CapabilitiesAndSignals
 from pyknic.lib.signals.proto import Signal
 from pyknic.lib.signals.source import SignalSource
 from pyknic.lib.capability import capability
-
-
-class RequirementsLoopError(Exception):
-    """ This exception is raised when there is an attempt to start/stop tasks with mutual dependencies
-    """
-    pass
 
 
 class TaskStartError(Exception):
@@ -216,23 +207,33 @@ class TaskExecutorProto(metaclass=ABCMeta):
         raise NotImplementedError('This method is abstract')
 
     @abstractmethod
+    def complete_task(self, task: TaskProto) -> bool:
+        """ Should be called for every successfully submitted task in order to finalize it
+
+        :param task: task to finalize
+        :return: True if a task is finalized successfully or return False otherwise
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @abstractmethod
+    def wait_task(
+        self,
+        task: TaskProto,
+        timeout: typing.Union[int, float, None] = None
+    ) -> bool:
+        """ Wait for a task completion
+
+        :param task: a successfully submitted task to wait
+        :param timeout: defines whether this function should be called in a blocking manner (and for how long)
+        If value is None then this function will wait forever, if value is negative or zero, then this function will
+        poll current state, otherwise -- number of seconds to wait for
+
+        :return: return True if the task is completed and return False otherwise
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @abstractmethod
     def tasks(self) -> typing.Generator[TaskProto, None, None]:
         """ Return generator that yields currently running tasks
-        """
-        raise NotImplementedError('This method is abstract')
-
-    @abstractmethod
-    def stop_task(self, task: TaskProto) -> None:
-        """ Try to request a task to stop
-
-        :param task: a task to stop
-        """
-        raise NotImplementedError('This method is abstract')
-
-    @abstractmethod
-    def terminate_task(self, task: TaskProto) -> None:
-        """ Try to request a task to terminate
-
-        :param task: a task to terminate
         """
         raise NotImplementedError('This method is abstract')
