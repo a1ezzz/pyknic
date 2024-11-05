@@ -115,30 +115,33 @@ class CallbackWrapper:
 
 
 class SignalResender:
-    """ This class helps to resend signals with a new origin
+    """ This class helps to resend signals with a new origin (and/or signal and/or value =) )
     """
 
     def __init__(
         self,
-        original_source: SignalSourceProto,
         target_source: SignalSourceProto,
-        signal: Signal,
         target_signal: typing.Optional[Signal] = None,
-        weak_target: bool = False
+        weak_target: bool = False,
+        value_converter: typing.Optional[typing.Callable[[SignalSourceProto, Signal, typing.Any], typing.Any]] = None
     ):
         """ Create a callback that re-emits signal with a new origin
 
-        :param original_source: source that originally emits signal
         :param target_source: source that will send signal as a new origin
-        :param signal: signal to catch
-        :param target_signal: signal to send (if not defined then the "signal" value is used)
+        :param target_signal: signal to send (if not defined then the emitted "signal" will be reused)
         :param weak_target: whether a target reference should be kept as a weak reference
+        :param value_converter: this callback (if defined) will translate received signal to a signal's value
+        that will be used
         """
         self.__weak_target = weak_target
         self.__target_source = weakref.ref(target_source) if weak_target else target_source
         self.__target_signal = target_signal
+        self.__converter = value_converter if value_converter else self.__default_converter
 
-        original_source.callback(signal, self)
+    def __default_converter(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> typing.Any:
+        """ Default converter that returns value as is
+        """
+        return value
 
     def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
         """ A callback that to the job
@@ -149,4 +152,4 @@ class SignalResender:
         )
         if target is not None:
             sig = self.__target_signal if self.__target_signal else signal
-            target.emit(sig, value)
+            target.emit(sig, self.__converter(source, signal, value))

@@ -173,7 +173,7 @@ class QueueProxy(SignalProxy, TaskProto):
 
         self.__start_once_lock = threading.Lock()
         self.__stop_once_lock = threading.Lock()
-        self.__started_thread = None
+        self.__started_thread: typing.Optional[threading.Thread] = None
         self.__stop_event = threading.Event()
         self.__flash_flush = flash_flush
 

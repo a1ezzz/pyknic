@@ -203,7 +203,8 @@ class TestSignalResender:
         source2 = Source()
         source2.callback(Source.signal, signals_registry)
 
-        resender = SignalResender(source1, source2, Source.signal)  # noqa: F841  # it must be so
+        resender = SignalResender(source2)
+        source1.callback(Source.signal, resender)
         source1.emit(Source.signal)  # source1 emitted, source2 re-emitted
         assert(signals_registry.dump(True) == [
             (source2, Source.signal, None),
@@ -224,9 +225,8 @@ class TestSignalResender:
         source2 = Source2()
         source2.callback(Source2.signal, signals_registry)
 
-        resender = SignalResender(  # noqa: F841  # it must be so
-            source1, source2, Source1.signal, target_signal=Source2.signal
-        )
+        resender = SignalResender(source2, target_signal=Source2.signal)
+        source1.callback(Source1.signal, resender)
         source1.emit(Source1.signal)  # source1 emitted, source2 re-emitted
         assert(signals_registry.dump(True) == [
             (source2, Source2.signal, None),
@@ -244,8 +244,36 @@ class TestSignalResender:
         source2 = Source()
         source2.callback(Source.signal, signals_registry)
 
-        resender = SignalResender(source1, source2, Source.signal, weak_target=True)  # noqa: F841  # it must be so
+        resender = SignalResender(source2, Source.signal, weak_target=True)  # noqa: F841  # it must be so
+        source1.callback(Source.signal, resender)
         del source2
         gc.collect()
         source1.emit(Source.signal)  # source1 emitted, source2 re-emitted
         assert(signals_registry.dump(True) == [])
+
+    def test_value_converter(
+        self,
+        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+        class Source1(SignalSource):
+            signal = Signal()
+
+        class Source2(SignalSource):
+            signal = Signal(SignalSourceProto)
+
+        source1 = Source1()
+        source2 = Source2()
+        source2.callback(Source2.signal, signals_registry)
+
+        def value_converter(source: SignalSourceProto, signal: Signal, value: typing.Any) -> typing.Any:
+            return source
+
+        resender = SignalResender(  # noqa: F841  # it must be so
+            source2, Source2.signal, weak_target=True, value_converter=value_converter
+        )
+        source1.callback(Source1.signal, resender)
+
+        source1.emit(Source1.signal)
+        assert(signals_registry.dump(True) == [
+            (source2, Source2.signal, source1),
+        ])
