@@ -235,3 +235,18 @@ class TestQueueProxy:
 
         with pytest.raises(QueueProxyStateError):
             queue_proxy.start()
+
+    def test_is_inside(self) -> None:
+        queue_proxy = QueueProxy()
+        threaded_task = ThreadedTask(queue_proxy)
+        threaded_task.start()
+
+        def callback() -> object:
+            nonlocal queue_proxy
+            return queue_proxy.is_inside()
+
+        assert(queue_proxy.exec(callback, blocking=True) is True)
+        assert(callback() is False)
+
+        threaded_task.stop()
+        threaded_task.join()

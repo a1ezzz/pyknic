@@ -173,7 +173,7 @@ class QueueProxy(SignalProxy, TaskProto):
 
         self.__start_once_lock = threading.Lock()
         self.__stop_once_lock = threading.Lock()
-        self.__started = False
+        self.__started_thread = None
         self.__stop_event = threading.Event()
         self.__flash_flush = flash_flush
 
@@ -190,7 +190,7 @@ class QueueProxy(SignalProxy, TaskProto):
         :param timeout: timeout with which a result should be awaited. This parameter takes effect only when
         the "blocking" parameter is True
         """
-        if not self.__started or self.__stop_event.is_set():
+        if self.__started_thread is None or self.__stop_event.is_set():
             raise QueueProxyStateError(
                 'The "exec" method of the QueueProxy class may be called only if the QueueProxy is running'
             )
@@ -225,15 +225,15 @@ class QueueProxy(SignalProxy, TaskProto):
     def is_running(self) -> bool:
         """ Return True if this queue is running and may accept items and return False otherwise
         """
-        return self.__started and not self.__stop_event.is_set()
+        return self.__started_thread is not None and not self.__stop_event.is_set()
 
     def start(self) -> None:
         """ The :meth:`.TaskProto.start` method implementation
         """
         with self.__start_once_lock:
-            if self.__started:
+            if self.__started_thread is not None:
                 raise QueueProxyStateError("Unable to start QueueProxy twice")
-            self.__started = True
+            self.__started_thread = threading.current_thread()
 
         while not self.__stop_event.is_set():
             next_callback = self.__queue.get()
@@ -247,7 +247,7 @@ class QueueProxy(SignalProxy, TaskProto):
         """
 
         with self.__start_once_lock:
-            if not self.__started:
+            if self.__started_thread is None:
                 raise QueueProxyStateError("QueueProxy hasn't started yet")
 
         lock_acquire = self.__stop_once_lock.acquire(False)
@@ -257,3 +257,11 @@ class QueueProxy(SignalProxy, TaskProto):
             self.__queue.join()
         else:
             raise QueueProxyStateError("QueueProxy can not br stopped twice")
+
+    def is_inside(self) -> bool:
+        """ This method helps to find whether current stack is inside started queue or not
+
+        :return: return True if this function is called from the same thread as original :meth:`.QueueProxy.start`
+        method is running
+        """
+        return self.__started_thread is threading.current_thread()
