@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import threading
 import typing
 
 from abc import ABCMeta
@@ -76,8 +77,10 @@ class SignalSource(SignalSourceProto, metaclass=SignalSourceMeta):
     def __init__(self) -> None:
         """ Create new signal source
         """
-
         SignalSourceProto.__init__(self)
+
+        self.__lock = threading.Lock()
+
         self.__callbacks: typing.Dict[Signal, WeakSet[SignalCallbackType]] = {
             x: WeakSet() for x in self.__class__.__pyknic_signals__  # type: ignore[attr-defined] # metaclass and mypy
         }
@@ -86,7 +89,8 @@ class SignalSource(SignalSourceProto, metaclass=SignalSourceMeta):
         """ :meth:`.SignalSourceProto.emit` implementation
         """
         try:
-            callbacks = self.__callbacks[signal]
+            with self.__lock:
+                callbacks = self.__callbacks[signal].copy()
         except KeyError:
             raise UnknownSignalException('Unknown signal emitted')
 
@@ -102,7 +106,9 @@ class SignalSource(SignalSourceProto, metaclass=SignalSourceMeta):
         try:
             if hasattr(callback, '__self__') and not isclass(callback.__self__):
                 raise ValueError('Bounded methods are unsupported')  # since they are discarded by gc
-            self.__callbacks[signal].add(callback)
+
+            with self.__lock:
+                self.__callbacks[signal].add(callback)
         except KeyError:
             raise UnknownSignalException('Unknown signal subscribed')
 
@@ -111,6 +117,7 @@ class SignalSource(SignalSourceProto, metaclass=SignalSourceMeta):
         """
         try:
             callbacks = self.__callbacks[signal]
-            callbacks.remove(callback)
+            with self.__lock:
+                callbacks.remove(callback)
         except KeyError:
             raise UnknownSignalException('Signal does not have the specified callback')
