@@ -199,7 +199,7 @@ class CronSchedule:
     ) -> typing.Generator[int, None, None]:
         """ Internal generator that iterates over time
         """
-        if cron_spec:
+        if cron_spec is not None:
             if start_time <= cron_spec:
                 yield cron_spec
             return
