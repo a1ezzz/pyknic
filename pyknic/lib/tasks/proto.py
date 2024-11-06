@@ -156,14 +156,6 @@ class ScheduleSourceProto(SignalSource):
     task_scheduled = Signal(ScheduleRecordProto)   # a new task should be started
 
 
-@dataclass
-class ScheduledTaskResult:
-    """ This class is used by scheduler signal defining a result of a completed record
-    """
-    record: ScheduleRecordProto  # completed record
-    task_result: TaskResult      # a result of completed record
-
-
 # noinspection PyAbstractClass
 class SchedulerProto(SignalSource):
     """ Represent a scheduler. A class that is able to execute tasks (:class:`.ScheduleRecordProto`) scheduled
@@ -175,7 +167,7 @@ class SchedulerProto(SignalSource):
     scheduled_task_postponed = Signal(ScheduleRecordProto)  # a scheduled task dropped and will start later
     scheduled_task_expired = Signal(ScheduleRecordProto)    # a scheduled task dropped because of expired ttl
     scheduled_task_started = Signal(ScheduleRecordProto)    # a scheduled task started
-    scheduled_task_completed = Signal(ScheduledTaskResult)  # a scheduled task completed
+    scheduled_task_completed = Signal(ScheduleRecordProto)  # a scheduled task completed
 
     @abstractmethod
     def subscribe(self, schedule_source: ScheduleSourceProto) -> None:
