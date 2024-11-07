@@ -186,10 +186,14 @@ class SchedulerExecutor(SignalSource):
         except NoFreeSlotError:
             self.__postpone(record)
 
-    def submit(self, record: ScheduleRecordProto) -> None:
+    def submit(self, record: ScheduleRecordProto, blocking: bool = False) -> None:
         """ Try to execute a record or try to postpone it
+
+        :param record: a record to run
+        :param blocking: whether we should wait for result or not (a queue thread may be deadlocked because
+        of the True value)
         """
-        self.__proxy.exec(functools.partial(self.__submit, record), blocking=True)
+        self.__proxy.exec(functools.partial(self.__submit, record), blocking=blocking)
 
     def queue_proxy(self) -> QueueProxy:
         """ Return internal proxy

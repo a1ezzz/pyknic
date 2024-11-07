@@ -79,6 +79,34 @@ class SignalsRegistry:
         return result
 
 
+class SignalWatcher:
+
+    def __init__(self) -> None:
+        self.__event = threading.Event()
+        self.__signal_desc: typing.Optional[typing.Tuple[SignalSourceProto, Signal]] = None
+
+    def __call__(self, signal_source: SignalSourceProto, signal: Signal, signal_value: typing.Any) -> None:
+        self.__event.set()
+
+    def init(self, source: SignalSourceProto, signal: Signal) -> None:
+        assert(not self.__signal_desc)
+        self.__event.clear()
+        source.callback(signal, self)
+        self.__signal_desc = (source, signal)
+
+    def reset(self) -> None:
+        if self.__signal_desc:
+            self.__signal_desc[0].remove_callback(self.__signal_desc[1], self)
+            self.__signal_desc = None
+
+    def wait(self, timeout: typing.Union[int, float]) -> None:
+        try:
+            if not self.__event.wait(timeout):
+                raise TimeoutError('Unable to receive a signal in time')
+        finally:
+            self.reset()
+
+
 @pytest.fixture
 def callbacks_registry(request: pytest.FixtureRequest) -> CallbackRegistry:
     return CallbackRegistry()
@@ -87,3 +115,8 @@ def callbacks_registry(request: pytest.FixtureRequest) -> CallbackRegistry:
 @pytest.fixture
 def signals_registry(request: pytest.FixtureRequest) -> SignalsRegistry:
     return SignalsRegistry()
+
+
+@pytest.fixture
+def signal_watcher() -> SignalWatcher:
+    return SignalWatcher()
