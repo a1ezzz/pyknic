@@ -110,7 +110,11 @@ class SignalSource(SignalSourceProto, metaclass=SignalSourceMeta):
             with self.__lock:
                 self.__callbacks[signal].add(callback)
         except KeyError:
-            raise UnknownSignalException('Unknown signal subscribed')
+            valid_signals = ', '.join([str(x) for x in self.__callbacks.keys()])
+            cls_name = self.__class__.__name__
+            raise UnknownSignalException(
+                f'Unknown signal subscribed -- {signal} (class -- {cls_name}). Valid signals are: {valid_signals}'
+            )
 
     def remove_callback(self, signal: Signal, callback: SignalCallbackType) -> None:
         """ :meth:`.SignalSourceProto.remove_callback` implementation
