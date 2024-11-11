@@ -141,6 +141,7 @@ class SchedulerExecutor(SignalSource):
         task = record.task()
         self.__tasks[task].state = SchedulerExecutor.TaskState.started
         context.submit_task(task)
+        self.emit(SchedulerExecutor.scheduled_task_started, record)
 
     def __postpone(self, record: ScheduleRecordProto) -> None:
         """ This callback postpones or drops a record

@@ -23,11 +23,12 @@ import functools
 import typing
 import weakref
 
+from pyknic.lib.capability import iscapable
 from pyknic.lib.signals.proto import Signal, SignalSourceProto, SignalCallbackType
 from pyknic.lib.signals.extra import BoundedCallback, SignalResender
 from pyknic.lib.verify import verify_value
 
-from pyknic.lib.tasks.proto import SchedulerProto, ScheduleSourceProto, TaskProto
+from pyknic.lib.tasks.proto import SchedulerProto, ScheduleSourceProto, TaskProto, SchedulerFeedback, TaskStopError
 
 from pyknic.lib.tasks.scheduler.scheduler_executor import SchedulerExecutor
 
@@ -95,6 +96,8 @@ class Scheduler(SchedulerProto, TaskProto):
 
         callback = self.__executor.queue_proxy().proxy(self.__task_scheduled_clbk)
         self.__sources_callbacks[schedule_source] = callback
+        if iscapable(schedule_source, ScheduleSourceProto.scheduler_feedback):
+            schedule_source.scheduler_feedback(self, SchedulerFeedback.source_subscribed)
         schedule_source.callback(ScheduleSourceProto.task_scheduled, callback)
 
     @verify_value(timeout=lambda x: x is None or x > 0)
@@ -117,6 +120,9 @@ class Scheduler(SchedulerProto, TaskProto):
         except KeyError:
             raise ValueError('Unknown source is requested to unsubscribe')
 
+        if iscapable(schedule_source, ScheduleSourceProto.scheduler_feedback):
+            schedule_source.scheduler_feedback(self, SchedulerFeedback.source_unsubscribed)
+
         schedule_source.remove_callback(ScheduleSourceProto.task_scheduled, callback)
 
     @verify_value(timeout=lambda x: x is None or x > 0)
@@ -137,16 +143,23 @@ class Scheduler(SchedulerProto, TaskProto):
         """
         assert(self.__executor.queue_proxy().is_inside())
 
-        for source, callback in self.__sources_callbacks.items():
+        for source, callback in self.__sources_callbacks.copy().items():
             if source:
-                source.remove_callback(ScheduleSourceProto.task_scheduled, callback)
-        self.__sources_callbacks.clear()
+                self.__unsubscribe(source)
 
     def stop(self) -> None:
         """ Stop this schedule
         """
         self.__executor.queue_proxy().exec(self.__unsubscribe_all, blocking=True)
         self.__executor.cancel_postponed_tasks()
-        # TODO: request current running tasks to stop
+        self.__executor.stop_running_tasks()
+
+        pending_tasks = self.__executor.pending_tasks()
+        running_tasks = self.__executor.running_tasks()
+
+        unstopped_tasks = len(pending_tasks + running_tasks)
+        if unstopped_tasks > 0:
+            raise TaskStopError(f'There is/are {unstopped_tasks} task(s) left running')  # or something better!
+
         self.__executor.await_tasks()
         self.__executor.queue_proxy().stop()

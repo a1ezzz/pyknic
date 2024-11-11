@@ -93,7 +93,7 @@ class TaskProto(CapabilitiesAndSignals):
 
 
 @enum.unique
-class ScheduledTaskPostponePolicy(enum.Flag):
+class ScheduledTaskPostponePolicy(enum.Enum):
     """ This is a policy that describes what should be done with a task if a scheduler won't be able to run
     it (like if the scheduler's limit of running tasks is reached).
     """
@@ -147,13 +147,31 @@ class ScheduleRecordProto(metaclass=ABCMeta):
         return ScheduledTaskPostponePolicy.wait
 
 
-class ScheduleSourceProto(SignalSource):
+@enum.unique
+class SchedulerFeedback(enum.Enum):
+    """ This enum flag is used along with the :meth:`.SchedulerProto.scheduler_feedback` method
+    """
+    source_subscribed = enum.auto()    # this flag shows that source in subscribed
+    source_unsubscribed = enum.auto()  # this flag shows that source in unsubscribed
+
+
+class ScheduleSourceProto(CapabilitiesAndSignals):
     """ This class may generate :class:`.ScheduleRecordProto` requests for a scheduler (:class:`.SchedulerProto`).
     This class decides what tasks and when should be run. When a time is come then this source emits
     a ScheduleSourceProto.task_scheduled signal
     """
 
     task_scheduled = Signal(ScheduleRecordProto)   # a new task should be started
+
+    @capability
+    def scheduler_feedback(self, scheduler: 'SchedulerProto', feedback: SchedulerFeedback) -> None:
+        """ This method is used with the :class:`.SchedulerProto` class to notify that this source is used
+        by the specified scheduler
+
+        :param scheduler: scheduler that notifies
+        :param feedback: scheduler's feedback event
+        """
+        raise NotImplementedError('The "stop" method is not supported')
 
 
 # noinspection PyAbstractClass

@@ -366,7 +366,7 @@ class TestSchedulerExecutor:
 
         class StoppableTask(TaskProto):
 
-            def __init__(self):
+            def __init__(self) -> None:
                 TaskProto.__init__(self)
                 self.event = threading.Event()
 

@@ -5,7 +5,8 @@ import typing
 
 import pytest
 
-from pyknic.lib.tasks.proto import SchedulerProto
+from pyknic.lib.tasks.proto import SchedulerProto, TaskStopError, TaskProto, SchedulerFeedback, ScheduleSourceProto
+from pyknic.lib.tasks.proto import ScheduledTaskPostponePolicy
 from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.tasks.threaded_task import ThreadedTask
 from pyknic.lib.tasks.scheduler.plain_sources import InstantTaskSource
@@ -29,6 +30,19 @@ class TestScheduler:
             syn = TestScheduler.SynCallback()
             source.schedule_record(ScheduleRecord(PlainTask(syn)))
             syn.event.wait()
+
+    class PendingTasks(TaskProto):
+        # TODO: it seams basic move this to conftest?!
+
+        def __init__(self) -> None:
+            TaskProto.__init__(self)
+            self.__event = threading.Event()
+
+        def start(self) -> None:
+            self.__event.wait()
+
+        def stop(self) -> None:
+            self.__event.set()
 
     def test(
         self,
@@ -74,6 +88,34 @@ class TestScheduler:
         threaded_scheduler.stop()
         threaded_scheduler.join()
 
+    def test_stop_exception(self) -> None:
+
+        class UnstoppableTask(TaskProto):
+
+            def __init__(self) -> None:
+                TaskProto.__init__(self)
+                self.event = threading.Event()
+
+            def start(self) -> None:
+                self.event.wait()
+
+        scheduler = Scheduler()
+        source = InstantTaskSource()
+        task = UnstoppableTask()
+
+        threaded_scheduler = ThreadedTask(scheduler)
+        threaded_scheduler.start()
+
+        scheduler.subscribe(source)
+        source.schedule_record(ScheduleRecord(task))
+
+        with pytest.raises(TaskStopError):
+            threaded_scheduler.stop()
+
+        task.event.set()
+        threaded_scheduler.stop()
+        threaded_scheduler.join()
+
     def test_signal_task_scheduled(
         self,
         signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
@@ -95,17 +137,133 @@ class TestScheduler:
         threaded_scheduler.stop()
         threaded_scheduler.join()
 
-    def test_signal_task_dropped(self) -> None:
-        pass
+    def test_feedback(
+        self,
+        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
 
-    def test_signal_task_postponed(self) -> None:
-        pass
+        class CustomSource(ScheduleSourceProto):
 
-    def test_signal_task_expired(self) -> None:
-        pass
+            def scheduler_feedback(self, scheduler: 'SchedulerProto', feedback: SchedulerFeedback) -> None:
+                if feedback == SchedulerFeedback.source_subscribed:
+                    callbacks_registry.callback('source-subscribed')()
+                elif feedback == SchedulerFeedback.source_unsubscribed:
+                    callbacks_registry.callback('source-unsubscribed')()
 
-    def test_signal_task_started(self) -> None:
-        pass
+        source = CustomSource()
+        scheduler = Scheduler()
+        threaded_scheduler = ThreadedTask(scheduler)
+        threaded_scheduler.start()
+        assert(callbacks_registry.calls("source-subscribed") == 0)
+        assert(callbacks_registry.calls("source-unsubscribed") == 0)
 
-    def test_signal_task_complete(self) -> None:
-        pass
+        scheduler.subscribe(source)
+        assert(callbacks_registry.calls("source-subscribed") == 1)
+        assert(callbacks_registry.calls("source-unsubscribed") == 0)
+
+        scheduler.unsubscribe(source)
+        assert(callbacks_registry.calls("source-subscribed") == 1)
+        assert(callbacks_registry.calls("source-unsubscribed") == 1)
+
+        threaded_scheduler.stop()
+        threaded_scheduler.join()
+
+    def test_signal_task_dropped(
+        self,
+        signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+        source = InstantTaskSource()
+        scheduler = Scheduler(1)
+        threaded_scheduler = ThreadedTask(scheduler)
+
+        scheduler.callback(SchedulerProto.scheduled_task_dropped, signal_watcher)
+        threaded_scheduler.start()
+        scheduler.subscribe(source)
+
+        source.schedule_record(ScheduleRecord(TestScheduler.PendingTasks()))
+        source.schedule_record(
+            ScheduleRecord(TestScheduler.PendingTasks(), postpone_policy=ScheduledTaskPostponePolicy.drop)
+        )
+        signal_watcher.wait(100)
+
+        threaded_scheduler.stop()
+        threaded_scheduler.join()
+
+    def test_signal_task_postponed(
+        self,
+        signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+        source = InstantTaskSource()
+        scheduler = Scheduler(1)
+        threaded_scheduler = ThreadedTask(scheduler)
+
+        scheduler.callback(SchedulerProto.scheduled_task_postponed, signal_watcher)
+        threaded_scheduler.start()
+        scheduler.subscribe(source)
+
+        source.schedule_record(ScheduleRecord(TestScheduler.PendingTasks()))
+        source.schedule_record(ScheduleRecord(TestScheduler.PendingTasks()))
+        signal_watcher.wait(100)
+
+        threaded_scheduler.stop()
+        threaded_scheduler.join()
+
+    def test_signal_task_expired(
+        self,
+        signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+        source = InstantTaskSource()
+        scheduler = Scheduler(1)
+        threaded_scheduler = ThreadedTask(scheduler)
+
+        scheduler.callback(SchedulerProto.scheduled_task_expired, signal_watcher)
+        threaded_scheduler.start()
+        scheduler.subscribe(source)
+
+        source.schedule_record(ScheduleRecord(TestScheduler.PendingTasks(), ttl=1))
+        signal_watcher.wait(100)
+
+        threaded_scheduler.stop()
+        threaded_scheduler.join()
+
+    def test_signal_task_started(
+        self,
+        signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+        source = InstantTaskSource()
+        scheduler = Scheduler(1)
+        threaded_scheduler = ThreadedTask(scheduler)
+
+        scheduler.callback(SchedulerProto.scheduled_task_started, signal_watcher)
+        threaded_scheduler.start()
+        scheduler.subscribe(source)
+
+        source.schedule_record(ScheduleRecord(TestScheduler.PendingTasks()))
+        signal_watcher.wait(100)
+
+        threaded_scheduler.stop()
+        threaded_scheduler.join()
+
+    def test_signal_task_complete(
+        self,
+        signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+    ) -> None:
+
+        class FastTask(TaskProto):
+
+            def start(self) -> None:
+                pass
+
+        source = InstantTaskSource()
+        scheduler = Scheduler(1)
+        threaded_scheduler = ThreadedTask(scheduler)
+
+        scheduler.callback(SchedulerProto.scheduled_task_completed, signal_watcher)
+        threaded_scheduler.start()
+        scheduler.subscribe(source)
+
+        source.schedule_record(ScheduleRecord(FastTask()))
+        signal_watcher.wait(100)
+
+        threaded_scheduler.stop()
+        threaded_scheduler.join()
