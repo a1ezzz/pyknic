@@ -355,3 +355,46 @@ class TestSchedulerExecutor:
         executor.await_tasks()
         threaded_queue.stop()
         threaded_queue.join()
+
+    @pytest.mark.parametrize(
+        "stop_method", [
+            "stop",
+            "terminate"
+        ]
+    )
+    def test_stop_running_tasks(self, stop_method: str) -> None:
+
+        class StoppableTask(TaskProto):
+
+            def __init__(self):
+                TaskProto.__init__(self)
+                self.event = threading.Event()
+
+                self.append_capability(getattr(TaskProto, stop_method), self.stop_func)
+
+            def start(self) -> None:
+                self.event.wait()
+
+            def stop_func(self) -> None:
+                self.event.set()
+
+        executor = SchedulerExecutor(1)
+        threaded_queue = ThreadedTask(executor.queue_proxy())
+        threaded_queue.start()
+
+        first_task = StoppableTask()
+        executor.submit(ScheduleRecord(first_task), blocking=True)
+        assert(first_task.event.is_set() is False)
+
+        second_task = StoppableTask()
+        executor.submit(ScheduleRecord(second_task), blocking=True)
+
+        assert(executor.running_tasks() == (first_task, ))
+        assert(executor.pending_tasks() == (second_task, ))
+
+        executor.stop_running_tasks()
+        assert(first_task.event.is_set() is True)
+
+        executor.await_tasks()
+        threaded_queue.stop()
+        threaded_queue.join()

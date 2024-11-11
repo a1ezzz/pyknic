@@ -26,6 +26,7 @@ import typing
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from pyknic.lib.capability import iscapable
 from pyknic.lib.tasks.proto import ScheduleRecordProto, TaskProto, ScheduledTaskPostponePolicy
 from pyknic.lib.tasks.scheduler.queue import SchedulerQueue
 from pyknic.lib.signals.proto import SignalSourceProto, Signal
@@ -234,7 +235,7 @@ class SchedulerExecutor(SignalSource):
 
         return True
 
-    def __cancel_tasks(self) -> None:
+    def __cancel_postponed_tasks(self) -> None:
         """ Cancel all the pending tasks
         """
         assert (self.__proxy.is_inside())
@@ -248,4 +249,55 @@ class SchedulerExecutor(SignalSource):
     def cancel_postponed_tasks(self) -> None:
         """ Request to cancel all the pending tasks
         """
-        self.__proxy.exec(self.__cancel_tasks, blocking=True)
+        self.__proxy.exec(self.__cancel_postponed_tasks, blocking=True)
+
+    def __stop_running_tasks(self) -> None:
+        """ Cancel all the pending tasks
+        """
+        assert(self.__proxy.is_inside())
+
+        for task in self.__tasks:
+            if iscapable(task, TaskProto.stop):
+                task.stop()
+            elif iscapable(task, TaskProto.terminate):
+                task.terminate()
+
+    def stop_running_tasks(self) -> None:
+        """ Request to cancel all the running tasks
+        """
+        self.__proxy.exec(self.__stop_running_tasks, blocking=True)
+
+    def __tasks_filter(
+        self,
+        filter_fn: typing.Callable[['SchedulerExecutor.TaskDescriptor'], bool]
+    ) -> typing.Tuple[TaskProto, ...]:
+        """ This method returns tasks which descriptors is suitable
+
+        :param filter_fn: filter function that checks descriptors, this function must return True
+        for every suitable task
+        """
+        assert(self.__proxy.is_inside())
+
+        return tuple((x for x, y in self.__tasks.items() if filter_fn(y)))
+
+    def running_tasks(self) -> typing.Tuple[TaskProto, ...]:
+        """ Return tasks that are running at the moment
+        """
+        return self.__proxy.exec(  # type: ignore[no-any-return]
+            functools.partial(
+                self.__tasks_filter,
+                lambda x: x.state == SchedulerExecutor.TaskState.started
+            ),
+            blocking=True
+        )
+
+    def pending_tasks(self) -> typing.Tuple[TaskProto, ...]:
+        """ Return tasks that are waiting for execution
+        """
+        return self.__proxy.exec(  # type: ignore[no-any-return]
+            functools.partial(
+                self.__tasks_filter,
+                lambda x: x.state != SchedulerExecutor.TaskState.started
+            ),
+            blocking=True
+        )
