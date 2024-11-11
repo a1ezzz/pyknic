@@ -34,13 +34,13 @@ class DatalogProto(metaclass=ABCMeta):
 
         :param record: data to update
         """
-        raise NotImplementedError('The "terminate" method is not supported')
+        raise NotImplementedError('This method is abstract')
 
     @abstractmethod
-    def iterate(self) -> typing.Generator[typing.Any, None, None]:
+    def iterate(self, reverse: bool = False) -> typing.Generator[typing.Any, None, None]:
         """ Return iterator that yields over saved data from the oldest one to a newer one
         """
-        raise NotImplementedError('The "terminate" method is not supported')
+        raise NotImplementedError('This method is abstract')
 
     @abstractmethod
     def truncate(self, min_length: int) -> None:
@@ -48,4 +48,4 @@ class DatalogProto(metaclass=ABCMeta):
 
         :param min_length: number of records in sequence to keep. Not less than this number of records will be kept
         """
-        raise NotImplementedError('The "terminate" method is not supported')
+        raise NotImplementedError('This method is abstract')
