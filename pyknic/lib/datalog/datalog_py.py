@@ -46,12 +46,15 @@ class DatalogPy(DatalogProto, CriticalResource):
         """
         self.__log.append(record)
 
-    def iterate(self) -> typing.Generator[typing.Any, None, None]:
+    def iterate(self, reverse: bool = False) -> typing.Generator[typing.Any, None, None]:
         """ The :meth:`.DatalogPy.iterate` method implementation
         """
 
         with self.critical_context():
             log_copy = self.__log.copy()
+
+        if reverse:
+            log_copy.reverse()
 
         for i in log_copy:
             yield i

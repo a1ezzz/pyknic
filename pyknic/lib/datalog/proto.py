@@ -39,6 +39,9 @@ class DatalogProto(metaclass=ABCMeta):
     @abstractmethod
     def iterate(self, reverse: bool = False) -> typing.Generator[typing.Any, None, None]:
         """ Return iterator that yields over saved data from the oldest one to a newer one
+
+        :param reverse: whether to return from the newer record to the oldest one (in case of True) and
+        return in default order otherwise
         """
         raise NotImplementedError('This method is abstract')
 

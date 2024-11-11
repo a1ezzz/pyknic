@@ -23,16 +23,25 @@ class TestDatalog:
         assert(isinstance(test_obj, DatalogProto) is True)
 
         seq = [1, True, "foo", ("bar", 0)]
+        reversed_seq = seq.copy()
+        reversed_seq.reverse()
+
         for i in seq:
             test_obj.append(i)
 
         assert(list(test_obj.iterate()) == seq)
+        assert(list(test_obj.iterate(reverse=True)) == reversed_seq)
 
         test_obj.truncate(3)
-        assert(list(test_obj.iterate()) == seq[-3:])
+        result = seq[-3:]
+        reversed_result = result.copy()
+        reversed_result.reverse()
+        assert(list(test_obj.iterate()) == result)
+        assert(list(test_obj.iterate(reverse=True)) == reversed_result)
 
         test_obj.truncate(0)
         assert(list(test_obj.iterate()) == list())
+        assert(list(test_obj.iterate(reverse=True)) == list())
 
     @pytest.mark.parametrize(
         "test_cls", [
