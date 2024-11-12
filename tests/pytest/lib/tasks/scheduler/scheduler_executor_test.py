@@ -2,8 +2,13 @@
 
 import threading
 import time
+import typing
 
 import pytest
+
+if typing.TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
+    from conftest import SampleTasks, CallbackRegistry, SignalsRegistry, SignalWatcher
 
 from datetime import datetime, timezone
 
@@ -22,7 +27,7 @@ class TestSchedulerExecutor:
 
         def __init__(
             self,
-            callback_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+            callback_registry: 'CallbackRegistry',
             callback_id: str
         ):
             TaskProto.__init__(self)
@@ -34,10 +39,7 @@ class TestSchedulerExecutor:
             self.event.wait()
             self.__callback_registry.callback(self.__callback_id)()
 
-    def test_plain(
-        self,
-        callbacks_registry: 'CallbackRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_plain(self, callbacks_registry: 'CallbackRegistry') -> None:
         executor = SchedulerExecutor()
         threaded_queue = ThreadedTask(executor.queue_proxy())
         record = ScheduleRecord(PlainTask(callbacks_registry.callback('test-callback')))
@@ -51,10 +53,7 @@ class TestSchedulerExecutor:
 
         assert(callbacks_registry.calls('test-callback') == 1)
 
-    def test_scheduler_limits(
-        self,
-        callbacks_registry: 'CallbackRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_scheduler_limits(self, callbacks_registry: 'CallbackRegistry') -> None:
 
         executor = SchedulerExecutor(2)
         threaded_queue = ThreadedTask(executor.queue_proxy())
@@ -88,21 +87,13 @@ class TestSchedulerExecutor:
         threaded_queue.stop()
         threaded_queue.join()
 
-    def test_outdated_ttl(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_outdated_ttl(self, signals_registry: 'SignalsRegistry', sample_tasks: 'SampleTasks') -> None:
         executor = SchedulerExecutor(1)
         threaded_queue = ThreadedTask(executor.queue_proxy())
         executor.callback(SchedulerExecutor.scheduled_task_expired, signals_registry)
         threaded_queue.start()
 
-        old_record = ScheduleRecord(
-            TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'),
-            ttl=1
-        )
-
+        old_record = ScheduleRecord(sample_tasks.LongRunningTask(), ttl=1)
         executor.submit(old_record, blocking=True)
 
         assert(signals_registry.dump(True) == [
@@ -113,29 +104,24 @@ class TestSchedulerExecutor:
         threaded_queue.stop()
         threaded_queue.join()
 
-    def test_expired_ttl(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_expired_ttl(self, signals_registry: 'SignalsRegistry', sample_tasks: 'SampleTasks') -> None:
         executor = SchedulerExecutor(1)
         threaded_queue = ThreadedTask(executor.queue_proxy())
         executor.callback(SchedulerExecutor.scheduled_task_expired, signals_registry)
         threaded_queue.start()
 
-        long_run_record = ScheduleRecord(TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'))
+        long_run_record = ScheduleRecord(sample_tasks.LongRunningTask())
         executor.submit(long_run_record, blocking=True)
 
         outdated_record = ScheduleRecord(
-            TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'),
-            ttl=(datetime.now(timezone.utc).timestamp() + 3)
+            sample_tasks.LongRunningTask(), ttl=(datetime.now(timezone.utc).timestamp() + 3)
         )
         executor.submit(outdated_record, blocking=True)
 
         assert(signals_registry.dump(True) == [])
         time.sleep(5)
-        long_run_record.task().event.set()  # type: ignore[attr-defined]  # test simplification
 
+        executor.stop_running_tasks()
         executor.await_tasks()
         threaded_queue.stop()
         threaded_queue.join()
@@ -144,92 +130,70 @@ class TestSchedulerExecutor:
             (executor, SchedulerExecutor.scheduled_task_expired, outdated_record),
         ])
 
-    def test_group_id_postpone(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_group_id_postpone(self, signals_registry: 'SignalsRegistry', sample_tasks: 'SampleTasks') -> None:
         executor = SchedulerExecutor(2)
         threaded_queue = ThreadedTask(executor.queue_proxy())
         executor.callback(SchedulerExecutor.scheduled_task_postponed, signals_registry)
         threaded_queue.start()
 
-        first_record = ScheduleRecord(
-            TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'),
-            group_id='test-group'
-        )
+        first_record = ScheduleRecord(sample_tasks.LongRunningTask(), group_id='test-group')
         executor.submit(first_record, blocking=True)
 
         assert(signals_registry.dump(True) == [])
 
-        second_record = ScheduleRecord(
-            TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'),
-            group_id='test-group',
-            simultaneous_runs=1
-        )
+        second_record = ScheduleRecord(sample_tasks.LongRunningTask(), group_id='test-group', simultaneous_runs=1)
         executor.submit(second_record, blocking=True)
 
         assert(signals_registry.dump(True) == [
             (executor, SchedulerExecutor.scheduled_task_postponed, second_record)
         ])
 
-        first_record.task().event.set()  # type: ignore[attr-defined]  # test simplification
-        second_record.task().event.set()  # type: ignore[attr-defined]  # test simplification
-
+        executor.cancel_postponed_tasks()
+        executor.stop_running_tasks()
         executor.await_tasks()
         threaded_queue.stop()
         threaded_queue.join()
 
         assert(signals_registry.dump(True) == [])
 
-    def test_postpone(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_postpone(self, signals_registry: 'SignalsRegistry', sample_tasks: 'SampleTasks') -> None:
         executor = SchedulerExecutor(1)
         threaded_queue = ThreadedTask(executor.queue_proxy())
         executor.callback(SchedulerExecutor.scheduled_task_postponed, signals_registry)
         threaded_queue.start()
 
-        first_record = ScheduleRecord(TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'))
+        first_record = ScheduleRecord(sample_tasks.LongRunningTask())
         executor.submit(first_record, blocking=True)
 
         assert(signals_registry.dump(True) == [])
 
-        second_record = ScheduleRecord(TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'))
+        second_record = ScheduleRecord(sample_tasks.LongRunningTask())
         executor.submit(second_record, blocking=True)
 
         assert(signals_registry.dump(True) == [
             (executor, SchedulerExecutor.scheduled_task_postponed, second_record)
         ])
 
-        first_record.task().event.set()  # type: ignore[attr-defined]  # test simplification
-        second_record.task().event.set()  # type: ignore[attr-defined]  # test simplification
-
+        executor.cancel_postponed_tasks()
+        executor.stop_running_tasks()
         executor.await_tasks()
         threaded_queue.stop()
         threaded_queue.join()
 
         assert(signals_registry.dump(True) == [])
 
-    def test_complete_signal(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_complete_signal(self, signals_registry: 'SignalsRegistry', sample_tasks: 'SampleTasks') -> None:
         executor = SchedulerExecutor()
         threaded_queue = ThreadedTask(executor.queue_proxy())
         executor.callback(SchedulerExecutor.scheduled_task_completed, signals_registry)
         threaded_queue.start()
 
-        record = ScheduleRecord(TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'))
+        record = ScheduleRecord(sample_tasks.LongRunningTask())
         executor.submit(record, blocking=True)
 
         assert(signals_registry.dump(True) == [])
 
-        record.task().event.set()  # type: ignore[attr-defined]  # test simplification
-
+        executor.stop_running_tasks()
         executor.await_tasks()
         threaded_queue.stop()
         threaded_queue.join()
@@ -239,60 +203,46 @@ class TestSchedulerExecutor:
         ])
 
     def test_dropped(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+        self, signals_registry: 'SignalsRegistry', sample_tasks: 'SampleTasks'
     ) -> None:
         executor = SchedulerExecutor(1)
         threaded_queue = ThreadedTask(executor.queue_proxy())
         executor.callback(SchedulerExecutor.scheduled_task_dropped, signals_registry)
         threaded_queue.start()
 
-        first_record = ScheduleRecord(TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'))
+        first_record = ScheduleRecord(sample_tasks.LongRunningTask())
         executor.submit(first_record, blocking=True)
 
         assert(signals_registry.dump(True) == [])
 
-        second_record = ScheduleRecord(
-            TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'),
-            postpone_policy=ScheduledTaskPostponePolicy.drop
-        )
+        second_record = ScheduleRecord(sample_tasks.LongRunningTask(), postpone_policy=ScheduledTaskPostponePolicy.drop)
         executor.submit(second_record, blocking=True)
 
         assert(signals_registry.dump(True) == [
             (executor, SchedulerExecutor.scheduled_task_dropped, second_record)
         ])
 
-        first_record.task().event.set()  # type: ignore[attr-defined]  # test simplification
-        second_record.task().event.set()  # type: ignore[attr-defined]  # test simplification
-
+        executor.stop_running_tasks()
         executor.await_tasks()
         threaded_queue.stop()
         threaded_queue.join()
 
         assert(signals_registry.dump(True) == [])
 
-    def test_keep_first_signal(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        signal_watcher: 'SignalsWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_keep_first_signal(self, signal_watcher: 'SignalWatcher', sample_tasks: 'SampleTasks') -> None:
         executor = SchedulerExecutor(1)
         threaded_queue = ThreadedTask(executor.queue_proxy())
         executor.callback(SchedulerExecutor.scheduled_task_dropped, signal_watcher)
         threaded_queue.start()
 
-        first_record = ScheduleRecord(TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'))
+        first_record = ScheduleRecord(sample_tasks.LongRunningTask())
         executor.submit(first_record, blocking=True)
 
-        second_record = ScheduleRecord(
-            TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'),
-            group_id='test-group1'
-        )
+        second_record = ScheduleRecord(sample_tasks.LongRunningTask(), group_id='test-group1')
         executor.submit(second_record, blocking=True)
 
         third_record = ScheduleRecord(
-            TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'),
+            sample_tasks.LongRunningTask(),
             postpone_policy=ScheduledTaskPostponePolicy.keep_first,
             group_id='test-group1'
         )
@@ -300,49 +250,18 @@ class TestSchedulerExecutor:
 
         signal_watcher.wait(100)
 
-        first_record.task().event.set()  # type: ignore[attr-defined]  # test simplification
-        second_record.task().event.set()  # type: ignore[attr-defined]  # test simplification
-
-        executor.await_tasks()
-        threaded_queue.stop()
-        threaded_queue.join()
-
-    def test_cancel_postponed(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        signal_watcher: 'SignalsWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
-        executor = SchedulerExecutor(1)
-        threaded_queue = ThreadedTask(executor.queue_proxy())
-        executor.callback(SchedulerExecutor.scheduled_task_dropped, signal_watcher)
-        threaded_queue.start()
-
-        first_record = ScheduleRecord(TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'))
-        executor.submit(first_record, blocking=True)
-
-        second_record = ScheduleRecord(
-            TestSchedulerExecutor.Task(callbacks_registry, 'test-callback'),
-        )
-        executor.submit(second_record, blocking=True)
         executor.cancel_postponed_tasks()
-
-        signal_watcher.wait(100)
-
-        first_record.task().event.set()  # type: ignore[attr-defined]  # test simplification
-
+        executor.stop_running_tasks()
         executor.await_tasks()
         threaded_queue.stop()
         threaded_queue.join()
 
-    def test_exception(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_exception(self, sample_tasks: 'SampleTasks') -> None:
         executor = SchedulerExecutor()
         threaded_queue = ThreadedTask(executor.queue_proxy())
         threaded_queue.start()
 
-        task = TestSchedulerExecutor.Task(callbacks_registry, 'test-callback')
+        task = sample_tasks.LongRunningTask()
         first_record = ScheduleRecord(task)
         executor.submit(first_record, blocking=True)
 
@@ -350,51 +269,33 @@ class TestSchedulerExecutor:
         with pytest.raises(QueueCallbackException):
             executor.submit(second_record, blocking=True)
 
-        first_record.task().event.set()  # type: ignore[attr-defined]  # test simplification
-
+        executor.stop_running_tasks()
         executor.await_tasks()
         threaded_queue.stop()
         threaded_queue.join()
 
     @pytest.mark.parametrize(
-        "stop_method", [
-            "stop",
-            "terminate"
+        "task_args", [
+            {"stop_method": True, "terminate_method": False},
+            {"stop_method": False, "terminate_method": True}
         ]
     )
-    def test_stop_running_tasks(self, stop_method: str) -> None:
-
-        class StoppableTask(TaskProto):
-
-            def __init__(self) -> None:
-                TaskProto.__init__(self)
-                self.event = threading.Event()
-
-                self.append_capability(getattr(TaskProto, stop_method), self.stop_func)
-
-            def start(self) -> None:
-                self.event.wait()
-
-            def stop_func(self) -> None:
-                self.event.set()
-
+    def test_stop_running_tasks(self, sample_tasks: 'SampleTasks', task_args: typing.Dict[str, bool]) -> None:
         executor = SchedulerExecutor(1)
         threaded_queue = ThreadedTask(executor.queue_proxy())
         threaded_queue.start()
 
-        first_task = StoppableTask()
+        first_task = sample_tasks.LongRunningTask(**task_args)
         executor.submit(ScheduleRecord(first_task), blocking=True)
-        assert(first_task.event.is_set() is False)
 
-        second_task = StoppableTask()
+        second_task = sample_tasks.LongRunningTask(**task_args)
         executor.submit(ScheduleRecord(second_task), blocking=True)
 
         assert(executor.running_tasks() == (first_task, ))
         assert(executor.pending_tasks() == (second_task, ))
 
+        executor.cancel_postponed_tasks()
         executor.stop_running_tasks()
-        assert(first_task.event.is_set() is True)
-
         executor.await_tasks()
         threaded_queue.stop()
         threaded_queue.join()

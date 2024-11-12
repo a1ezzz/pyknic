@@ -5,6 +5,7 @@ import typing
 import pytest
 
 from pyknic.lib.signals.proto import SignalSourceProto, Signal
+from pyknic.lib.tasks.proto import TaskProto
 
 
 class CallbackRegistry:
@@ -52,11 +53,18 @@ class CallbackCall:
         return self.__result
 
 
+SignalType: typing.TypeAlias = typing.Tuple[
+    typing.Optional[SignalSourceProto],
+    typing.Optional[Signal],
+    typing.Optional[typing.Any]
+]
+
+
 class SignalsRegistry:
 
     def __init__(self) -> None:
         self.__lock: typing.Optional[threading.Lock] = None
-        self.__calls: typing.List[typing.Tuple[SignalSourceProto, Signal, typing.Any]] = list()
+        self.__calls: typing.List[SignalType] = list()
 
     def thread_safe(self) -> None:
         assert(not self.__lock)
@@ -72,7 +80,7 @@ class SignalsRegistry:
             with self.__lock:
                 self.__calls.append((source, signal, signal_value))
 
-    def dump(self, flush: bool = False) -> typing.List[typing.Tuple[SignalSourceProto, Signal, typing.Any]]:
+    def dump(self, flush: bool = False) -> typing.List[SignalType]:
         result = self.__calls.copy()
         if flush:
             self.flush()
@@ -107,6 +115,33 @@ class SignalWatcher:
             self.reset()
 
 
+class SampleTasks:
+
+    class DummyTask(TaskProto):
+
+        def start(self) -> None:
+            pass
+
+    class LongRunningTask(TaskProto):
+
+        def __init__(self, stop_method: bool = True, terminate_method: bool = True):
+            TaskProto.__init__(self)
+            self.__event = threading.Event()
+
+            if stop_method:
+                self.append_capability(TaskProto.stop, self.__stop_func)
+
+            if terminate_method:
+                self.append_capability(TaskProto.terminate, self.__stop_func)
+
+        def start(self) -> None:
+            self.__event.clear()
+            self.__event.wait()
+
+        def __stop_func(self) -> None:
+            self.__event.set()
+
+
 @pytest.fixture
 def callbacks_registry(request: pytest.FixtureRequest) -> CallbackRegistry:
     return CallbackRegistry()
@@ -120,3 +155,8 @@ def signals_registry(request: pytest.FixtureRequest) -> SignalsRegistry:
 @pytest.fixture
 def signal_watcher() -> SignalWatcher:
     return SignalWatcher()
+
+
+@pytest.fixture
+def sample_tasks() -> type:
+    return SampleTasks

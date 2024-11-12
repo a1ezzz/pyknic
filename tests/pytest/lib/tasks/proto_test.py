@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import pytest
+import typing
+
+if typing.TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
+    from conftest import SampleTasks
 
 from pyknic.lib.capability import iscapable, CapabilityDescriptor
 
@@ -35,12 +40,7 @@ def test_abstract() -> None:
 
 class TestTaskProto:
 
-    class Task(TaskProto):
-
-        def start(self) -> None:
-            pass
-
-    def test(self) -> None:
+    def test(self, sample_tasks: 'SampleTasks') -> None:
         assert(isinstance(
             TaskProto.stop.__pyknic_capability__,  # type: ignore[attr-defined]  # mypy and metaclass issues
             CapabilityDescriptor
@@ -50,7 +50,7 @@ class TestTaskProto:
             CapabilityDescriptor
         ))
 
-        task = TestTaskProto.Task()
+        task = sample_tasks.DummyTask()
         pytest.raises(NotImplementedError, task.stop)
         pytest.raises(NotImplementedError, task.terminate)
 
@@ -63,16 +63,11 @@ class TestTaskProto:
 
 class TestScheduleRecordProto:
 
-    def test(self) -> None:
-
-        class Task(TaskProto):
-
-            def start(self) -> None:
-                pass
+    def test(self, sample_tasks: 'SampleTasks') -> None:
 
         class Record(ScheduleRecordProto):
             def task(self) -> TaskProto:
-                return Task()
+                return sample_tasks.DummyTask()
 
         record = Record()
         assert(record.group_id() is None)

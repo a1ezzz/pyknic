@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
 
+import pytest
 import time
 import threading
-import pytest
+import typing
+
+if typing.TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
+    from conftest import SampleTasks
 
 from pyknic.lib.tasks.thread_executor import ThreadExecutor, NoFreeSlotError
-from pyknic.lib.tasks.proto import TaskExecutorProto, TaskProto, NoSuchTaskError, TaskStartError
+from pyknic.lib.tasks.proto import TaskExecutorProto, NoSuchTaskError, TaskStartError
 
 
 def test_exceptions() -> None:
@@ -14,36 +19,23 @@ def test_exceptions() -> None:
 
 class TestThreadExecutor:
 
-    class Task(TaskProto):
-
-        def __init__(self) -> None:
-            TaskProto.__init__(self)
-            self.__stop_event = threading.Event()
-
-        def start(self) -> None:
-            self.__stop_event.clear()
-            self.__stop_event.wait()
-
-        def stop(self) -> None:
-            self.__stop_event.set()
-
     def test(self) -> None:
         executor = ThreadExecutor()
         assert(isinstance(executor, TaskExecutorProto) is True)
 
         assert(set(executor.tasks()) == set())
 
-    def test_exceptions(self) -> None:
+    def test_exceptions(self, sample_tasks: 'SampleTasks') -> None:
         executor = ThreadExecutor()
 
         with pytest.raises(NoSuchTaskError):
-            executor.complete_task(TestThreadExecutor.Task())
+            executor.complete_task(sample_tasks.LongRunningTask(terminate_method=False))
 
         with pytest.raises(NoSuchTaskError):
-            executor.wait_task(TestThreadExecutor.Task())
+            executor.wait_task(sample_tasks.LongRunningTask(terminate_method=False))
 
-    def test_join(self) -> None:
-        task = TestThreadExecutor.Task()
+    def test_join(self, sample_tasks: 'SampleTasks') -> None:
+        task = sample_tasks.LongRunningTask(terminate_method=False)
         executor = ThreadExecutor()
         assert(executor.submit_task(task) is True)
         task.stop()
@@ -51,9 +43,8 @@ class TestThreadExecutor:
         while not executor.complete_task(task):
             time.sleep(0.1)
 
-    def test_awaited_join(self) -> None:
-
-        task = TestThreadExecutor.Task()
+    def test_awaited_join(self, sample_tasks: 'SampleTasks') -> None:
+        task = sample_tasks.DummyTask()
         executor = ThreadExecutor()
         assert(executor.submit_task(task) is True)
 
@@ -70,8 +61,8 @@ class TestThreadExecutor:
 
         thread.join()
 
-    def test_awaited_w_timeout_join(self) -> None:
-        task = TestThreadExecutor.Task()
+    def test_awaited_w_timeout_join(self, sample_tasks: 'SampleTasks') -> None:
+        task = sample_tasks.LongRunningTask(terminate_method=False)
         executor = ThreadExecutor()
         assert (executor.submit_task(task) is True)
 
@@ -88,10 +79,10 @@ class TestThreadExecutor:
 
         thread.join()
 
-    def test_threads_number(self) -> None:
-        task1 = TestThreadExecutor.Task()
-        task2 = TestThreadExecutor.Task()
-        task3 = TestThreadExecutor.Task()
+    def test_threads_number(self, sample_tasks: 'SampleTasks') -> None:
+        task1 = sample_tasks.LongRunningTask(terminate_method=False)
+        task2 = sample_tasks.LongRunningTask(terminate_method=False)
+        task3 = sample_tasks.LongRunningTask(terminate_method=False)
 
         executor = ThreadExecutor(2)
         assert(executor.submit_task(task1) is True)
@@ -116,9 +107,9 @@ class TestThreadExecutor:
 
         assert(set(executor.tasks()) == set())
 
-    def test_context(self) -> None:
-        task1 = TestThreadExecutor.Task()
-        task2 = TestThreadExecutor.Task()
+    def test_context(self, sample_tasks: 'SampleTasks') -> None:
+        task1 = sample_tasks.LongRunningTask(terminate_method=False)
+        task2 = sample_tasks.LongRunningTask(terminate_method=False)
 
         executor = ThreadExecutor(2)
         with executor.executor_context():

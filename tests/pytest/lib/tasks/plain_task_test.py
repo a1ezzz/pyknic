@@ -1,24 +1,25 @@
 # -*- coding: utf-8 -*-
 
+import typing
+
 from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.tasks.proto import TaskProto, TaskResult
+
+if typing.TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
+    from conftest import CallbackRegistry, SignalsRegistry
 
 
 class TestPlainTask:
 
-    def test(
-        self,
-        callbacks_registry: 'CallbackRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test(self, callbacks_registry: 'CallbackRegistry') -> None:
         plain_task = PlainTask(callbacks_registry.callback())
         assert(isinstance(plain_task, TaskProto) is True)
         plain_task.start()
         assert(callbacks_registry.total_calls() == 1)
 
     def test_success_result(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+        self, callbacks_registry: 'CallbackRegistry',  signals_registry: 'SignalsRegistry'
     ) -> None:
         callback_result = object()
         plain_task = PlainTask(callbacks_registry.callback(callback_result=callback_result))
@@ -33,9 +34,7 @@ class TestPlainTask:
         ])
 
     def test_exception_result(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        signals_registry: 'SignalsRegistry'   # type: ignore[name-defined]  # noqa: F821  # conftest issue
+        self, callbacks_registry: 'CallbackRegistry', signals_registry: 'SignalsRegistry'
     ) -> None:
         callback_exception = ValueError('!')
 

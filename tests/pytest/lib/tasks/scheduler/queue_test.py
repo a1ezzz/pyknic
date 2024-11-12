@@ -6,6 +6,10 @@ import typing
 
 from datetime import datetime, timezone
 
+if typing.TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
+    from conftest import SignalsRegistry
+
 from pyknic.lib.signals.proto import SignalSourceProto
 from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.tasks.proto import ScheduledTaskPostponePolicy, ScheduleRecordProto
@@ -104,10 +108,7 @@ class TestSchedulerPostponeQueue:
 
         assert(self.flush_records(queue) == result_records)
 
-    def test_ttl(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_ttl(self, signals_registry: 'SignalsRegistry') -> None:
         queue = SchedulerQueue()
         queue.callback(SchedulerQueue.task_expired, signals_registry)
         task = PlainTask(lambda: None)
@@ -120,10 +121,7 @@ class TestSchedulerPostponeQueue:
         assert(self.flush_records(queue) == [record1])
         assert(signals_registry.dump(True) == [(queue, SchedulerQueue.task_expired, record2)])
 
-    def test_ttl_next_record(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_ttl_next_record(self, signals_registry: 'SignalsRegistry') -> None:
         queue = SchedulerQueue()
         queue.callback(SchedulerQueue.task_expired, signals_registry)
         task = PlainTask(lambda: None)
@@ -153,7 +151,7 @@ class TestSchedulerPostponeQueue:
     )
     def test_dropped_signals(
         self,
-        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+        signals_registry: 'SignalsRegistry',
         records: typing.Tuple[typing.Dict[str, typing.Any]],
         result_indices: typing.Tuple[int]
     ) -> None:
@@ -188,7 +186,7 @@ class TestSchedulerPostponeQueue:
     )
     def test_postponed_signals(
         self,
-        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+        signals_registry: 'SignalsRegistry',
         records: typing.Tuple[typing.Dict[str, typing.Any]],
         result_indices: typing.Tuple[int]
     ) -> None:

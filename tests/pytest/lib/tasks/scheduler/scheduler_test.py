@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import pytest
 import threading
 import typing
 
-import pytest
+if typing.TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
+    from conftest import CallbackRegistry, SignalWatcher, SampleTasks
 
 from pyknic.lib.tasks.proto import SchedulerProto, TaskStopError, TaskProto, SchedulerFeedback, ScheduleSourceProto
 from pyknic.lib.tasks.proto import ScheduledTaskPostponePolicy
@@ -18,6 +21,7 @@ from pyknic.lib.signals.proxy import QueueCallbackException
 class TestScheduler:
 
     class SynCallback:
+        # TODO: refactor this
 
         def __init__(self) -> None:
             self.event = threading.Event()
@@ -31,23 +35,7 @@ class TestScheduler:
             source.schedule_record(ScheduleRecord(PlainTask(syn)))
             syn.event.wait()
 
-    class PendingTasks(TaskProto):
-        # TODO: it seams basic move this to conftest?!
-
-        def __init__(self) -> None:
-            TaskProto.__init__(self)
-            self.__event = threading.Event()
-
-        def start(self) -> None:
-            self.__event.wait()
-
-        def stop(self) -> None:
-            self.__event.set()
-
-    def test(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test(self, callbacks_registry: 'CallbackRegistry') -> None:
         scheduler = Scheduler()
         source1 = InstantTaskSource()
         source2 = InstantTaskSource()
@@ -116,10 +104,7 @@ class TestScheduler:
         threaded_scheduler.stop()
         threaded_scheduler.join()
 
-    def test_signal_task_scheduled(
-        self,
-        signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_signal_task_scheduled(self, signal_watcher: 'SignalWatcher') -> None:
         scheduler = Scheduler()
         source = InstantTaskSource()
         record = ScheduleRecord(PlainTask(lambda: None))
@@ -137,10 +122,7 @@ class TestScheduler:
         threaded_scheduler.stop()
         threaded_scheduler.join()
 
-    def test_feedback(
-        self,
-        callbacks_registry: 'CallbackRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_feedback(self, callbacks_registry: 'CallbackRegistry') -> None:
 
         class CustomSource(ScheduleSourceProto):
 
@@ -169,8 +151,7 @@ class TestScheduler:
         threaded_scheduler.join()
 
     def test_signal_task_dropped(
-        self,
-        signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
+        self, signal_watcher: 'SignalWatcher', sample_tasks: 'SampleTasks'
     ) -> None:
         source = InstantTaskSource()
         scheduler = Scheduler(1)
@@ -180,19 +161,16 @@ class TestScheduler:
         threaded_scheduler.start()
         scheduler.subscribe(source)
 
-        source.schedule_record(ScheduleRecord(TestScheduler.PendingTasks()))
-        source.schedule_record(
-            ScheduleRecord(TestScheduler.PendingTasks(), postpone_policy=ScheduledTaskPostponePolicy.drop)
-        )
+        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False)))
+        source.schedule_record(ScheduleRecord(
+            sample_tasks.LongRunningTask(terminate_method=False), postpone_policy=ScheduledTaskPostponePolicy.drop
+        ))
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
         threaded_scheduler.join()
 
-    def test_signal_task_postponed(
-        self,
-        signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_signal_task_postponed(self, signal_watcher: 'SignalWatcher', sample_tasks: 'SampleTasks') -> None:
         source = InstantTaskSource()
         scheduler = Scheduler(1)
         threaded_scheduler = ThreadedTask(scheduler)
@@ -201,17 +179,14 @@ class TestScheduler:
         threaded_scheduler.start()
         scheduler.subscribe(source)
 
-        source.schedule_record(ScheduleRecord(TestScheduler.PendingTasks()))
-        source.schedule_record(ScheduleRecord(TestScheduler.PendingTasks()))
+        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False)))
+        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False)))
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
         threaded_scheduler.join()
 
-    def test_signal_task_expired(
-        self,
-        signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_signal_task_expired(self, signal_watcher: 'SignalWatcher', sample_tasks: 'SampleTasks') -> None:
         source = InstantTaskSource()
         scheduler = Scheduler(1)
         threaded_scheduler = ThreadedTask(scheduler)
@@ -220,16 +195,13 @@ class TestScheduler:
         threaded_scheduler.start()
         scheduler.subscribe(source)
 
-        source.schedule_record(ScheduleRecord(TestScheduler.PendingTasks(), ttl=1))
+        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False), ttl=1))
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
         threaded_scheduler.join()
 
-    def test_signal_task_started(
-        self,
-        signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_signal_task_started(self, signal_watcher: 'SignalWatcher', sample_tasks: 'SampleTasks') -> None:
         source = InstantTaskSource()
         scheduler = Scheduler(1)
         threaded_scheduler = ThreadedTask(scheduler)
@@ -238,21 +210,13 @@ class TestScheduler:
         threaded_scheduler.start()
         scheduler.subscribe(source)
 
-        source.schedule_record(ScheduleRecord(TestScheduler.PendingTasks()))
+        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False)))
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
         threaded_scheduler.join()
 
-    def test_signal_task_complete(
-        self,
-        signal_watcher: 'SignalWatcher'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
-
-        class FastTask(TaskProto):
-
-            def start(self) -> None:
-                pass
+    def test_signal_task_complete(self, signal_watcher: 'SignalWatcher', sample_tasks: 'SampleTasks') -> None:
 
         source = InstantTaskSource()
         scheduler = Scheduler(1)
@@ -262,7 +226,7 @@ class TestScheduler:
         threaded_scheduler.start()
         scheduler.subscribe(source)
 
-        source.schedule_record(ScheduleRecord(FastTask()))
+        source.schedule_record(ScheduleRecord(sample_tasks.DummyTask()))
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()

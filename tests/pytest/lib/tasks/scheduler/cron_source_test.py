@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 
-import typing
 import pytest
+import typing
 
 from datetime import datetime, timezone
+
+if typing.TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
+    from conftest import SignalsRegistry
 
 from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.tasks.scheduler.record import ScheduleRecord
@@ -235,10 +239,7 @@ class TestCronTaskSource:
         assert(source.poll() is None)
         assert(list(source.records()) == [])
 
-    def test_polling(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_polling(self, signals_registry: 'SignalsRegistry') -> None:
         source = CronTaskSource()
         record = ScheduleRecord(PlainTask(lambda: None))
         cron_schedule = CronScheduleRecord(record, CronSchedule.from_string("* * * * *"))
@@ -254,10 +255,7 @@ class TestCronTaskSource:
         source.poll()
         assert(signals_registry.dump(True) == [])
 
-    def test_records(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_records(self, signals_registry: 'SignalsRegistry') -> None:
         record = ScheduleRecord(PlainTask(lambda: None))
         now = datetime.now(timezone.utc)
 
@@ -273,25 +271,22 @@ class TestCronTaskSource:
         ttl1 = signals[0][2]
         assert(len(signals) == 1)
         assert(signals[0][1] == CronTaskSource.polling_update)
-        assert(ttl1 > 0)
+        assert(ttl1 > 0)  # type: ignore[operator]  # it's a test
 
         source.submit_record(cron_schedule2)
         signals = signals_registry.dump(True)
         ttl2 = signals[0][2]
         assert(len(signals) == 1)
         assert(signals[0][1] == CronTaskSource.polling_update)
-        assert(ttl2 > 0)
-        assert(ttl2 < ttl1)
+        assert(ttl2 > 0)  # type: ignore[operator]  # it's a test
+        assert(ttl2 < ttl1)  # type: ignore[operator]  # it's a test
 
         source.submit_record(cron_schedule3)
         assert(signals_registry.dump(True) == [])  # no polling update is required
 
         assert(list(source.records()) == [cron_schedule2, cron_schedule1, cron_schedule3])
 
-    def test_discard(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_discard(self, signals_registry: 'SignalsRegistry') -> None:
         record = ScheduleRecord(PlainTask(lambda: None))
         now = datetime.now(timezone.utc)
 
@@ -311,15 +306,15 @@ class TestCronTaskSource:
         ttl1 = signals[0][2]
         assert(len(signals) == 1)
         assert(signals[0][1] == CronTaskSource.polling_update)
-        assert(ttl1 > 0)
+        assert(ttl1 > 0)  # type: ignore[operator]  # it's a test
 
         source.discard_record(cron_schedule1)
         signals = signals_registry.dump(True)
         ttl2 = signals[0][2]
         assert(len(signals) == 1)
         assert(signals[0][1] == CronTaskSource.polling_update)
-        assert(ttl2 > 0)
-        assert(ttl2 < ttl1)
+        assert(ttl2 > 0)  # type: ignore[operator]  # it's a test
+        assert(ttl2 < ttl1)  # type: ignore[operator]  # it's a test
 
         assert(list(source.records()) == [cron_schedule3])
 

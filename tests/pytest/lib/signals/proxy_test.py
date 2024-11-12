@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 
 import gc
+import pytest
 import threading
 import typing
 
-import pytest
+if typing.TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
+    from conftest import SignalsRegistry, CallbackRegistry
 
 from pyknic.lib.signals.extra import CallbackWrapper
 from pyknic.lib.signals.proto import Signal, SignalCallbackType, SignalSourceProto, SignalProxyProto
@@ -21,10 +24,7 @@ def test_exceptions() -> None:
 
 class TestSignalProxy:
 
-    def test(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test(self, signals_registry: 'SignalsRegistry') -> None:
         class Source(SignalSource):
             signal1 = Signal()
 
@@ -41,10 +41,7 @@ class TestSignalProxy:
         source.emit(Source.signal1)
         assert(signals_registry.dump(True) == [])
 
-    def test_default_wrapper(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_default_wrapper(self, signals_registry: 'SignalsRegistry') -> None:
         class Source(SignalSource):
             signal1 = Signal()
 
@@ -68,11 +65,7 @@ class TestSignalProxy:
         source.emit(Source.signal1)
         assert(signals_registry.dump(True) == [])  # since signal_proxy is collected
 
-    def test_custom_wrapper(
-        self,
-        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        callbacks_registry: 'CallbackRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_custom_wrapper(self, signals_registry: 'SignalsRegistry', callbacks_registry: 'CallbackRegistry') -> None:
 
         class Source(SignalSource):
             signal1 = Signal()

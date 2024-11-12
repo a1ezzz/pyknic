@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import gc
-import typing
 import pytest
+import typing
+
+if typing.TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
+    from conftest import CallbackRegistry, SignalsRegistry
 
 from pyknic.lib.signals.proto import SignalSourceProto, Signal, SignalCallbackType
 from pyknic.lib.signals.source import SignalSource
@@ -11,10 +15,7 @@ from pyknic.lib.signals.extra import BoundedCallback, CallbackWrapper, SignalRes
 
 class TestBoundedCallback:
 
-    def test(
-        self,
-        callbacks_registry: 'CallbackRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test(self, callbacks_registry: 'CallbackRegistry') -> None:
 
         class Source(SignalSource):
             signal1 = Signal()
@@ -45,10 +46,7 @@ class TestBoundedCallback:
         s.emit(Source.signal1)
         assert(callbacks_registry.calls('test_callback') == 1)
 
-    def test_private_method(
-        self,
-        callbacks_registry: 'CallbackRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_private_method(self, callbacks_registry: 'CallbackRegistry') -> None:
         class Source(SignalSource):
             signal = Signal()
 
@@ -84,12 +82,7 @@ class TestCallbackWrapper:
             (True, False),
         ]
     )
-    def test(
-        self,
-        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-        weak_ref: bool,
-        callback_called: bool
-    ) -> None:
+    def test(self, signals_registry: 'SignalsRegistry', weak_ref: bool, callback_called: bool) -> None:
 
         class CallbackCls:
 
@@ -112,10 +105,7 @@ class TestCallbackWrapper:
         else:
             assert(signals_registry.dump(True) == [])  # since signal_proxy is collected
 
-    def test_hooks(
-        self,
-        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_hooks(self, signals_registry: 'SignalsRegistry') -> None:
 
         increment_value = 0
 
@@ -158,10 +148,7 @@ class TestCallbackWrapper:
         callback_wrapper(None, None, None)  # type: ignore[arg-type]  # it's just a test
         assert(signals_registry.dump(True) == [])
 
-    def test_pre_hook(
-        self,
-        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_pre_hook(self, signals_registry: 'SignalsRegistry') -> None:
 
         class CallbackCls:
 
@@ -192,10 +179,7 @@ class TestCallbackWrapper:
 
 class TestSignalResender:
 
-    def test_plain(
-        self,
-        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_plain(self, signals_registry: 'SignalsRegistry') -> None:
         class Source(SignalSource):
             signal = Signal()
 
@@ -210,10 +194,7 @@ class TestSignalResender:
             (source2, Source.signal, None),
         ])
 
-    def test_different_signal(
-        self,
-        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_different_signal(self, signals_registry: 'SignalsRegistry') -> None:
 
         class Source1(SignalSource):
             signal = Signal()
@@ -232,10 +213,7 @@ class TestSignalResender:
             (source2, Source2.signal, None),
         ])
 
-    def test_weak(
-        self,
-        signals_registry: 'SignalsRegistry',  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_weak(self, signals_registry: 'SignalsRegistry') -> None:
 
         class Source(SignalSource):
             signal = Signal()
@@ -251,10 +229,7 @@ class TestSignalResender:
         source1.emit(Source.signal)  # source1 emitted, source2 re-emitted
         assert(signals_registry.dump(True) == [])
 
-    def test_value_converter(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_value_converter(self, signals_registry: 'SignalsRegistry') -> None:
         class Source1(SignalSource):
             signal = Signal()
 

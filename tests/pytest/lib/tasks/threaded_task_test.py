@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 
 import functools
+import pytest
 import threading
 import time
 import typing
 
-import pytest
+if typing.TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
+    from conftest import SignalsRegistry, SampleTasks
 
 from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.tasks.proto import TaskProto, TaskResult, TaskStartError
@@ -53,10 +56,7 @@ class TestThreadTask:
 
         assert(task.join() is True)
 
-    def test_start_event(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_start_event(self, signals_registry: 'SignalsRegistry') -> None:
         event = threading.Event()
         task = ThreadedTask.plain_task(functools.partial(sample_function, event))
         task.callback(TaskProto.task_started, signals_registry)
@@ -69,10 +69,7 @@ class TestThreadTask:
             (task, TaskProto.task_started, None),
         ])
 
-    def test_complete_event(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_complete_event(self, signals_registry: 'SignalsRegistry') -> None:
         plain_task = PlainTask(lambda: None)
         task = ThreadedTask(plain_task)
         task.callback(TaskProto.task_completed, signals_registry)
@@ -86,40 +83,14 @@ class TestThreadTask:
             (task, TaskProto.task_completed, TaskResult())
         ])
 
-    def test_stop(self) -> None:
-
-        class Task(TaskProto):
-
-            def __init__(self) -> None:
-                TaskProto.__init__(self)
-                self.__event = threading.Event()
-
-            def start(self) -> None:
-                self.__event.wait()
-
-            def stop(self) -> None:
-                self.__event.set()
-
-        task = ThreadedTask(Task())
+    def test_stop(self, sample_tasks: 'SampleTasks') -> None:
+        task = ThreadedTask(sample_tasks.LongRunningTask(terminate_method=False))
         task.start()
         task.stop()
         task.wait()
 
-    def test_terminate(self) -> None:
-
-        class Task(TaskProto):
-
-            def __init__(self) -> None:
-                TaskProto.__init__(self)
-                self.__event = threading.Event()
-
-            def start(self) -> None:
-                self.__event.wait()
-
-            def terminate(self) -> None:
-                self.__event.set()
-
-        task = ThreadedTask(Task())
+    def test_terminate(self, sample_tasks: 'SampleTasks') -> None:
+        task = ThreadedTask(sample_tasks.LongRunningTask(stop_method=False))
         task.start()
         task.terminate()
         task.wait()
@@ -135,10 +106,7 @@ class TestThreadTask:
         event.set()
         task.wait()
 
-    def test_task_result(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_task_result(self, signals_registry: 'SignalsRegistry') -> None:
         event = threading.Event()
         task = ThreadedTask.plain_task(functools.partial(sample_function, event))
         task.callback(TaskProto.task_completed, signals_registry)
@@ -151,10 +119,7 @@ class TestThreadTask:
             (task, TaskProto.task_completed, TaskResult()),
         ])
 
-    def test_task_exception(
-        self,
-        signals_registry: 'SignalsRegistry'  # type: ignore[name-defined]  # noqa: F821  # conftest issue
-    ) -> None:
+    def test_task_exception(self, signals_registry: 'SignalsRegistry') -> None:
         class Task(TaskProto):
 
             def __init__(self, exc: BaseException) -> None:

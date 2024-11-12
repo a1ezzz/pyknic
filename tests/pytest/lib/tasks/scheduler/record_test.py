@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
 
-from pyknic.lib.tasks.proto import ScheduleRecordProto, ScheduledTaskPostponePolicy, TaskProto
+import typing
+
+from pyknic.lib.tasks.proto import ScheduleRecordProto, ScheduledTaskPostponePolicy
 from pyknic.lib.tasks.scheduler.record import ScheduleRecord
+
+if typing.TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
+    from conftest import SampleTasks
 
 
 class TestScheduleRecord:
 
-    class SampleTask(TaskProto):
-        def start(self) -> None:
-            pass
-
-    def test(self) -> None:
-        task1 = TestScheduleRecord.SampleTask()
+    def test(self, sample_tasks: 'SampleTasks') -> None:
+        task1 = sample_tasks.DummyTask()
         record = ScheduleRecord(task1)
         assert(isinstance(record, ScheduleRecord) is True)
         assert(isinstance(record, ScheduleRecordProto) is True)
@@ -21,7 +23,7 @@ class TestScheduleRecord:
         assert(record.simultaneous_runs() == 0)
         assert(record.postpone_policy() == ScheduledTaskPostponePolicy.wait)
 
-        task2 = TestScheduleRecord.SampleTask()
+        task2 = sample_tasks.DummyTask()
         record = ScheduleRecord(
             task2,
             group_id='task_group',
