@@ -110,6 +110,7 @@ class Scheduler(SchedulerProto, TaskProto):
 
         :param schedule_source: a source to subscribe
         """
+        assert(not self.__executor.queue_proxy().is_inside())  # this prevents queue_proxy from self-blocking
         try:
             self.__executor.queue_proxy().exec(functools.partial(self.__subscribe, schedule_source), blocking=True)
         except QueueCallbackException as e:
@@ -138,6 +139,7 @@ class Scheduler(SchedulerProto, TaskProto):
 
         :param schedule_source: a source to unsubscribe
         """
+        assert(not self.__executor.queue_proxy().is_inside())  # this prevents queue_proxy from self-blocking
         try:
             self.__executor.queue_proxy().exec(functools.partial(self.__unsubscribe, schedule_source), blocking=True)
         except QueueCallbackException as e:
@@ -160,6 +162,7 @@ class Scheduler(SchedulerProto, TaskProto):
     def stop(self) -> None:
         """ Stop this schedule
         """
+        assert(not self.__executor.queue_proxy().is_inside())  # this prevents queue_proxy from self-blocking
         self.__executor.queue_proxy().exec(self.__unsubscribe_all, blocking=True)
         self.__executor.cancel_postponed_tasks()
         self.__executor.stop_running_tasks()
