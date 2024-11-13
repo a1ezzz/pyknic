@@ -8,14 +8,12 @@ if typing.TYPE_CHECKING:
     # noinspection PyUnresolvedReferences
     from conftest import CallbackRegistry, SignalWatcher, SampleTasks
 
-from pyknic.lib.tasks.proto import SchedulerProto, TaskStopError, TaskProto, SchedulerFeedback, ScheduleSourceProto
-from pyknic.lib.tasks.proto import ScheduledTaskPostponePolicy
+from pyknic.lib.tasks.proto import SchedulerProto, SchedulerFeedback, ScheduleSourceProto, ScheduledTaskPostponePolicy
 from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.tasks.threaded_task import ThreadedTask
 from pyknic.lib.tasks.scheduler.plain_sources import InstantTaskSource
 from pyknic.lib.tasks.scheduler.scheduler import Scheduler
 from pyknic.lib.tasks.scheduler.record import ScheduleRecord
-from pyknic.lib.signals.proxy import QueueCallbackException
 
 
 class TestScheduler:
@@ -65,42 +63,14 @@ class TestScheduler:
         threaded_scheduler = ThreadedTask(scheduler)
         threaded_scheduler.start()
 
-        with pytest.raises(QueueCallbackException):
+        with pytest.raises(ValueError):
             scheduler.unsubscribe(source)
 
         scheduler.subscribe(source)
 
-        with pytest.raises(QueueCallbackException):
+        with pytest.raises(ValueError):
             scheduler.subscribe(source)
 
-        threaded_scheduler.stop()
-        threaded_scheduler.join()
-
-    def test_stop_exception(self) -> None:
-
-        class UnstoppableTask(TaskProto):
-
-            def __init__(self) -> None:
-                TaskProto.__init__(self)
-                self.event = threading.Event()
-
-            def start(self) -> None:
-                self.event.wait()
-
-        scheduler = Scheduler()
-        source = InstantTaskSource()
-        task = UnstoppableTask()
-
-        threaded_scheduler = ThreadedTask(scheduler)
-        threaded_scheduler.start()
-
-        scheduler.subscribe(source)
-        source.schedule_record(ScheduleRecord(task))
-
-        with pytest.raises(TaskStopError):
-            threaded_scheduler.stop()
-
-        task.event.set()
         threaded_scheduler.stop()
         threaded_scheduler.join()
 

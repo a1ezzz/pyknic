@@ -16,7 +16,6 @@ from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.tasks.proto import TaskProto, ScheduledTaskPostponePolicy
 from pyknic.lib.tasks.threaded_task import ThreadedTask
 from pyknic.lib.tasks.scheduler.record import ScheduleRecord
-from pyknic.lib.signals.proxy import QueueCallbackException
 
 from pyknic.lib.tasks.scheduler.scheduler_executor import SchedulerExecutor
 
@@ -266,7 +265,7 @@ class TestSchedulerExecutor:
         executor.submit(first_record, blocking=True)
 
         second_record = ScheduleRecord(task)
-        with pytest.raises(QueueCallbackException):
+        with pytest.raises(ValueError):
             executor.submit(second_record, blocking=True)
 
         executor.stop_running_tasks()
@@ -295,6 +294,25 @@ class TestSchedulerExecutor:
         assert(executor.pending_tasks() == (second_task, ))
 
         executor.cancel_postponed_tasks()
+        executor.stop_running_tasks()
+        executor.await_tasks()
+        threaded_queue.stop()
+        threaded_queue.join()
+
+    def test_await_exception(self, sample_tasks: 'SampleTasks') -> None:
+        executor = SchedulerExecutor()
+        threaded_queue = ThreadedTask(executor.queue_proxy())
+        threaded_queue.start()
+
+        record = ScheduleRecord(sample_tasks.LongRunningTask())
+        executor.submit(record, blocking=True)
+
+        import time
+        time.sleep(1)
+
+        with pytest.raises(TimeoutError):
+            executor.await_tasks(1)
+
         executor.stop_running_tasks()
         executor.await_tasks()
         threaded_queue.stop()

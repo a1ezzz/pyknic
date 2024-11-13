@@ -25,6 +25,7 @@ import weakref
 
 from pyknic.lib.capability import iscapable
 from pyknic.lib.signals.proto import Signal, SignalSourceProto, SignalCallbackType
+from pyknic.lib.signals.proxy import QueueCallbackException
 from pyknic.lib.signals.extra import BoundedCallback, SignalResender
 from pyknic.lib.verify import verify_value
 
@@ -41,18 +42,21 @@ class Scheduler(SchedulerProto, TaskProto):
         self,
         threads_number: typing.Optional[int] = None,
         executor_cr_timeout: typing.Union[int, float, None] = None,
-        thread_cr_timeout: typing.Union[int, float, None] = None
+        thread_cr_timeout: typing.Union[int, float, None] = None,
+        task_timeout: typing.Union[int, float, None] = None
     ):
         """ Create a new scheduler with an internal thread executor
 
-        :param threads_number: same as the "threads_number" argument in :method:`.ThreadExecutor.__init__`
-        :param executor_cr_timeout: same as the "executor_cr_timeout" argument in :method:`.ThreadExecutor.__init__`
-        :param thread_cr_timeout: same as the "thread_cr_timeout" argument in :method:`.ThreadExecutor.__init__`
+        :param threads_number: same as the "threads_number" argument in :meth:`.ThreadExecutor.__init__`
+        :param executor_cr_timeout: same as the "executor_cr_timeout" argument in :meth:`.ThreadExecutor.__init__`
+        :param thread_cr_timeout: same as the "thread_cr_timeout" argument in :meth:`.ThreadExecutor.__init__`
+        :param task_timeout: same as the "task_timeout" argument in :meth:`SchedulerExecutor.await_tasks`
         """
         SchedulerProto.__init__(self)
         TaskProto.__init__(self)
 
         self.__executor = SchedulerExecutor(threads_number, executor_cr_timeout, thread_cr_timeout)
+        self.__task_timeout = task_timeout
         self.__sources_callbacks: weakref.WeakKeyDictionary[ScheduleSourceProto, SignalCallbackType] = \
             weakref.WeakKeyDictionary()
 
@@ -106,7 +110,10 @@ class Scheduler(SchedulerProto, TaskProto):
 
         :param schedule_source: a source to subscribe
         """
-        self.__executor.queue_proxy().exec(functools.partial(self.__subscribe, schedule_source), blocking=True)
+        try:
+            self.__executor.queue_proxy().exec(functools.partial(self.__subscribe, schedule_source), blocking=True)
+        except QueueCallbackException as e:
+            raise e.__cause__  # type: ignore[misc]  # it's ok
 
     def __unsubscribe(self, schedule_source: ScheduleSourceProto) -> None:
         """ Unsubscribe a source
@@ -131,7 +138,10 @@ class Scheduler(SchedulerProto, TaskProto):
 
         :param schedule_source: a source to unsubscribe
         """
-        self.__executor.queue_proxy().exec(functools.partial(self.__unsubscribe, schedule_source), blocking=True)
+        try:
+            self.__executor.queue_proxy().exec(functools.partial(self.__unsubscribe, schedule_source), blocking=True)
+        except QueueCallbackException as e:
+            raise e.__cause__  # type: ignore[misc]  # it's ok
 
     def start(self) -> None:
         """ Start a schedule
@@ -153,13 +163,16 @@ class Scheduler(SchedulerProto, TaskProto):
         self.__executor.queue_proxy().exec(self.__unsubscribe_all, blocking=True)
         self.__executor.cancel_postponed_tasks()
         self.__executor.stop_running_tasks()
+        self.__executor.await_tasks(self.__task_timeout)
 
         pending_tasks = self.__executor.pending_tasks()
         running_tasks = self.__executor.running_tasks()
 
-        unstopped_tasks = len(pending_tasks + running_tasks)
-        if unstopped_tasks > 0:
-            raise TaskStopError(f'There is/are {unstopped_tasks} task(s) left running')  # or something better!
+        pts = len(pending_tasks)
+        rts = len(running_tasks)
+        if (pts + rts) > 0:
+            raise TaskStopError(
+                f'Scheduler still has running/pending task(s) (running -- {rts}; pending -- {pts})'  # noqa: E702
+            )
 
-        self.__executor.await_tasks()
         self.__executor.queue_proxy().stop()

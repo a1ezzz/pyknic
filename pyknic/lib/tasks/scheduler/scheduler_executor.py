@@ -31,7 +31,7 @@ from pyknic.lib.tasks.proto import ScheduleRecordProto, TaskProto, ScheduledTask
 from pyknic.lib.tasks.scheduler.queue import SchedulerQueue
 from pyknic.lib.signals.proto import SignalSourceProto, Signal
 from pyknic.lib.signals.extra import BoundedCallback, SignalResender
-from pyknic.lib.signals.proxy import QueueProxy
+from pyknic.lib.signals.proxy import QueueProxy, QueueCallbackException
 from pyknic.lib.signals.source import SignalSource
 from pyknic.lib.tasks.thread_executor import ThreadExecutor, NoFreeSlotError
 
@@ -44,8 +44,8 @@ class SchedulerExecutor(SignalSource):
     stop a scheduler correctly and in a consistent way. So there they are:
       1. Unsubscribe all the sources in order to stop new record processing.
       The `meth:.SchedulerProto.unsubscribe` method will help
-      2. Drop all the postponed tasks. This will do the `:meth:.SchedulerExecutor.cancel_postponed_tasks` method
-      3. Request running tasks to stop (TODO: add some notes)
+      2. Drop all the postponed tasks. This will do the :meth:`.SchedulerExecutor.cancel_postponed_tasks` method
+      3. Request running tasks to stop (the :meth:`.SchedulerExecutor.stop_running_tasks` will do)
       4. Wait for running tasks to complete, join threads and execute all the callbacks that are stored
       (the :meth:`.SchedulerExecutor.await_tasks` method is responsible for this)
     """
@@ -195,7 +195,10 @@ class SchedulerExecutor(SignalSource):
         :param blocking: whether we should wait for result or not (a queue thread may be deadlocked because
         of the True value)
         """
-        self.__proxy.exec(functools.partial(self.__submit, record), blocking=blocking)
+        try:
+            self.__proxy.exec(functools.partial(self.__submit, record), blocking=blocking)
+        except QueueCallbackException as e:
+            raise e.__cause__  # type: ignore[misc]  # it's ok
 
     def queue_proxy(self) -> QueueProxy:
         """ Return internal proxy
@@ -209,13 +212,16 @@ class SchedulerExecutor(SignalSource):
         """
         return len(self.__scheduler_queue) > 0 or any(self.__thread_executor.tasks())
 
-    def await_tasks(self) -> None:
+    def await_tasks(self, task_timeout: typing.Union[int, float, None] = None) -> None:
         """ Wait for tasks to finish
+
+        :param task_timeout: a timeout for each task to complete
         """
         has_tasks = self.__proxy.exec(self.__has_tasks, blocking=True)
         while has_tasks:
             for task in self.__thread_executor.tasks():
-                self.__thread_executor.wait_task(task)
+                if not self.__thread_executor.wait_task(task, timeout=task_timeout):
+                    raise TimeoutError('Unable to wait for a task in a time')
 
             self.__proxy.exec(self.__run_postponed_tasks, blocking=True)
             has_tasks = self.__proxy.exec(self.__has_tasks, blocking=True)

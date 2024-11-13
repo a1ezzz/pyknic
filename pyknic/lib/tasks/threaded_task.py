@@ -96,14 +96,13 @@ class ThreadedTask(TaskProto, CriticalResource):
         :return: True if thread was joined, False otherwise
         """
         is_alive = False
-        if self.__thread:
+        if self.__thread is not None:
             self.__thread.join(0)
             is_alive = self.__thread.is_alive()
             if not is_alive:
                 self.__thread = None
         return not is_alive
 
-    @CriticalResource.critical_section
     def wait(self, timeout: typing.Union[int, float, None] = None) -> None:
         """ Do not call a threaded task to stop, but wait till it stops
 
@@ -113,12 +112,15 @@ class ThreadedTask(TaskProto, CriticalResource):
 
         :note: Use this method without timeout as a last resort only. Since it blocks other methods of this class
         """
-        if self.__thread:
-            if not timeout:
-                self.__thread.join()
-            else:
-                self.__thread.join(timeout=timeout)
-            self.__thread = None
+        with self.critical_context():
+
+            if self.__thread is not None:
+                if timeout is None:
+                    self.__thread.join()
+                else:
+                    self.__thread.join(timeout=timeout)
+
+        self.join()
 
     @staticmethod
     def plain_task(
