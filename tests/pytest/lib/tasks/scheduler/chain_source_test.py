@@ -28,7 +28,6 @@ class SourceTestHelper:
     def __init__(self) -> None:
         self.scheduler = Scheduler()
         self.scheduler_thread = ThreadedTask(self.scheduler)
-        self.data_log = Datalog()
         self.api_registry = APIRegistry()
 
     def start(self) -> None:
@@ -105,7 +104,7 @@ class TestChainedTasksSource:
             return DependenciesDescription()
 
     def test_plain_start(self, source_helper: SourceTestHelper) -> None:
-        source = ChainedTasksSource(source_helper.data_log, source_helper.api_registry)
+        source = ChainedTasksSource(registry=source_helper.api_registry)
         source_thread = ThreadedTask(source)
         source_thread.start()
 
@@ -122,7 +121,7 @@ class TestChainedTasksSource:
         source_thread.join()
 
     def test_dependent_start(self, source_helper: SourceTestHelper) -> None:
-        source = ChainedTasksSource(source_helper.data_log, source_helper.api_registry)
+        source = ChainedTasksSource(registry=source_helper.api_registry)
         source_thread = ThreadedTask(source)
         source_thread.start()
 
@@ -156,7 +155,7 @@ class TestChainedTasksSource:
         source_thread.join()
 
     def test_skip_started_coverage(self, source_helper: SourceTestHelper) -> None:
-        source = ChainedTasksSource(source_helper.data_log, source_helper.api_registry)
+        source = ChainedTasksSource(registry=source_helper.api_registry)
         source_thread = ThreadedTask(source)
         source_thread.start()
 
@@ -185,7 +184,7 @@ class TestChainedTasksSource:
         source_thread.join()
 
     def test_exception(self, source_helper: SourceTestHelper) -> None:
-        source = ChainedTasksSource(source_helper.data_log, source_helper.api_registry)
+        source = ChainedTasksSource(registry=source_helper.api_registry)
         source_thread = ThreadedTask(source)
         source_thread.start()
 
@@ -229,7 +228,7 @@ class TestChainedTasksSource:
 
         instant_source = InstantTaskSource()
 
-        source = ChainedTasksSource(source_helper.data_log, source_helper.api_registry)
+        source = ChainedTasksSource(registry=source_helper.api_registry)
         source_thread = ThreadedTask(source)
         source_thread.start()
 
@@ -249,3 +248,11 @@ class TestChainedTasksSource:
 
         scheduler_thread.stop()
         scheduler_thread.join()
+
+    def test_datalog(self, source_helper: SourceTestHelper) -> None:
+        source = ChainedTasksSource(registry=source_helper.api_registry)
+        assert(isinstance(source.datalog(), DatalogProto) is True)
+
+        datalog = Datalog()
+        source = ChainedTasksSource(datalog=datalog, registry=source_helper.api_registry)
+        assert(source.datalog() is datalog)

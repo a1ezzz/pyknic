@@ -33,6 +33,7 @@ from abc import abstractmethod
 from datetime import datetime, timezone
 
 from pyknic.lib.datalog.proto import DatalogProto
+from pyknic.lib.datalog.datalog import Datalog
 from pyknic.lib.registry import APIRegistryProto, APIRegistry
 from pyknic.lib.signals.proxy import QueueProxy, QueueCallbackException
 from pyknic.lib.signals.extra import SignalResender
@@ -143,7 +144,7 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
 
     def __init__(
         self,
-        datalog: DatalogProto,
+        datalog: typing.Optional[DatalogProto] = None,
         registry: typing.Optional[APIRegistryProto] = None
     ):
         """ Create a new source
@@ -158,7 +159,7 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
         self.__source_uid = str(uuid.uuid4())
 
         self.__registry = registry if registry else __default_chained_tasks_registry__
-        self.__datalog = datalog
+        self.__datalog = datalog if datalog else Datalog()
 
         self.__task_tracker = TaskTrackerSource()
         self.__source_resender = SignalResender(self)
@@ -168,6 +169,9 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
         """ Register a scheduler by this callback
         """
         return self.__task_tracker.scheduler_feedback(scheduler, feedback)
+
+    def datalog(self) -> DatalogProto:
+        return self.__datalog
 
     def __record_group_id(self, api_id: str) -> str:
         """ Return identifier that will describe a group of tasks (in order to prevent a parallel run)
