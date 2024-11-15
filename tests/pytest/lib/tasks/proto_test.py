@@ -60,6 +60,8 @@ class TestTaskProto:
         task.emit(TaskProto.task_started)
         task.emit(TaskProto.task_completed, TaskResult())
 
+        assert(TaskProto.task_name(None) is None)
+
 
 class TestScheduleRecordProto:
 

@@ -91,6 +91,11 @@ class TaskProto(CapabilitiesAndSignals):
         """
         raise NotImplementedError('The "terminate" method is not supported')
 
+    def task_name(self) -> typing.Optional[str]:
+        """ Return a task name that optionally identifies a task
+        """
+        return None
+
 
 @enum.unique
 class ScheduledTaskPostponePolicy(enum.Enum):
