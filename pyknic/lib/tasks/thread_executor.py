@@ -124,7 +124,8 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
 
         :param task: a task to start
         """
-        result = ThreadedTask(task, self.__thread_cr_timeout)
+        task_id = task.task_name() if task.task_name() else str(task)
+        result = ThreadedTask(task, self.__thread_cr_timeout, thread_name=f'pyknic:thexec:{task_id}')  # noqa: E231
 
         with self.critical_context():
             if task in self.__running_threads:
