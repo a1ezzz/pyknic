@@ -79,14 +79,18 @@ class ThreadedTask(TaskProto, CriticalResource):
         try:
             self.__task.start()  # result is always None
         except Exception as e:
-            task_id = self.__task.task_name() if self.__task.task_name() else str(self.__task)
-            Logger.error(f'The "{task_id}" task failed with an error: {e}\n{traceback.format_exc()}')
+            Logger.error(f'The "{self.__task_id()}" task failed with an error: {e}\n{traceback.format_exc()}')
             self.emit(self.thread_ready, self.__task)
             self.emit(self.task_completed, TaskResult(exception=e))
             return
 
         self.emit(self.thread_ready, self.__task)
         self.emit(self.task_completed, TaskResult())
+
+    def __task_id(self) -> str:
+        """ Return id of a task that is executed
+        """
+        return self.__task.task_name() if self.__task.task_name() else str(self.__task)
 
     @CriticalResource.critical_section
     def __stop(self) -> None:
@@ -147,4 +151,4 @@ class ThreadedTask(TaskProto, CriticalResource):
         """
         # TODO: create a test for this (straightforward implementation didn't work)
         if self.__thread:
-            raise RuntimeError("A thread wasn't awaited")
+            raise RuntimeError(f"A thread wasn't awaited (the task -- {self.__task_id()})")

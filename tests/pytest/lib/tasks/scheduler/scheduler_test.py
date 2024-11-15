@@ -72,6 +72,7 @@ class TestScheduler:
             scheduler.subscribe(source)
 
         threaded_scheduler.stop()
+        threaded_scheduler.wait()
         threaded_scheduler.join()
 
     def test_signal_task_scheduled(self, signal_watcher: 'SignalWatcher') -> None:
@@ -90,6 +91,7 @@ class TestScheduler:
         signal_watcher.wait(10)  # will raise an exception in case of failure
 
         threaded_scheduler.stop()
+        threaded_scheduler.wait()
         threaded_scheduler.join()
 
     def test_feedback(self, callbacks_registry: 'CallbackRegistry') -> None:
@@ -118,6 +120,7 @@ class TestScheduler:
         assert(callbacks_registry.calls("source-unsubscribed") == 1)
 
         threaded_scheduler.stop()
+        threaded_scheduler.wait()
         threaded_scheduler.join()
 
     def test_signal_task_dropped(
@@ -138,6 +141,7 @@ class TestScheduler:
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
+        threaded_scheduler.wait()
         threaded_scheduler.join()
 
     def test_signal_task_postponed(self, signal_watcher: 'SignalWatcher', sample_tasks: 'SampleTasks') -> None:
@@ -154,6 +158,7 @@ class TestScheduler:
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
+        threaded_scheduler.wait()
         threaded_scheduler.join()
 
     def test_signal_task_expired(self, signal_watcher: 'SignalWatcher', sample_tasks: 'SampleTasks') -> None:
@@ -169,6 +174,7 @@ class TestScheduler:
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
+        threaded_scheduler.wait()
         threaded_scheduler.join()
 
     def test_signal_task_started(self, signal_watcher: 'SignalWatcher', sample_tasks: 'SampleTasks') -> None:
@@ -184,6 +190,7 @@ class TestScheduler:
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
+        threaded_scheduler.wait()
         threaded_scheduler.join()
 
     def test_signal_task_complete(self, signal_watcher: 'SignalWatcher', sample_tasks: 'SampleTasks') -> None:
@@ -200,4 +207,5 @@ class TestScheduler:
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
+        threaded_scheduler.wait()
         threaded_scheduler.join()
