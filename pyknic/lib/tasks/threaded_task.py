@@ -20,8 +20,10 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import threading
+import traceback
 import typing
 
+from pyknic.lib.log import Logger
 from pyknic.lib.capability import iscapable
 from pyknic.lib.signals.proto import Signal
 from pyknic.lib.tasks.proto import TaskProto, TaskResult, TaskStartError
@@ -35,17 +37,24 @@ class ThreadedTask(TaskProto, CriticalResource):
 
     thread_ready = Signal(TaskProto)  # signal is emitted when a thread is ready to join
 
-    def __init__(self, task: TaskProto, cr_timeout: typing.Union[int, float, None] = None):
+    def __init__(
+        self,
+        task: TaskProto,
+        cr_timeout: typing.Union[int, float, None] = None,
+        thread_name: typing.Optional[str] = None
+    ):
         """ Create a task that will start a thread
 
         :param task: a task to run in a thread
         :param cr_timeout: timeout for exclusive access to methods (same as timeout
         in the :meth:`.CriticalResource.__init__` method)
+        :param thread_name: name of a thread to create
         """
         TaskProto.__init__(self)
         CriticalResource.__init__(self, cr_timeout)
         self.__task = task
         self.__thread = None
+        self.__thread_name = thread_name
 
         if iscapable(self.__task, TaskProto.stop):
             self.append_capability(TaskProto.stop, self.__stop)
@@ -60,7 +69,7 @@ class ThreadedTask(TaskProto, CriticalResource):
         if self.__thread is not None:
             raise TaskStartError('A task is started already')
 
-        self.__thread = threading.Thread(target=self.__threaded_function)
+        self.__thread = threading.Thread(target=self.__threaded_function, name=self.__thread_name)
         self.__thread.start()
 
     def __threaded_function(self) -> None:
@@ -70,6 +79,9 @@ class ThreadedTask(TaskProto, CriticalResource):
         try:
             self.__task.start()  # result is always None
         except Exception as e:
+            task_id = self.__task.task_name() if self.__task.task_name() else str(self.__task)
+            Logger.error(f'The "{task_id}" task failed with an error: {e}\n{traceback.format_exc()}')
+            self.emit(self.thread_ready, self.__task)
             self.emit(self.task_completed, TaskResult(exception=e))
             return
 

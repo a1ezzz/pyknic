@@ -130,13 +130,16 @@ class TestThreadTask:
                 raise self.__exc
 
         task_exception = ValueError('!')
-        task = ThreadedTask(Task(task_exception))
+        original_task = Task(task_exception)
+        task = ThreadedTask(original_task)
         signals_registry.thread_safe()
         task.callback(TaskProto.task_completed, signals_registry)
+        task.callback(ThreadedTask.thread_ready, signals_registry)
 
         task.start()
         task.wait()
 
         assert(signals_registry.dump(True) == [
+            (task, ThreadedTask.thread_ready, original_task),
             (task, TaskProto.task_completed, TaskResult(exception=task_exception)),
         ])
