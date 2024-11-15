@@ -317,3 +317,23 @@ class TestSchedulerExecutor:
         executor.await_tasks()
         threaded_queue.stop()
         threaded_queue.join()
+
+    def test_corrupted_task(self, sample_tasks: 'SampleTasks') -> None:
+
+        class Task(TaskProto):
+            def start(self) -> None:
+                raise ValueError('!')
+
+        executor = SchedulerExecutor()
+
+        threaded_queue = ThreadedTask(executor.queue_proxy())
+        threaded_queue.start()
+
+        task = Task()
+        record = ScheduleRecord(task)
+        executor.submit(record, blocking=True)
+
+        executor.stop_running_tasks()
+        executor.await_tasks()
+        threaded_queue.stop()
+        threaded_queue.join()
