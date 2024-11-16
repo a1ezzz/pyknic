@@ -35,6 +35,7 @@ class SourceTestHelper:
 
     def stop(self) -> None:
         self.scheduler_thread.stop()
+        self.scheduler_thread.wait()
         self.scheduler_thread.join()
 
 
@@ -118,6 +119,7 @@ class TestChainedTasksSource:
         assert(source.started_task('test-task') is not None)
 
         source_thread.stop()
+        source_thread.wait()
         source_thread.join()
 
     def test_dependent_start(self, source_helper: SourceTestHelper) -> None:
@@ -152,6 +154,7 @@ class TestChainedTasksSource:
         assert(source.started_task('test-task3') is not None)
 
         source_thread.stop()
+        source_thread.wait()
         source_thread.join()
 
     def test_skip_started_coverage(self, source_helper: SourceTestHelper) -> None:
@@ -181,6 +184,7 @@ class TestChainedTasksSource:
         source.execute('test-task1')
 
         source_thread.stop()
+        source_thread.wait()
         source_thread.join()
 
     def test_exception(self, source_helper: SourceTestHelper) -> None:
@@ -219,6 +223,7 @@ class TestChainedTasksSource:
             source.execute('test-task3')
 
         source_thread.stop()
+        source_thread.wait()
         source_thread.join()
 
     def test_scheduler_exception(self, source_helper: SourceTestHelper, sample_tasks: 'SampleTasks') -> None:
@@ -244,9 +249,11 @@ class TestChainedTasksSource:
             source.execute('test-task1')
 
         source_thread.stop()
+        source_thread.wait()
         source_thread.join()
 
         scheduler_thread.stop()
+        scheduler_thread.wait()
         scheduler_thread.join()
 
     def test_datalog(self, source_helper: SourceTestHelper) -> None:

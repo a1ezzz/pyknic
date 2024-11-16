@@ -90,7 +90,7 @@ class ThreadedTask(TaskProto, CriticalResource):
     def __task_id(self) -> str:
         """ Return id of a task that is executed
         """
-        return self.__task.task_name() if self.__task.task_name() else str(self.__task)
+        return self.__task.task_name() if self.__task.task_name() else str(self.__task)  # type: ignore[return-value]
 
     @CriticalResource.critical_section
     def __stop(self) -> None:
