@@ -6,6 +6,8 @@ import pytest
 
 from pyknic.lib.signals.proto import SignalSourceProto, Signal
 from pyknic.lib.tasks.proto import TaskProto
+from pyknic.lib.datalog.proto import DatalogProto
+from pyknic.lib.datalog.datalog import Datalog
 
 
 class CallbackRegistry:
@@ -160,3 +162,8 @@ def signal_watcher() -> SignalWatcher:
 @pytest.fixture
 def sample_tasks() -> type:
     return SampleTasks
+
+
+@pytest.fixture
+def empty_datalog() -> DatalogProto:
+    return Datalog()
