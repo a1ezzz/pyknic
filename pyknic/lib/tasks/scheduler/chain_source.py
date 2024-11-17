@@ -22,25 +22,24 @@
 # TODO: more features:
 #  - a chained task should register it's result in a datalog
 #  - there should be a cooldown procedure for tasks that failed to run from the first time
-#  - "completion" dependencies. Some tasks may wait for other task's results
 
 import enum
 import functools
 import typing
 import uuid
 
-from abc import abstractmethod
 from datetime import datetime, timezone
 
 from pyknic.lib.datalog.proto import DatalogProto
 from pyknic.lib.datalog.datalog import Datalog
 from pyknic.lib.registry import APIRegistryProto, APIRegistry
+from pyknic.lib.signals.proto import SignalSourceProto, Signal
 from pyknic.lib.signals.proxy import QueueProxy, QueueCallbackException
-from pyknic.lib.signals.extra import SignalResender
+from pyknic.lib.signals.extra import SignalWaiter, BoundedCallback
 from pyknic.lib.tasks.proto import ScheduleSourceProto, TaskProto, TaskResult, ScheduledTaskPostponePolicy
+from pyknic.lib.tasks.proto import ScheduleRecordProto
 from pyknic.lib.tasks.proto import SchedulerFeedback, SchedulerProto
 from pyknic.lib.tasks.scheduler.record import ScheduleRecord
-from pyknic.lib.tasks.scheduler.tracker_source import TaskTrackerSource
 
 
 __default_chained_tasks_registry__ = APIRegistry()
@@ -51,7 +50,8 @@ class ChainedTaskState(enum.Enum):
     """ This represents a task state that will be kept in a log
     """
     started = enum.auto()    # a task started
-    completed = enum.auto()  # a task finished
+    completed = enum.auto()  # a task finished with result (a task should report this)
+    finalized = enum.auto()  # a task has been cleaned up
 
 
 class ChainedTaskLogEntry:
@@ -96,46 +96,38 @@ class ChainedTaskLogEntry:
         return self.__result
 
 
-class DependenciesDescription:
-    """ This defines a dependencies a chained task may have
-    """
-
-    def __init__(
-        self,
-        ids_to_start: typing.Optional[typing.Tuple[str]] = None
-    ):
-        """ Create a dependency spec
-        """
-        self.__to_start = ids_to_start
-
-    @property
-    def to_start(self) -> typing.Optional[typing.Tuple[str]]:
-        """ Return tuple of api_id that are required to be started before this task
-        """
-        return self.__to_start
-
-
 # noinspection PyAbstractClass
-class ChainedTaskProto(TaskProto):
+class ChainedTask(TaskProto):
     """ This class may be started by a :class:`.ChainedTasksSource` that respects dependencies
     """
 
+    def __init__(self, datalog: DatalogProto, api_id: str, uid: uuid.UUID):
+        TaskProto.__init__(self)
+        self.__datalog = datalog
+        self.__api_id = api_id
+        self.__uid = uid
+
+    def api_id(self) -> str:
+        return self.__api_id
+
+    def uid(self) -> uuid.UUID:
+        return self.__uid
+
     @classmethod
-    @abstractmethod
-    def create(cls, datalog: DatalogProto, uid: uuid.UUID) -> 'ChainedTaskProto':
+    def create(cls, datalog: DatalogProto, api_id: str, uid: uuid.UUID) -> 'ChainedTask':
         """ Create a new task with:
 
         :param datalog: a log where result should be saved
+        :param api_id: an id with which this task will be created
         :param uid: identifier of a task instance
         """
-        raise NotImplementedError('This method is abstract')
+        return cls(datalog, api_id, uid)
 
     @classmethod
-    @abstractmethod
-    def dependencies(cls) -> DependenciesDescription:
+    def dependencies(cls) -> typing.Optional[typing.Set[str]]:
         """ Return task dependencies
         """
-        raise NotImplementedError('This method is abstract')
+        return None
 
 
 class ChainedTasksSource(ScheduleSourceProto, TaskProto):
@@ -161,14 +153,33 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
         self.__registry = registry if registry else __default_chained_tasks_registry__
         self.__datalog = datalog if datalog else Datalog()
 
-        self.__task_tracker = TaskTrackerSource()
-        self.__source_resender = SignalResender(self)
-        self.__task_tracker.callback(ScheduleSourceProto.task_scheduled, self.__source_resender)
+        self.__scheduler: typing.Optional[SchedulerProto] = None
+        self.__record_completed_clbk = BoundedCallback(self.__record_completed)
+
+    def __record_completed(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+        if value.source() is self:
+            self.__datalog.append(ChainedTaskLogEntry(
+                value.task().api_id(),
+                value.task().uid(),
+                ChainedTaskState.finalized
+            ))
 
     def scheduler_feedback(self, scheduler: 'SchedulerProto', feedback: SchedulerFeedback) -> None:
         """ Register a scheduler by this callback
         """
-        return self.__task_tracker.scheduler_feedback(scheduler, feedback)
+
+        if feedback == SchedulerFeedback.source_subscribed:
+            if self.__scheduler:
+                raise ValueError('Unable to subscribe a second scheduler')
+            self.__scheduler = scheduler
+            self.__scheduler.callback(SchedulerProto.scheduled_task_completed, self.__record_completed_clbk)
+        elif feedback == SchedulerFeedback.source_unsubscribed:
+            if not self.__scheduler:
+                raise ValueError('Unable to unsubscribe unknown scheduler')
+            self.__scheduler.remove_callback(SchedulerProto.scheduled_task_completed, self.__record_completed_clbk)
+            self.__scheduler = None
+        else:
+            raise ValueError('Unknown feedback spotted')
 
     def datalog(self) -> DatalogProto:
         return self.__datalog
@@ -205,8 +216,10 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
             next_deps = set()
 
             for dep in unprocessed_deps:
-                required = set(dep.to_start if dep.to_start else tuple())
-                required = self.__skip_started(required)
+                if dep is None:
+                    continue
+
+                required = self.__skip_started(dep)
 
                 if required.intersection(execution_row):
                     raise ValueError('Mutual dependencies found for a task')
@@ -223,6 +236,33 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
         for i in execution_row:
             self.__exec(i)
 
+    def __wait_response(self, record: ScheduleRecordProto) -> typing.Optional[SignalWaiter.ReceivedInfo]:
+        """ Start a record and wait for execution result. Result is a signal that has been received for a started
+        task. It is one of:
+          - SchedulerProto.scheduled_task_started
+          - SchedulerProto.scheduled_task_dropped
+          - SchedulerProto.scheduled_task_expired
+
+        :param record: a record to start and track
+        """
+        assert(self.__queue_proxy.is_inside())
+
+        if not self.__scheduler:
+            raise ValueError('Scheduler has not registered yet')
+
+        if record.postpone_policy() != ScheduledTaskPostponePolicy.drop:
+            raise ValueError('A record must have the drop policy in order not to wait for a long time')
+
+        waiter = SignalWaiter(
+            self.__scheduler, SchedulerProto.scheduled_task_started, value_matcher=lambda x: x == record
+        )
+
+        self.__scheduler.callback(SchedulerProto.scheduled_task_dropped, waiter)
+        self.__scheduler.callback(SchedulerProto.scheduled_task_expired, waiter)
+
+        self.emit(ScheduleSourceProto.task_scheduled, record)
+        return waiter.wait()
+
     def __exec(self, api_id: str) -> None:
         """ Just execute a task with the specified api id
         """
@@ -231,13 +271,15 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
         task_cls = self.__registry.get(api_id)
         task_uid = uuid.uuid4()
         record = ScheduleRecord(
-            task_cls.create(self.__datalog, task_uid),
+            task_cls.create(self.__datalog, api_id, task_uid),
+            self,
             simultaneous_runs=1,
             group_id=self.__record_group_id(api_id),
             postpone_policy=ScheduledTaskPostponePolicy.drop
         )
 
-        if self.__task_tracker.wait_response(record) != SchedulerProto.scheduled_task_started:
+        await_result = self.__wait_response(record)
+        if await_result is None or await_result.signal != SchedulerProto.scheduled_task_started:
             raise ValueError('Scheduler refused to start a record')
         else:
             self.__datalog.append(ChainedTaskLogEntry(api_id, task_uid, ChainedTaskState.started))

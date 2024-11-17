@@ -24,9 +24,9 @@ import typing
 import weakref
 
 from pyknic.lib.capability import iscapable
-from pyknic.lib.signals.proto import Signal, SignalSourceProto, SignalCallbackType
+from pyknic.lib.signals.proto import Signal, SignalSourceProto
 from pyknic.lib.signals.proxy import QueueCallbackException
-from pyknic.lib.signals.extra import BoundedCallback, SignalResender
+from pyknic.lib.signals.extra import BoundedCallback, SignalResender, CallbacksHolder
 from pyknic.lib.verify import verify_value
 
 from pyknic.lib.tasks.proto import SchedulerProto, ScheduleSourceProto, TaskProto, SchedulerFeedback, TaskStopError
@@ -57,18 +57,20 @@ class Scheduler(SchedulerProto, TaskProto):
 
         self.__executor = SchedulerExecutor(threads_number, executor_cr_timeout, thread_cr_timeout)
         self.__task_timeout = task_timeout
-        self.__sources_callbacks: weakref.WeakKeyDictionary[ScheduleSourceProto, SignalCallbackType] = \
-            weakref.WeakKeyDictionary()
+        self.__holder = CallbacksHolder()
+        self.__sources: weakref.WeakSet[ScheduleSourceProto] = weakref.WeakSet()  # protects from double subscriptions
+        # TODO: think of removing this "self.__sources" -- it will make code cleaner
 
         self.__task_scheduled_clbk = BoundedCallback(self.__task_scheduled)
 
-        self.__resenders: typing.Set[SignalResender] = set()
-
         def link_signals(source_signal: Signal, target_signal: Signal) -> None:
-            nonlocal self
-            callback = SignalResender(self, target_signal=target_signal)
-            self.__resenders.add(callback)
-            self.__executor.callback(source_signal, callback)
+            self.__executor.callback(
+                source_signal,
+                self.__holder.keep_callback(
+                    SignalResender(self, target_signal=target_signal),
+                    self
+                )
+            )
 
         link_signals(SchedulerExecutor.scheduled_task_dropped, SchedulerProto.scheduled_task_dropped)
         link_signals(SchedulerExecutor.scheduled_task_postponed, SchedulerProto.scheduled_task_postponed)
@@ -83,8 +85,6 @@ class Scheduler(SchedulerProto, TaskProto):
         :param signal: the "ScheduleSourceProto.task_scheduled" signal
         :param value: aka ScheduleRecordProto -- a record to execute
         """
-        assert(self.__executor.queue_proxy().is_inside())
-
         self.emit(SchedulerProto.task_scheduled, value)
         self.__executor.submit(value, blocking=False)
 
@@ -95,14 +95,13 @@ class Scheduler(SchedulerProto, TaskProto):
         """
         assert(self.__executor.queue_proxy().is_inside())
 
-        if schedule_source in self.__sources_callbacks:
+        if schedule_source in self.__sources:
             raise ValueError('Source is subscribed already')
 
-        callback = self.__executor.queue_proxy().proxy(self.__task_scheduled_clbk)
-        self.__sources_callbacks[schedule_source] = callback
         if iscapable(schedule_source, ScheduleSourceProto.scheduler_feedback):
             schedule_source.scheduler_feedback(self, SchedulerFeedback.source_subscribed)
-        schedule_source.callback(ScheduleSourceProto.task_scheduled, callback)
+        schedule_source.callback(ScheduleSourceProto.task_scheduled, self.__task_scheduled_clbk)
+        self.__sources.add(schedule_source)
 
     @verify_value(timeout=lambda x: x is None or x > 0)
     def subscribe(self, schedule_source: ScheduleSourceProto) -> None:
@@ -124,14 +123,14 @@ class Scheduler(SchedulerProto, TaskProto):
         assert(self.__executor.queue_proxy().is_inside())
 
         try:
-            callback = self.__sources_callbacks.pop(schedule_source)
+            self.__sources.remove(schedule_source)
         except KeyError:
             raise ValueError('Unknown source is requested to unsubscribe')
 
         if iscapable(schedule_source, ScheduleSourceProto.scheduler_feedback):
             schedule_source.scheduler_feedback(self, SchedulerFeedback.source_unsubscribed)
 
-        schedule_source.remove_callback(ScheduleSourceProto.task_scheduled, callback)
+        schedule_source.remove_callback(ScheduleSourceProto.task_scheduled, self.__task_scheduled_clbk)
 
     @verify_value(timeout=lambda x: x is None or x > 0)
     def unsubscribe(self, schedule_source: ScheduleSourceProto) -> None:
@@ -155,7 +154,7 @@ class Scheduler(SchedulerProto, TaskProto):
         """
         assert(self.__executor.queue_proxy().is_inside())
 
-        for source, callback in self.__sources_callbacks.copy().items():
+        for source in self.__sources.copy():
             if source:
                 self.__unsubscribe(source)
 

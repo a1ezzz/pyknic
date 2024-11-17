@@ -14,12 +14,13 @@ if typing.TYPE_CHECKING:
 from pyknic.lib.registry import APIRegistry, register_api
 from pyknic.lib.datalog.proto import DatalogProto
 from pyknic.lib.datalog.datalog import Datalog
+from pyknic.lib.signals.extra import SignalWaiter
 from pyknic.lib.tasks.scheduler.chain_source import ChainedTaskState, ChainedTaskLogEntry, ChainedTasksSource
-from pyknic.lib.tasks.scheduler.chain_source import ChainedTaskProto, DependenciesDescription
+from pyknic.lib.tasks.scheduler.chain_source import ChainedTask
 from pyknic.lib.tasks.scheduler.record import ScheduleRecord
 from pyknic.lib.tasks.scheduler.scheduler import Scheduler
 from pyknic.lib.tasks.scheduler.plain_sources import InstantTaskSource
-from pyknic.lib.tasks.proto import TaskResult
+from pyknic.lib.tasks.proto import TaskResult, SchedulerProto
 from pyknic.lib.tasks.threaded_task import ThreadedTask
 
 
@@ -48,10 +49,19 @@ def source_helper(request: pytest.FixtureRequest) -> typing.Generator[SourceTest
     helper.stop()
 
 
-def test_abstract() -> None:
-    pytest.raises(TypeError, ChainedTaskProto)
-    pytest.raises(NotImplementedError, ChainedTaskProto.create, None, None)
-    pytest.raises(NotImplementedError, ChainedTaskProto.dependencies)
+class TestChainedTask:
+
+    def test(self, source_helper: SourceTestHelper) -> None:
+        class Task(ChainedTask):
+            def start(self) -> None:
+                pass
+
+        source = ChainedTasksSource(registry=source_helper.api_registry)
+        datalog = source.datalog()
+        uid = uuid.uuid4()
+        task = Task.create(datalog, 'sample-api-id', uid)
+        assert(task.uid() == uid)
+        assert(task.api_id() == 'sample-api-id')
 
 
 class TestChainedTaskLogEntry:
@@ -84,10 +94,10 @@ class TestChainedTaskLogEntry:
 
 class TestChainedTasksSource:
 
-    class Task(ChainedTaskProto):
+    class Task(ChainedTask):
 
-        def __init__(self) -> None:
-            ChainedTaskProto.__init__(self)
+        def __init__(self, datalog: DatalogProto, api_id: str, uid: uuid.UUID) -> None:
+            ChainedTask.__init__(self, datalog, api_id, uid)
             self.event = threading.Event()
 
         def start(self) -> None:
@@ -95,14 +105,6 @@ class TestChainedTasksSource:
 
         def stop(self) -> None:
             self.event.set()
-
-        @classmethod
-        def create(cls, datalog: DatalogProto, uid: uuid.UUID) -> 'ChainedTaskProto':
-            return cls()
-
-        @classmethod
-        def dependencies(cls) -> DependenciesDescription:
-            return DependenciesDescription()
 
     def test_plain_start(self, source_helper: SourceTestHelper) -> None:
         source = ChainedTasksSource(registry=source_helper.api_registry)
@@ -135,15 +137,15 @@ class TestChainedTasksSource:
         class TestClass2(TestChainedTasksSource.Task):
 
             @classmethod
-            def dependencies(cls) -> DependenciesDescription:
-                return DependenciesDescription(('test-task1',))
+            def dependencies(cls) -> typing.Optional[typing.Set[str]]:
+                return {'test-task1'}
 
         @register_api(source_helper.api_registry, 'test-task3')
         class TestClass3(TestChainedTasksSource.Task):
 
             @classmethod
-            def dependencies(cls) -> DependenciesDescription:
-                return DependenciesDescription(('test-task2',))
+            def dependencies(cls) -> typing.Optional[typing.Set[str]]:
+                return {'test-task2'}
 
         source_helper.scheduler.subscribe(source)
         source.execute('test-task1')
@@ -170,15 +172,15 @@ class TestChainedTasksSource:
         class TestClass2(TestChainedTasksSource.Task):
 
             @classmethod
-            def dependencies(cls) -> DependenciesDescription:
-                return DependenciesDescription(('test-task1',))
+            def dependencies(cls) -> typing.Optional[typing.Set[str]]:
+                return {'test-task1'}
 
         @register_api(source_helper.api_registry, 'test-task3')
         class TestClass3(TestChainedTasksSource.Task):
 
             @classmethod
-            def dependencies(cls) -> DependenciesDescription:
-                return DependenciesDescription(('test-task2',))
+            def dependencies(cls) -> typing.Optional[typing.Set[str]]:
+                return {'test-task2'}
 
         source_helper.scheduler.subscribe(source)
         source.execute('test-task1')
@@ -200,15 +202,15 @@ class TestChainedTasksSource:
         class TestClass2(TestChainedTasksSource.Task):
 
             @classmethod
-            def dependencies(cls) -> DependenciesDescription:
-                return DependenciesDescription(('test-task3',))
+            def dependencies(cls) -> typing.Optional[typing.Set[str]]:
+                return {'test-task3'}
 
         @register_api(source_helper.api_registry, 'test-task3')
         class TestClass3(TestChainedTasksSource.Task):
 
             @classmethod
-            def dependencies(cls) -> DependenciesDescription:
-                return DependenciesDescription(('test-task3',))
+            def dependencies(cls) -> typing.Optional[typing.Set[str]]:
+                return {'test-task3'}
 
         source_helper.scheduler.subscribe(source)
         source.execute('test-task1')
@@ -242,7 +244,7 @@ class TestChainedTasksSource:
             pass
 
         scheduler.subscribe(instant_source)
-        instant_source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask()))  # scheduler is full now
+        instant_source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(), source))  # scheduler is full now
 
         scheduler.subscribe(source)
         with pytest.raises(ValueError):
@@ -263,3 +265,39 @@ class TestChainedTasksSource:
         datalog = Datalog()
         source = ChainedTasksSource(datalog=datalog, registry=source_helper.api_registry)
         assert(source.datalog() is datalog)
+
+    def test_datalog_entries(self, source_helper: SourceTestHelper) -> None:
+        source = ChainedTasksSource(registry=source_helper.api_registry)
+        source_thread = ThreadedTask(source)
+        source_thread.start()
+
+        @register_api(source_helper.api_registry, 'test-task')
+        class TestClass1(ChainedTask):
+            event = threading.Event()
+
+            def start(self) -> None:
+                self.event.wait()
+
+        assert(list(source.datalog().iterate()) == [])
+
+        source_helper.scheduler.subscribe(source)
+        waiter = SignalWaiter(source_helper.scheduler, SchedulerProto.scheduled_task_completed)
+        source.execute('test-task')
+
+        datalog = source.datalog()
+        datalog_list = list(datalog.iterate())
+        assert(len(datalog_list) == 1)
+        assert(isinstance(datalog_list[0], ChainedTaskLogEntry) is True)
+        assert(datalog_list[0].api_id == "test-task")
+        assert(datalog_list[0].state == ChainedTaskState.started)
+        assert(datalog_list[0].result is None)
+
+        TestClass1.event.set()
+        waiter.wait()
+
+        source_thread.stop()
+        source_thread.wait()
+        source_thread.join()
+
+        datalog_list = list(datalog.iterate())
+        assert(len(datalog_list) == 2)

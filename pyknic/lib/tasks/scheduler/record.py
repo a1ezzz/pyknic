@@ -21,7 +21,7 @@
 
 import typing
 
-from pyknic.lib.tasks.proto import ScheduleRecordProto, TaskProto, ScheduledTaskPostponePolicy
+from pyknic.lib.tasks.proto import ScheduleRecordProto, TaskProto, ScheduledTaskPostponePolicy, ScheduleSourceProto
 
 
 class ScheduleRecord(ScheduleRecordProto):
@@ -31,6 +31,7 @@ class ScheduleRecord(ScheduleRecordProto):
     def __init__(
         self,
         task: TaskProto,
+        source: ScheduleSourceProto,
         group_id: typing.Optional[str] = None,
         ttl: typing.Optional[typing.Union[int, float]] = None,
         simultaneous_runs: typing.Optional[int] = None,
@@ -45,6 +46,7 @@ class ScheduleRecord(ScheduleRecordProto):
         :param postpone_policy: what should be done if this record will be postponed
         """
         self.__task = task
+        self.__source = source
         self.__group_id = group_id
         self.__ttl = ttl
         self.__simultaneous_runs = simultaneous_runs if simultaneous_runs is not None else 0
@@ -54,6 +56,11 @@ class ScheduleRecord(ScheduleRecordProto):
         """ The :meth:`.ScheduleRecordProto.task` method implementation
         """
         return self.__task
+
+    def source(self) -> 'ScheduleSourceProto':
+        """ The :meth:`.ScheduleRecordProto.source` method implementation
+        """
+        return self.__source
 
     def group_id(self) -> typing.Optional[str]:
         """ The :meth:`.ScheduleRecordProto.group_id` method implementation

@@ -14,18 +14,22 @@ class TestScheduleRecord:
 
     def test(self, sample_tasks: 'SampleTasks') -> None:
         task1 = sample_tasks.DummyTask()
-        record = ScheduleRecord(task1)
+        source1 = sample_tasks.DummySource()
+        record = ScheduleRecord(task1, source1)
         assert(isinstance(record, ScheduleRecord) is True)
         assert(isinstance(record, ScheduleRecordProto) is True)
         assert(record.task() is task1)
+        assert(record.source() is source1)
         assert(record.group_id() is None)
         assert(record.ttl() is None)
         assert(record.simultaneous_runs() == 0)
         assert(record.postpone_policy() == ScheduledTaskPostponePolicy.wait)
 
         task2 = sample_tasks.DummyTask()
+        source2 = sample_tasks.DummySource()
         record = ScheduleRecord(
             task2,
+            source2,
             group_id='task_group',
             ttl=10,
             simultaneous_runs=2,
@@ -33,6 +37,7 @@ class TestScheduleRecord:
         )
 
         assert(record.task() is task2)
+        assert(record.source() is source2)
         assert(record.group_id() == 'task_group')
         assert(record.ttl() == 10)
         assert(record.simultaneous_runs() == 2)

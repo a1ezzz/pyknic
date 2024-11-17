@@ -36,6 +36,7 @@ class ThreadedTask(TaskProto, CriticalResource):
     """
 
     thread_ready = Signal(TaskProto)  # signal is emitted when a thread is ready to join
+    thread_joined = Signal(TaskProto)  # signal is emitted when a thread joined
 
     def __init__(
         self,
@@ -117,6 +118,7 @@ class ThreadedTask(TaskProto, CriticalResource):
             is_alive = self.__thread.is_alive()
             if not is_alive:
                 self.__thread = None
+                self.emit(ThreadedTask.thread_joined, self.__task)
         return not is_alive
 
     def wait(self, timeout: typing.Union[int, float, None] = None) -> None:

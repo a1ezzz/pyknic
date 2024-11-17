@@ -30,7 +30,7 @@ from pyknic.lib.capability import iscapable
 from pyknic.lib.tasks.proto import ScheduleRecordProto, TaskProto, ScheduledTaskPostponePolicy
 from pyknic.lib.tasks.scheduler.queue import SchedulerQueue
 from pyknic.lib.signals.proto import SignalSourceProto, Signal
-from pyknic.lib.signals.extra import BoundedCallback, SignalResender
+from pyknic.lib.signals.extra import BoundedCallback, SignalResender, CallbacksHolder
 from pyknic.lib.signals.proxy import QueueProxy, QueueCallbackException
 from pyknic.lib.signals.source import SignalSource
 from pyknic.lib.tasks.thread_executor import ThreadExecutor, NoFreeSlotError
@@ -91,14 +91,33 @@ class SchedulerExecutor(SignalSource):
 
         self.__tasks: typing.Dict[TaskProto, 'SchedulerExecutor.TaskDescriptor'] = dict()
 
-        self.__task_completed_clbk = BoundedCallback(self.__task_completed)
-        self.__thread_executor.callback(ThreadExecutor.task_completed, self.__proxy.proxy(self.__task_completed_clbk))
+        self.__holder = CallbacksHolder()
 
-        self.__task_expired_resender = SignalResender(self, target_signal=SchedulerExecutor.scheduled_task_expired)
-        self.__scheduler_queue.callback(SchedulerQueue.task_expired, self.__task_expired_resender)
+        self.__thread_executor.callback(
+            ThreadExecutor.task_completed,
+            self.__proxy.proxy(
+                self.__holder.keep_callback(
+                    BoundedCallback(self.__task_completed),
+                    self
+                )
+            )
+        )
 
-        self.__task_dropped_resender = SignalResender(self, target_signal=SchedulerExecutor.scheduled_task_dropped)
-        self.__scheduler_queue.callback(SchedulerQueue.task_dropped, self.__task_dropped_resender)
+        self.__scheduler_queue.callback(
+            SchedulerQueue.task_expired,
+            self.__holder.keep_callback(
+                SignalResender(self, target_signal=SchedulerExecutor.scheduled_task_expired),
+                self
+            )
+        )
+
+        self.__scheduler_queue.callback(
+            SchedulerQueue.task_dropped,
+            self.__holder.keep_callback(
+                SignalResender(self, target_signal=SchedulerExecutor.scheduled_task_dropped),
+                self
+            )
+        )
 
     def __task_completed(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
         """ This callback is executed when a task is about to finish

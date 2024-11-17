@@ -21,17 +21,14 @@
 
 import logging
 import os
-import uuid
 
-from pyknic.lib.datalog.proto import DatalogProto
-from pyknic.lib.tasks.scheduler.chain_source import ChainedTaskProto, __default_chained_tasks_registry__
-from pyknic.lib.tasks.scheduler.chain_source import DependenciesDescription
+from pyknic.lib.tasks.scheduler.chain_source import ChainedTask, __default_chained_tasks_registry__
 from pyknic.lib.registry import register_api
 from pyknic.lib.log import Logger
 
 
 @register_api(__default_chained_tasks_registry__, ":log_task")
-class LogTask(ChainedTaskProto):
+class LogTask(ChainedTask):
     """ This task sets up the project's logger
     """
 
@@ -65,15 +62,3 @@ class LogTask(ChainedTaskProto):
         """ Return this task's name
         """
         return "logger-setter"
-
-    @classmethod
-    def dependencies(cls) -> DependenciesDescription:
-        """ Return "dependencies"
-        """
-        return DependenciesDescription()
-
-    @classmethod
-    def create(cls, datalog: DatalogProto, uid: uuid.UUID) -> 'ChainedTaskProto':
-        """ Create a task
-        """
-        return cls()

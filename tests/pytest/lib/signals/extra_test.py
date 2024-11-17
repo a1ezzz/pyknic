@@ -10,7 +10,8 @@ if typing.TYPE_CHECKING:
 
 from pyknic.lib.signals.proto import SignalSourceProto, Signal, SignalCallbackType
 from pyknic.lib.signals.source import SignalSource
-from pyknic.lib.signals.extra import BoundedCallback, CallbackWrapper, SignalResender
+from pyknic.lib.signals.extra import BoundedCallback, CallbackWrapper, SignalResender, CallbacksHolder
+from pyknic.lib.signals.extra import CustomizedCallback, SignalWaiter
 
 
 class TestBoundedCallback:
@@ -252,3 +253,131 @@ class TestSignalResender:
         assert(signals_registry.dump(True) == [
             (source2, Source2.signal, source1),
         ])
+
+
+class TestCallbacksHolder:
+
+    def test(self, callbacks_registry: 'CallbackRegistry') -> None:
+        holder = CallbacksHolder()
+
+        class Source(SignalSource):
+            signal = Signal()
+
+        class Ref:
+            pass
+
+        reference = Ref()
+        clbk = callbacks_registry.callback('test-callback')
+        source = Source()
+
+        source.callback(Source.signal, holder.keep_callback(lambda src, signal, value: clbk(), reference))
+        assert(callbacks_registry.calls('test-callback') == 0)
+
+        source.emit(Source.signal)
+        assert(callbacks_registry.calls('test-callback') == 1)
+
+        del reference
+        gc.collect()
+        source.emit(Source.signal)
+        assert(callbacks_registry.calls('test-callback') == 1)
+
+
+class TestCustomizedCallback:
+
+    def test(self, callbacks_registry: 'CallbackRegistry') -> None:
+
+        def custom_callback(
+            source: SignalSourceProto,
+            signal: Signal,
+            value: typing.Any,
+            optional_arg: typing.Optional[str] = None
+        ) -> None:
+            callbacks_registry.callback(optional_arg)()
+
+        c_callbacks = CustomizedCallback()
+
+        class Source(SignalSource):
+            signal1 = Signal()
+            signal2 = Signal()
+
+        class Ref:
+            pass
+
+        reference1 = Ref()
+        reference2 = Ref()
+        source = Source()
+        source.callback(Source.signal1, c_callbacks.customize(custom_callback, reference1, optional_arg='test-call1'))
+        source.callback(Source.signal2, c_callbacks.customize(custom_callback, reference2, optional_arg='test-call2'))
+
+        assert(callbacks_registry.calls('test-call1') == 0)
+        assert(callbacks_registry.calls('test-call2') == 0)
+
+        source.emit(Source.signal1)
+        assert(callbacks_registry.calls('test-call1') == 1)
+        assert(callbacks_registry.calls('test-call2') == 0)
+
+        source.emit(Source.signal2)
+        assert(callbacks_registry.calls('test-call1') == 1)
+        assert(callbacks_registry.calls('test-call2') == 1)
+
+        del reference1
+        gc.collect()
+
+        source.emit(Source.signal1)
+        source.emit(Source.signal2)
+        assert(callbacks_registry.calls('test-call1') == 1)
+        assert(callbacks_registry.calls('test-call2') == 2)
+
+
+class TestSignalWaiter:
+
+    def test(self) -> None:
+
+        class Source(SignalSource):
+            signal = Signal(int)
+
+        source = Source()
+
+        waiter = SignalWaiter(source, Source.signal, timeout=0.1, value_matcher=lambda x: x == 5)
+        assert(waiter.wait() is None)
+
+        source.emit(Source.signal, 1)
+        assert(waiter.wait() is None)
+
+        source.emit(Source.signal, 5)
+        assert(waiter.wait() == SignalWaiter.ReceivedInfo(source, Source.signal, 5))
+
+    def test_context(self) -> None:
+
+        class Source(SignalSource):
+            signal = Signal(int)
+
+        source = Source()
+        with pytest.raises(TimeoutError):
+            with SignalWaiter(source, Source.signal, timeout=0.1, value_matcher=lambda x: x == 5):
+                source.emit(Source.signal, 7)
+
+        with SignalWaiter(source, Source.signal, timeout=0.1, value_matcher=lambda x: x == 5):
+            source.emit(Source.signal, 5)  # this is ok
+
+    def test_multiple_signals(self) -> None:
+
+        class Source(SignalSource):
+            signal1 = Signal()
+            signal2 = Signal()
+
+        source1 = Source()
+        source2 = Source()
+
+        with SignalWaiter(source1, Source.signal1, timeout=0.1) as w:
+            source2.callback(Source.signal2, w)
+            source1.emit(Source.signal1)  # is ok
+
+        with SignalWaiter(source1, Source.signal1, timeout=0.1) as w:
+            source2.callback(Source.signal2, w)
+            source2.emit(Source.signal2)  # is ok
+
+        with pytest.raises(TimeoutError):
+            with SignalWaiter(source1, Source.signal1, timeout=0.1) as w:
+                source2.callback(Source.signal2, w)
+                source1.emit(Source.signal2)  # will fail

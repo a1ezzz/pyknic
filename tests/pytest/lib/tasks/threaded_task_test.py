@@ -69,18 +69,20 @@ class TestThreadTask:
             (task, TaskProto.task_started, None),
         ])
 
-    def test_complete_event(self, signals_registry: 'SignalsRegistry') -> None:
+    def test_fin_event(self, signals_registry: 'SignalsRegistry') -> None:
         plain_task = PlainTask(lambda: None)
         task = ThreadedTask(plain_task)
         task.callback(TaskProto.task_completed, signals_registry)
         task.callback(ThreadedTask.thread_ready, signals_registry)
+        task.callback(ThreadedTask.thread_joined, signals_registry)
 
         task.start()
         task.wait()
 
         assert(signals_registry.dump(True) == [
             (task, ThreadedTask.thread_ready, plain_task),
-            (task, TaskProto.task_completed, TaskResult())
+            (task, TaskProto.task_completed, TaskResult()),
+            (task, ThreadedTask.thread_joined, plain_task)
         ])
 
     def test_stop(self, sample_tasks: 'SampleTasks') -> None:

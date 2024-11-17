@@ -5,9 +5,10 @@ import typing
 import pytest
 
 from pyknic.lib.signals.proto import SignalSourceProto, Signal
-from pyknic.lib.tasks.proto import TaskProto
+from pyknic.lib.tasks.proto import TaskProto, ScheduleSourceProto
 from pyknic.lib.datalog.proto import DatalogProto
 from pyknic.lib.datalog.datalog import Datalog
+from pyknic.lib.tasks.scheduler.record import ScheduleRecord
 
 
 class CallbackRegistry:
@@ -142,6 +143,14 @@ class SampleTasks:
 
         def __stop_func(self) -> None:
             self.__event.set()
+
+    class PlainRecord(ScheduleRecord):
+
+        def __init__(self, task: TaskProto, **kwargs: typing.Any) -> None:
+            ScheduleRecord.__init__(self, task, SampleTasks.DummySource(), **kwargs)
+
+    class DummySource(ScheduleSourceProto):
+        pass
 
 
 @pytest.fixture

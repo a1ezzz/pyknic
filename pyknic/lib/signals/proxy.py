@@ -102,7 +102,7 @@ class QueueProxy(SignalProxy, TaskProto):
                 self.__raised_exception = e
             self.__wait_event.set()
 
-        def wait(self, timeout: typing.Union[int, float, None]) -> typing.Any:
+        def wait(self, timeout: typing.Union[int, float, None] = None) -> typing.Any:
             """ Wait for a callback result
 
             :param timeout: timeout with which a result will be awaited. If the timeout is None then wait forever

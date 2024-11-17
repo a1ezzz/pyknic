@@ -22,8 +22,8 @@ def reset_logger() -> typing.Generator[None, None, None]:
 class TestLogTask:
 
     def test(self, monkeypatch: pytest.MonkeyPatch, empty_datalog: DatalogProto, reset_logger: None) -> None:
-        assert(LogTask.dependencies().to_start is None)
-        task = LogTask.create(empty_datalog, uuid.uuid4())
+        assert(LogTask.dependencies() is None)
+        task = LogTask.create(empty_datalog, 'sample-api-id', uuid.uuid4())
         assert(task.task_name() is not None)
 
         with pytest.raises(ValueError):

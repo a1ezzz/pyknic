@@ -19,8 +19,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import threading
+import types
 import typing
 import weakref
+
+from dataclasses import dataclass
 
 from pyknic.lib.verify import verify_value
 
@@ -152,4 +156,137 @@ class SignalResender:
         )
         if target is not None:
             sig = self.__target_signal if self.__target_signal else signal
-            target.emit(sig, self.__converter(source, signal, value))
+            target.emit(sig, self.__converter(source, sig, value))
+
+
+class CallbacksHolder:
+    """ This class helps to store callbacks with respect to memory
+    """
+
+    def __init__(self) -> None:
+        """ Create a new holder to store callbacks
+        """
+        self.__callbacks: weakref.WeakValueDictionary[SignalCallbackType, typing.Any] = weakref.WeakValueDictionary()
+
+    def keep_callback(self, callback: SignalCallbackType, reference_key: typing.Any) -> SignalCallbackType:
+        """ Keep a new callback and return it
+
+        :param callback: a callback to store
+        :param reference_key: an object. While this object exists a callback exists
+        """
+        self.__callbacks[callback] = reference_key
+        return callback
+
+
+class CustomizedCallback:
+    """ This class helps to call a callback with additional static arguments
+    """
+
+    class StaticWrapper:
+        """ This is a wrapper for a callback
+        """
+
+        def __init__(
+            self,
+            callback: typing.Callable[[SignalSourceProto, Signal, typing.Any], None],
+            **kwargs: typing.Any
+        ) -> None:
+            """ Create a wrapper
+
+            :param callback: an original callback to call
+            :param kwargs: static arguments to use along with the call
+            """
+            self.__callback = callback
+            self.__kwargs = kwargs
+
+        def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+            """ Execute an original callback with extra static arguments
+            """
+            self.__callback(source, signal, value, **self.__kwargs)
+
+    def __init__(self) -> None:
+        """ Create a holder that will create callbacks with static arguments
+        """
+        self.__holder = CallbacksHolder()
+
+    def customize(
+        self,
+        callback: typing.Callable[[SignalSourceProto, Signal, typing.Any], None],
+        reference_key: typing.Any,
+        **kwargs: typing.Any
+    ) -> SignalCallbackType:
+        """ Create and store a new callback
+
+        :param callback: a base callback to use
+        :param reference_key: a reference key to store a callback (the same as the "reference_key" parameter
+        in the :meth:`.CallbacksHolder.keep_callback` method)
+        :param kwargs: static arguments to use with the callback
+        """
+        custom_callback = CustomizedCallback.StaticWrapper(callback, **kwargs)
+        self.__holder.keep_callback(custom_callback, reference_key)
+        return custom_callback
+
+
+class SignalWaiter:
+    """ This class helps to wait for a signal
+    """
+
+    @dataclass
+    class ReceivedInfo:
+        source: SignalSourceProto
+        signal: Signal
+        value: typing.Any
+
+    def __init__(
+        self,
+        target_source: SignalSourceProto,
+        target_signal: Signal,
+        timeout: typing.Union[int, float, None] = None,
+        event: typing.Optional[threading.Event] = None,
+        value_matcher: typing.Optional[typing.Callable[[typing.Any], bool]] = None
+    ):
+        """ Create object that will wait for a signal and sign up for it
+
+        :param target_source: a source that will be subscribed for a signal to come
+        :param target_signal: a signal to await
+        :param timeout: timeout with which a result will be awaited. If the timeout is None then wait forever
+        :param event: optional event that will be used to wait a signal. If not defined then internal event is used
+        :param value_matcher: optional callable that checks received signal value. If defined then
+        the event will be set only if this function return True on received signal value
+        """
+        self.__timeout = timeout
+        self.__event = event if event else threading.Event()
+        self.__matcher = value_matcher
+        self.__received_signal: typing.Optional[SignalWaiter.ReceivedInfo] = None
+
+        target_source.callback(target_signal, self)
+
+    def __enter__(self) -> 'SignalWaiter':
+        """ Start a context
+        """
+        return self
+
+    def __exit__(
+        self,
+        exc_type: typing.Optional[typing.Type[BaseException]],
+        exc_val: typing.Optional[BaseException],
+        exc_tb: typing.Optional[types.TracebackType]
+    ) -> None:
+        """ Exit a context and wait for a signal
+        """
+        if exc_type is None:
+            if self.wait() is None:
+                raise TimeoutError("Signal wasn't received in time")
+
+    def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+        """ A callback that may be subscribed to more signals to come
+        """
+        if self.__matcher is None or self.__matcher(value):
+            self.__received_signal = SignalWaiter.ReceivedInfo(source, signal, value)
+            self.__event.set()
+
+    def wait(self, ) -> typing.Optional['SignalWaiter.ReceivedInfo']:
+        """ Wait for a signal and return True if signal has been received or False otherwise
+        """
+        self.__event.wait(self.__timeout)
+        return self.__received_signal

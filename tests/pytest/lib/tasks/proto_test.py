@@ -11,7 +11,7 @@ from pyknic.lib.capability import iscapable, CapabilityDescriptor
 
 from pyknic.lib.tasks.proto import TaskStartError, TaskStopError, NoSuchTaskError, TaskProto
 from pyknic.lib.tasks.proto import TaskResult, ScheduleRecordProto, SchedulerProto, ScheduledTaskPostponePolicy
-from pyknic.lib.tasks.proto import TaskExecutorProto
+from pyknic.lib.tasks.proto import TaskExecutorProto, ScheduleSourceProto
 
 
 def test_exceptions() -> None:
@@ -26,6 +26,7 @@ def test_abstract() -> None:
 
     pytest.raises(TypeError, ScheduleRecordProto)
     pytest.raises(NotImplementedError, ScheduleRecordProto.task, None)
+    pytest.raises(NotImplementedError, ScheduleRecordProto.source, None)
 
     pytest.raises(TypeError, SchedulerProto)
     pytest.raises(NotImplementedError, SchedulerProto.subscribe, None, None)
@@ -70,6 +71,9 @@ class TestScheduleRecordProto:
         class Record(ScheduleRecordProto):
             def task(self) -> TaskProto:
                 return sample_tasks.DummyTask()
+
+            def source(self) -> 'ScheduleSourceProto':
+                return object()  # type: ignore[return-value]  # just a test
 
         record = Record()
         assert(record.group_id() is None)

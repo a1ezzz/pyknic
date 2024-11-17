@@ -8,12 +8,11 @@ from datetime import datetime, timezone
 
 if typing.TYPE_CHECKING:
     # noinspection PyUnresolvedReferences
-    from conftest import SignalsRegistry
+    from conftest import SignalsRegistry, SampleTasks
 
 from pyknic.lib.signals.proto import SignalSourceProto
 from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.tasks.proto import ScheduledTaskPostponePolicy, ScheduleRecordProto
-from pyknic.lib.tasks.scheduler.record import ScheduleRecord
 from pyknic.lib.tasks.scheduler.queue import SchedulerQueue
 
 
@@ -69,11 +68,11 @@ class TestSchedulerPostponeQueue:
 
         return result
 
-    def test_plain(self) -> None:
+    def test_plain(self, sample_tasks: 'SampleTasks') -> None:
         queue = SchedulerQueue()
         assert(isinstance(queue, SignalSourceProto) is True)
 
-        record = ScheduleRecord(PlainTask(lambda: None))
+        record = sample_tasks.PlainRecord(PlainTask(lambda: None))
         queue.postpone(record)
 
         assert(self.flush_records(queue) == [record])
@@ -95,12 +94,15 @@ class TestSchedulerPostponeQueue:
     )
     def test_groups(
         self,
+        sample_tasks: 'SampleTasks',
         records: typing.Tuple[typing.Dict[str, typing.Any]],
         result_indices: typing.Tuple[int]
     ) -> None:
         queue = SchedulerQueue()
         task = PlainTask(lambda: None)
-        input_records = [ScheduleRecord(task, postpone_policy=x['policy'], group_id=x['group']) for x in records]
+        input_records = [
+            sample_tasks.PlainRecord(task, postpone_policy=x['policy'], group_id=x['group']) for x in records
+        ]
         result_records = [input_records[x] for x in result_indices]
 
         for i in input_records:
@@ -108,26 +110,30 @@ class TestSchedulerPostponeQueue:
 
         assert(self.flush_records(queue) == result_records)
 
-    def test_ttl(self, signals_registry: 'SignalsRegistry') -> None:
+    def test_ttl(self, sample_tasks: 'SampleTasks', signals_registry: 'SignalsRegistry') -> None:
         queue = SchedulerQueue()
         queue.callback(SchedulerQueue.task_expired, signals_registry)
         task = PlainTask(lambda: None)
 
-        record1 = ScheduleRecord(task, ttl=(datetime.now(timezone.utc).timestamp() + 1000))  # this one is kept
-        record2 = ScheduleRecord(task, ttl=(datetime.now(timezone.utc).timestamp() - 10))  # this one is dropped
+        record1 = sample_tasks.PlainRecord(  # this one is kept
+            task, ttl=(datetime.now(timezone.utc).timestamp() + 1000)
+        )
+        record2 = sample_tasks.PlainRecord(  # this one is dropped
+            task, ttl=(datetime.now(timezone.utc).timestamp() - 10)
+        )
         queue.postpone(record1)
         queue.postpone(record2)
 
         assert(self.flush_records(queue) == [record1])
         assert(signals_registry.dump(True) == [(queue, SchedulerQueue.task_expired, record2)])
 
-    def test_ttl_next_record(self, signals_registry: 'SignalsRegistry') -> None:
+    def test_ttl_next_record(self, sample_tasks: 'SampleTasks', signals_registry: 'SignalsRegistry') -> None:
         queue = SchedulerQueue()
         queue.callback(SchedulerQueue.task_expired, signals_registry)
         task = PlainTask(lambda: None)
         time_delta = 0.5
 
-        record = ScheduleRecord(task, ttl=(datetime.now(timezone.utc).timestamp() + time_delta))
+        record = sample_tasks.PlainRecord(task, ttl=(datetime.now(timezone.utc).timestamp() + time_delta))
         queue.postpone(record)
 
         time.sleep(time_delta * 2)
@@ -151,6 +157,7 @@ class TestSchedulerPostponeQueue:
     )
     def test_dropped_signals(
         self,
+        sample_tasks: 'SampleTasks',
         signals_registry: 'SignalsRegistry',
         records: typing.Tuple[typing.Dict[str, typing.Any]],
         result_indices: typing.Tuple[int]
@@ -159,7 +166,9 @@ class TestSchedulerPostponeQueue:
         queue.callback(SchedulerQueue.task_dropped, signals_registry)
 
         task = PlainTask(lambda: None)
-        input_records = [ScheduleRecord(task, postpone_policy=x['policy'], group_id=x['group']) for x in records]
+        input_records = [
+            sample_tasks.PlainRecord(task, postpone_policy=x['policy'], group_id=x['group']) for x in records
+        ]
         dropped_signals = [
             (queue, SchedulerQueue.task_dropped, input_records[x]) for x in result_indices
         ]
@@ -186,6 +195,7 @@ class TestSchedulerPostponeQueue:
     )
     def test_postponed_signals(
         self,
+        sample_tasks: 'SampleTasks',
         signals_registry: 'SignalsRegistry',
         records: typing.Tuple[typing.Dict[str, typing.Any]],
         result_indices: typing.Tuple[int]
@@ -194,7 +204,9 @@ class TestSchedulerPostponeQueue:
         queue.callback(SchedulerQueue.task_postponed, signals_registry)
 
         task = PlainTask(lambda: None)
-        input_records = [ScheduleRecord(task, postpone_policy=x['policy'], group_id=x['group']) for x in records]
+        input_records = [
+            sample_tasks.PlainRecord(task, postpone_policy=x['policy'], group_id=x['group']) for x in records
+        ]
         postponed_signals = [
             (queue, SchedulerQueue.task_postponed, input_records[x]) for x in result_indices
         ]
@@ -204,12 +216,12 @@ class TestSchedulerPostponeQueue:
 
         assert(signals_registry.dump(True) == postponed_signals)
 
-    def test_filtered_next_record(self) -> None:
+    def test_filtered_next_record(self, sample_tasks: 'SampleTasks') -> None:
         queue = SchedulerQueue()
         task = PlainTask(lambda: None)
 
-        record1 = ScheduleRecord(task, group_id='group1')
-        record2 = ScheduleRecord(task, group_id='group2')
+        record1 = sample_tasks.PlainRecord(task, group_id='group1')
+        record2 = sample_tasks.PlainRecord(task, group_id='group2')
         queue.postpone(record1)
         queue.postpone(record2)
 
@@ -218,13 +230,13 @@ class TestSchedulerPostponeQueue:
         assert(queue.next_record() is record1)
         assert(queue.next_record() is None)
 
-    def test_len(self) -> None:
+    def test_len(self, sample_tasks: 'SampleTasks') -> None:
         queue = SchedulerQueue()
         task = PlainTask(lambda: None)
         assert(len(queue) == 0)
 
-        record1 = ScheduleRecord(task, group_id='group1')
-        record2 = ScheduleRecord(task, group_id='group2')
+        record1 = sample_tasks.PlainRecord(task, group_id='group1')
+        record2 = sample_tasks.PlainRecord(task, group_id='group2')
         queue.postpone(record1)
         queue.postpone(record2)
         assert(len(queue) == 2)

@@ -24,7 +24,7 @@ class TestInstantTaskSource:
         source = InstantTaskSource()
         assert(isinstance(source, ScheduleSourceProto))
 
-        record = ScheduleRecord(sample_tasks.DummyTask())
+        record = ScheduleRecord(sample_tasks.DummyTask(), source)
         source.callback(source.task_scheduled, callback)
         source.schedule_record(record)
         assert(callback_result == [record])

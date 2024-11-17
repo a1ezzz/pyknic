@@ -124,6 +124,12 @@ class ScheduleRecordProto(metaclass=ABCMeta):
         """
         raise NotImplementedError('This method is abstract')
 
+    @abstractmethod
+    def source(self) -> 'ScheduleSourceProto':
+        """ Return origin of this record
+        """
+        raise NotImplementedError('This method is abstract')
+
     def group_id(self) -> typing.Optional[str]:
         """ Return group id that unite records (in order 'ScheduledTaskPostponePolicy.keep_first' and
         'ScheduledTaskPostponePolicy.keep_last' to work; :meth:`.ScheduleRecordProto.simultaneous_policy` depends on

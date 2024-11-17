@@ -7,10 +7,9 @@ from datetime import datetime, timezone
 
 if typing.TYPE_CHECKING:
     # noinspection PyUnresolvedReferences
-    from conftest import SignalsRegistry
+    from conftest import SignalsRegistry, SampleTasks
 
 from pyknic.lib.tasks.plain_task import PlainTask
-from pyknic.lib.tasks.scheduler.record import ScheduleRecord
 from pyknic.lib.tasks.scheduler.cron_source import CronSchedule, CronRecordInitError, CronScheduleRecord, CronTaskSource
 
 
@@ -153,8 +152,8 @@ class TestCronSchedule:
 
 class TestCronScheduleRecord:
 
-    def test_plain(self) -> None:
-        record = ScheduleRecord(PlainTask(lambda: None))
+    def test_plain(self, sample_tasks: 'SampleTasks') -> None:
+        record = sample_tasks.PlainRecord(PlainTask(lambda: None))
         schedule = CronSchedule.from_string("* * * * *")
         cron_record = CronScheduleRecord(record, schedule)
 
@@ -166,16 +165,16 @@ class TestCronScheduleRecord:
             "commit"
         ]
     )
-    def test_uninitialized_record(self, method_name: str) -> None:
-        record = ScheduleRecord(PlainTask(lambda: None))
+    def test_uninitialized_record(self, sample_tasks: 'SampleTasks', method_name: str) -> None:
+        record = sample_tasks.PlainRecord(PlainTask(lambda: None))
         schedule = CronSchedule.from_string("* * * * *")
         cron_record = CronScheduleRecord(record, schedule)
 
         with pytest.raises(CronRecordInitError):
             getattr(cron_record, method_name)()
 
-    def test_double_init(self) -> None:
-        record = ScheduleRecord(PlainTask(lambda: None))
+    def test_double_init(self, sample_tasks: 'SampleTasks') -> None:
+        record = sample_tasks.PlainRecord(PlainTask(lambda: None))
         schedule = CronSchedule.from_string("* * * * *")
         cron_record = CronScheduleRecord(record, schedule)
 
@@ -183,8 +182,8 @@ class TestCronScheduleRecord:
         with pytest.raises(CronRecordInitError):
             cron_record.init(datetime.now(timezone.utc))
 
-    def test_next(self) -> None:
-        record = ScheduleRecord(PlainTask(lambda: None))
+    def test_next(self, sample_tasks: 'SampleTasks') -> None:
+        record = sample_tasks.PlainRecord(PlainTask(lambda: None))
         schedule = CronSchedule.from_string("* * * * *")
         cron_record = CronScheduleRecord(record, schedule)
         start_datetime = datetime(year=2001, month=1, day=1, hour=1, minute=1, second=0, tzinfo=timezone.utc)
@@ -210,8 +209,8 @@ class TestCronScheduleRecord:
         next_datetime = cron_record.next()
         assert(next_datetime == datetime(year=2001, month=1, day=1, hour=1, minute=3, second=0, tzinfo=timezone.utc))
 
-    def test_schedule(self) -> None:
-        record = ScheduleRecord(PlainTask(lambda: None))
+    def test_schedule(self, sample_tasks: 'SampleTasks') -> None:
+        record = sample_tasks.PlainRecord(PlainTask(lambda: None))
         schedule = CronSchedule.from_string("* * * * *")
         cron_record = CronScheduleRecord(record, schedule)
         start_datetime = datetime(year=2001, month=1, day=1, hour=1, minute=1, second=0, tzinfo=timezone.utc)
@@ -239,9 +238,9 @@ class TestCronTaskSource:
         assert(source.poll() is None)
         assert(list(source.records()) == [])
 
-    def test_polling(self, signals_registry: 'SignalsRegistry') -> None:
+    def test_polling(self, sample_tasks: 'SampleTasks', signals_registry: 'SignalsRegistry') -> None:
         source = CronTaskSource()
-        record = ScheduleRecord(PlainTask(lambda: None))
+        record = sample_tasks.PlainRecord(PlainTask(lambda: None))
         cron_schedule = CronScheduleRecord(record, CronSchedule.from_string("* * * * *"))
 
         source.callback(CronTaskSource.task_scheduled, signals_registry)
@@ -255,8 +254,8 @@ class TestCronTaskSource:
         source.poll()
         assert(signals_registry.dump(True) == [])
 
-    def test_records(self, signals_registry: 'SignalsRegistry') -> None:
-        record = ScheduleRecord(PlainTask(lambda: None))
+    def test_records(self, sample_tasks: 'SampleTasks', signals_registry: 'SignalsRegistry') -> None:
+        record = sample_tasks.PlainRecord(PlainTask(lambda: None))
         now = datetime.now(timezone.utc)
 
         cron_schedule1 = CronScheduleRecord(record, CronSchedule.from_string(f"* {(now.hour + 4) % 24} * * *"))
@@ -286,8 +285,8 @@ class TestCronTaskSource:
 
         assert(list(source.records()) == [cron_schedule2, cron_schedule1, cron_schedule3])
 
-    def test_discard(self, signals_registry: 'SignalsRegistry') -> None:
-        record = ScheduleRecord(PlainTask(lambda: None))
+    def test_discard(self, sample_tasks: 'SampleTasks', signals_registry: 'SignalsRegistry') -> None:
+        record = sample_tasks.PlainRecord(PlainTask(lambda: None))
         now = datetime.now(timezone.utc)
 
         cron_schedule1 = CronScheduleRecord(record, CronSchedule.from_string(f"* {(now.hour + 4) % 24} * * *"))

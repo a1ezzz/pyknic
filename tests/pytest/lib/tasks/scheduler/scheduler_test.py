@@ -30,7 +30,7 @@ class TestScheduler:
         @staticmethod
         def flush(source: InstantTaskSource) -> None:
             syn = TestScheduler.SynCallback()
-            source.schedule_record(ScheduleRecord(PlainTask(syn)))
+            source.schedule_record(ScheduleRecord(PlainTask(syn), source))
             syn.event.wait()
 
     def test(self, callbacks_registry: 'CallbackRegistry') -> None:
@@ -44,12 +44,12 @@ class TestScheduler:
         scheduler.subscribe(source1)
         scheduler.subscribe(source2)
 
-        source1.schedule_record(ScheduleRecord(PlainTask(callbacks_registry.callback('test-callback'))))
+        source1.schedule_record(ScheduleRecord(PlainTask(callbacks_registry.callback('test-callback')), source1))
         TestScheduler.SynCallback.flush(source2)
         assert(callbacks_registry.calls('test-callback') == 1)
 
         scheduler.unsubscribe(source1)
-        source1.schedule_record(ScheduleRecord(PlainTask(callbacks_registry.callback('test-callback'))))
+        source1.schedule_record(ScheduleRecord(PlainTask(callbacks_registry.callback('test-callback')), source1))
         TestScheduler.SynCallback.flush(source2)
         assert(callbacks_registry.calls('test-callback') == 1)
 
@@ -78,7 +78,7 @@ class TestScheduler:
     def test_signal_task_scheduled(self, signal_watcher: 'SignalWatcher') -> None:
         scheduler = Scheduler()
         source = InstantTaskSource()
-        record = ScheduleRecord(PlainTask(lambda: None))
+        record = ScheduleRecord(PlainTask(lambda: None), source)
 
         scheduler.callback(SchedulerProto.task_scheduled, signal_watcher)
 
@@ -134,9 +134,11 @@ class TestScheduler:
         threaded_scheduler.start()
         scheduler.subscribe(source)
 
-        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False)))
+        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False), source))
         source.schedule_record(ScheduleRecord(
-            sample_tasks.LongRunningTask(terminate_method=False), postpone_policy=ScheduledTaskPostponePolicy.drop
+            sample_tasks.LongRunningTask(terminate_method=False),
+            source,
+            postpone_policy=ScheduledTaskPostponePolicy.drop
         ))
         signal_watcher.wait(100)
 
@@ -153,8 +155,8 @@ class TestScheduler:
         threaded_scheduler.start()
         scheduler.subscribe(source)
 
-        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False)))
-        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False)))
+        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False), source))
+        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False), source))
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
@@ -170,7 +172,7 @@ class TestScheduler:
         threaded_scheduler.start()
         scheduler.subscribe(source)
 
-        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False), ttl=1))
+        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False), source, ttl=1))
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
@@ -186,7 +188,7 @@ class TestScheduler:
         threaded_scheduler.start()
         scheduler.subscribe(source)
 
-        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False)))
+        source.schedule_record(ScheduleRecord(sample_tasks.LongRunningTask(terminate_method=False), source))
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
@@ -203,7 +205,7 @@ class TestScheduler:
         threaded_scheduler.start()
         scheduler.subscribe(source)
 
-        source.schedule_record(ScheduleRecord(sample_tasks.DummyTask()))
+        source.schedule_record(ScheduleRecord(sample_tasks.DummyTask(), source))
         signal_watcher.wait(100)
 
         threaded_scheduler.stop()
