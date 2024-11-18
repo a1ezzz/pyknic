@@ -21,12 +21,17 @@
 
 import typing
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
+
+from pyknic.lib.signals.proto import Signal
+from pyknic.lib.signals.source import SignalSource
 
 
-class DatalogProto(metaclass=ABCMeta):
+class DatalogProto(SignalSource):
     """ This class represent sequence of data, where new data may be updated to the tail only
     """
+
+    new_entry = Signal(object)
 
     @abstractmethod
     def append(self, record: typing.Any) -> None:
@@ -50,5 +55,15 @@ class DatalogProto(metaclass=ABCMeta):
         """ Remove old records and keep at least N records
 
         :param min_length: number of records in sequence to keep. Not less than this number of records will be kept
+        """
+        raise NotImplementedError('This method is abstract')
+
+    def find(
+        self, filter_fn: typing.Callable[[typing.Any], bool], reverse: bool = False
+    ) -> typing.Optional[typing.Any]:
+        """ Try to find the closest entry that is suitable to the filter function
+
+        :param filter_fn: a function that returns True for suitable log entry
+        :param reverse: if False return the oldest record and return the newest record otherwise
         """
         raise NotImplementedError('This method is abstract')

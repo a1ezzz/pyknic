@@ -10,3 +10,4 @@ def test_abstract() -> None:
     pytest.raises(NotImplementedError, DatalogProto.append, None, None)
     pytest.raises(NotImplementedError, DatalogProto.iterate, None)
     pytest.raises(NotImplementedError, DatalogProto.truncate, None, 0)
+    pytest.raises(NotImplementedError, DatalogProto.find, None, 0)

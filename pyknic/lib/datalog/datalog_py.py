@@ -45,6 +45,7 @@ class DatalogPy(DatalogProto, CriticalResource):
         """ The :meth:`.DatalogPy.append` method implementation
         """
         self.__log.append(record)
+        self.emit(DatalogProto.new_entry, record)
 
     def iterate(self, reverse: bool = False) -> typing.Generator[typing.Any, None, None]:
         """ The :meth:`.DatalogPy.iterate` method implementation
@@ -69,3 +70,13 @@ class DatalogPy(DatalogProto, CriticalResource):
             self.__log.clear()
         else:
             self.__log = self.__log[-min_length:]
+
+    def find(
+        self, filter_fn: typing.Callable[[typing.Any], bool], reverse: bool = False
+    ) -> typing.Optional[typing.Any]:
+        """ The :meth:`.DatalogPy.search` method implementation
+        """
+        try:
+            return next(filter(filter_fn, self.iterate(reverse=reverse)))
+        except StopIteration:
+            return None
