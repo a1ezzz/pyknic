@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import threading
+import time
 
 import pytest
 import typing
@@ -20,7 +21,7 @@ from pyknic.lib.tasks.scheduler.chain_source import ChainedTask
 from pyknic.lib.tasks.scheduler.record import ScheduleRecord
 from pyknic.lib.tasks.scheduler.scheduler import Scheduler
 from pyknic.lib.tasks.scheduler.plain_sources import InstantTaskSource
-from pyknic.lib.tasks.proto import TaskResult, SchedulerProto
+from pyknic.lib.tasks.proto import TaskResult, SchedulerProto, SchedulerFeedback
 from pyknic.lib.tasks.threaded_task import ThreadedTask
 
 
@@ -61,7 +62,62 @@ class TestChainedTask:
         uid = uuid.uuid4()
         task = Task.create(datalog, 'sample-api-id', uid)
         assert(task.uid() == uid)
+        assert(task.datalog() is datalog)
         assert(task.api_id() == 'sample-api-id')
+
+    def test_wait_for_result(self, source_helper: SourceTestHelper) -> None:
+
+        event = threading.Event()
+        result_object = object()
+        result = TaskResult(result=result_object)
+
+        @register_api(source_helper.api_registry, 'test-task')
+        class Task(ChainedTask):
+            def start(self) -> None:
+                nonlocal event, result
+                time.sleep(0.5)
+                event.set()
+
+                self.save_result(result)
+
+        source = ChainedTasksSource(registry=source_helper.api_registry)
+        source_thread = ThreadedTask(source)
+        source_thread.start()
+
+        source_helper.scheduler.subscribe(source)
+        source.execute('test-task')
+
+        task = Task(source.datalog(), 'task', uuid.uuid4())
+        assert(task.wait_for('test-task') is result)
+
+        source_thread.stop()
+        source_thread.wait()
+        source_thread.join()
+
+    def test_wait_for_none(self, source_helper: SourceTestHelper) -> None:
+
+        event = threading.Event()
+
+        @register_api(source_helper.api_registry, 'test-task')
+        class Task(ChainedTask):
+            def start(self) -> None:
+                nonlocal event
+                time.sleep(0.5)
+                event.set()
+
+        source = ChainedTasksSource(registry=source_helper.api_registry)
+        source_thread = ThreadedTask(source)
+        source_thread.start()
+
+        source_helper.scheduler.subscribe(source)
+        source.execute('test-task')
+
+        task = Task(source.datalog(), 'task', uuid.uuid4())
+        assert(task.wait_for('test-task') is None)
+
+        source_thread.stop()
+        source_thread.wait()
+        source_thread.join()
 
 
 class TestChainedTaskLogEntry:
@@ -194,6 +250,12 @@ class TestChainedTasksSource:
         source_thread = ThreadedTask(source)
         source_thread.start()
 
+        with pytest.raises(ValueError):
+            source.scheduler_feedback(source_helper.scheduler, SchedulerFeedback.source_unsubscribed)
+
+        with pytest.raises(ValueError):
+            source.scheduler_feedback(source_helper.scheduler, 1)  # type: ignore[arg-type]  # just a test
+
         @register_api(source_helper.api_registry, 'test-task1')
         class TestClass1(TestChainedTasksSource.Task):
             pass
@@ -212,7 +274,14 @@ class TestChainedTasksSource:
             def dependencies(cls) -> typing.Optional[typing.Set[str]]:
                 return {'test-task3'}
 
+        with pytest.raises(ValueError):
+            source.execute('test-task1')
+
         source_helper.scheduler.subscribe(source)
+
+        with pytest.raises(ValueError):
+            source.scheduler_feedback(source_helper.scheduler, SchedulerFeedback.source_subscribed)
+
         source.execute('test-task1')
 
         with pytest.raises(ValueError):

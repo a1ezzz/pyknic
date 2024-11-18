@@ -28,6 +28,7 @@ import functools
 import typing
 import uuid
 
+from contextlib import suppress
 from datetime import datetime, timezone
 
 from pyknic.lib.datalog.proto import DatalogProto
@@ -107,6 +108,9 @@ class ChainedTask(TaskProto):
         self.__api_id = api_id
         self.__uid = uid
 
+    def datalog(self) -> DatalogProto:
+        return self.__datalog
+
     def api_id(self) -> str:
         return self.__api_id
 
@@ -128,6 +132,28 @@ class ChainedTask(TaskProto):
         """ Return task dependencies
         """
         return None
+
+    def wait_for(self, api_id: str) -> typing.Optional[TaskResult]:
+
+        def result_fn(entry: ChainedTaskLogEntry) -> bool:
+            return entry.api_id == api_id and entry.state == ChainedTaskState.completed
+
+        def complete_fn(entry: ChainedTaskLogEntry) -> bool:
+            return entry.api_id == api_id and entry.state in (ChainedTaskState.completed, ChainedTaskState.finalized)
+
+        result = self.datalog().find(result_fn, reverse=True)
+
+        if result is None:
+            with suppress(StopIteration):
+                with SignalWaiter(self.datalog(), DatalogProto.new_entry, value_matcher=complete_fn):
+                    if self.datalog().find(complete_fn, reverse=True):
+                        raise StopIteration('Stop to wait')
+
+            result = self.datalog().find(result_fn, reverse=True)
+        return result.result if result is not None else None
+
+    def save_result(self, result: TaskResult) -> None:
+        self.datalog().append(ChainedTaskLogEntry(self.api_id(), self.uid(), ChainedTaskState.completed, result))
 
 
 class ChainedTasksSource(ScheduleSourceProto, TaskProto):
@@ -250,8 +276,7 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
         if not self.__scheduler:
             raise ValueError('Scheduler has not registered yet')
 
-        if record.postpone_policy() != ScheduledTaskPostponePolicy.drop:
-            raise ValueError('A record must have the drop policy in order not to wait for a long time')
+        assert(record.postpone_policy() == ScheduledTaskPostponePolicy.drop)
 
         waiter = SignalWaiter(
             self.__scheduler, SchedulerProto.scheduled_task_started, value_matcher=lambda x: x == record
