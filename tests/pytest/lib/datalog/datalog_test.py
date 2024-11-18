@@ -109,7 +109,14 @@ class TestDatalog:
         ]
     )
     def test_signal(self, test_cls: typing.Type[DatalogProto], signals_registry: 'SignalsRegistry') -> None:
-        pass
+        log = test_cls()
+
+        log.callback(DatalogProto.new_entry, signals_registry)
+        assert(signals_registry.dump(True) == [])
+
+        entry_object = (1, "foo", None)
+        log.append(entry_object)
+        assert(signals_registry.dump(True) == [(log, DatalogProto.new_entry, entry_object)])
 
     @pytest.mark.parametrize(
         "test_cls", [
