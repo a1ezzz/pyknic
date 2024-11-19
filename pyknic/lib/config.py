@@ -23,8 +23,6 @@ import configparser
 import typing
 from configparser import ConfigParser
 
-from pyknic.lib.singleton import create_singleton
-
 
 class Config:
     """ Main configuration of the application
@@ -260,6 +258,3 @@ class ConfigOption:
         """ Return option's value without interpolation
         """
         return self.__parser.get(self.__section, self.__option, raw=True)
-
-
-AppConfig: Config = create_singleton(Config())  # type: ignore[assignment]  # metaclass

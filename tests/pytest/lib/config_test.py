@@ -3,7 +3,7 @@
 import io
 import pytest
 
-from pyknic.lib.config import Config, ConfigSection, ConfigOption, AppConfig
+from pyknic.lib.config import Config, ConfigSection, ConfigOption
 
 
 class TestConfig:
@@ -202,8 +202,3 @@ class TestConfigOption:
         assert(float(config['section2']['float_option']) == 0.5)
         assert(bool(config['big_section']['boolean_value']) is True)
         assert(bool(config['big_section']['yes_val']) is False)
-
-
-def test_config() -> None:
-    assert(isinstance(AppConfig, Config) is True)
-    assert(AppConfig.sections() == set())
