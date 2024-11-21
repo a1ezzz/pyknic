@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/tasks/__init__.py
+# pyknic/lib/fastapi/__init__.py
 #
 # Copyright (C) 2024 the pyknic authors and contributors
 # <see AUTHORS file>
@@ -18,7 +18,3 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
-
-import pyknic.tasks.log      # noqa: F401
-import pyknic.tasks.config   # noqa: F401
-import pyknic.tasks.fastapi  # noqa: F401

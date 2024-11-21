@@ -69,16 +69,15 @@ class TestChainedTask:
 
         event = threading.Event()
         result_object = object()
-        result = TaskResult(result=result_object)
 
         @register_api(source_helper.api_registry, 'test-task')
         class Task(ChainedTask):
             def start(self) -> None:
-                nonlocal event, result
+                nonlocal event, result_object
                 time.sleep(0.5)
                 event.set()
 
-                self.save_result(result)
+                self.save_result(result_object)
 
         source = ChainedTasksSource(registry=source_helper.api_registry)
         source_thread = ThreadedTask(source)
@@ -88,8 +87,8 @@ class TestChainedTask:
         source.execute('test-task')
 
         task = Task(source.datalog(), 'task', uuid.uuid4())
-        assert(task.wait_for('test-task') is result)
-        assert(source.wait_for(source.datalog(), 'test-task') is result)
+        assert(task.wait_for('test-task').result is result_object)
+        assert(source.wait_for(source.datalog(), 'test-task').result is result_object)
 
         source_thread.stop()
         source_thread.wait()

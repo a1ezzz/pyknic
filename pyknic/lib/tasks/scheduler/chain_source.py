@@ -136,8 +136,10 @@ class ChainedTask(TaskProto):
     def wait_for(self, api_id: str) -> typing.Optional[TaskResult]:
         return ChainedTasksSource.wait_for(self.datalog(), api_id)
 
-    def save_result(self, result: TaskResult) -> None:
-        self.datalog().append(ChainedTaskLogEntry(self.api_id(), self.uid(), ChainedTaskState.completed, result))
+    def save_result(self, result: typing.Any) -> None:
+        self.datalog().append(
+            ChainedTaskLogEntry(self.api_id(), self.uid(), ChainedTaskState.completed, TaskResult(result=result))
+        )
 
 
 class ChainedTasksSource(ScheduleSourceProto, TaskProto):

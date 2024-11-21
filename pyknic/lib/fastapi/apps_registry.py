@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/tasks/__init__.py
+# pyknic/lib/fastapi/apps_registry.py
 #
 # Copyright (C) 2024 the pyknic authors and contributors
 # <see AUTHORS file>
@@ -19,6 +19,22 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import pyknic.tasks.log      # noqa: F401
-import pyknic.tasks.config   # noqa: F401
-import pyknic.tasks.fastapi  # noqa: F401
+# TODO: document the code
+# TODO: write tests for the code
+
+import fastapi
+
+from abc import ABCMeta, abstractmethod
+
+from pyknic.lib.registry import APIRegistry
+
+
+__default_fastapi_apps_registry__ = APIRegistry()
+
+
+class FastAPIAppProto(metaclass=ABCMeta):
+
+    @classmethod
+    @abstractmethod
+    def create_app(cls, fastapi_app: fastapi.FastAPI) -> None:
+        raise NotImplementedError('This method is abstract')

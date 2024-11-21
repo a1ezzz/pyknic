@@ -25,7 +25,6 @@ import itertools
 import os
 import typing
 
-from pyknic.lib.tasks.proto import TaskResult
 from pyknic.lib.tasks.scheduler.chain_source import ChainedTask, __default_chained_tasks_registry__
 from pyknic.lib.registry import register_api
 
@@ -116,7 +115,7 @@ class ConfigTask(ChainedTask):
         if self.__app_file_config_envar__ in os.environ:
             self.__load_file(result, os.environ[self.__app_file_config_envar__])
 
-        self.save_result(TaskResult(result=result))
+        self.save_result(result)
         Logger.info('Configuration loaded')
 
     def task_name(self) -> typing.Optional[str]:
