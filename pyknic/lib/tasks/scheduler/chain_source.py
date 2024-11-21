@@ -134,23 +134,7 @@ class ChainedTask(TaskProto):
         return None
 
     def wait_for(self, api_id: str) -> typing.Optional[TaskResult]:
-
-        def result_fn(entry: ChainedTaskLogEntry) -> bool:
-            return entry.api_id == api_id and entry.state == ChainedTaskState.completed
-
-        def complete_fn(entry: ChainedTaskLogEntry) -> bool:
-            return entry.api_id == api_id and entry.state in (ChainedTaskState.completed, ChainedTaskState.finalized)
-
-        result = self.datalog().find(result_fn, reverse=True)
-
-        if result is None:
-            with suppress(StopIteration):
-                with SignalWaiter(self.datalog(), DatalogProto.new_entry, value_matcher=complete_fn):
-                    if self.datalog().find(complete_fn, reverse=True):
-                        raise StopIteration('Stop to wait')
-
-            result = self.datalog().find(result_fn, reverse=True)
-        return result.result if result is not None else None
+        return ChainedTasksSource.wait_for(self.datalog(), api_id)
 
     def save_result(self, result: TaskResult) -> None:
         self.datalog().append(ChainedTaskLogEntry(self.api_id(), self.uid(), ChainedTaskState.completed, result))
@@ -209,6 +193,26 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
 
     def datalog(self) -> DatalogProto:
         return self.__datalog
+
+    @classmethod
+    def wait_for(cls, datalog: DatalogProto, api_id: str) -> typing.Optional[TaskResult]:
+
+        def result_fn(entry: ChainedTaskLogEntry) -> bool:
+            return entry.api_id == api_id and entry.state == ChainedTaskState.completed
+
+        def complete_fn(entry: ChainedTaskLogEntry) -> bool:
+            return entry.api_id == api_id and entry.state in (ChainedTaskState.completed, ChainedTaskState.finalized)
+
+        result = datalog.find(result_fn, reverse=True)
+
+        if result is None:
+            with suppress(StopIteration):
+                with SignalWaiter(datalog, DatalogProto.new_entry, value_matcher=complete_fn):
+                    if datalog.find(complete_fn, reverse=True):
+                        raise StopIteration('Stop to wait')
+
+            result = datalog.find(result_fn, reverse=True)
+        return result.result if result is not None else None
 
     def __record_group_id(self, api_id: str) -> str:
         """ Return identifier that will describe a group of tasks (in order to prevent a parallel run)

@@ -214,13 +214,16 @@ class QueueProxy(SignalProxy, TaskProto):
     def __flush(self) -> None:
         """ Execute all the functions that have been stored in the queue
         """
-        callback = self.__queue.get(False)
-        while callback:
-            # with the False value
-            if not self.__flash_flush:
-                callback()
-            self.__queue.task_done()
+        try:
             callback = self.__queue.get(False)
+            while callback:
+                # with the False value
+                if not self.__flash_flush:
+                    callback()
+                self.__queue.task_done()
+                callback = self.__queue.get(False)
+        except queue.Empty:
+            pass
 
     def is_running(self) -> bool:
         """ Return True if this queue is running and may accept items and return False otherwise

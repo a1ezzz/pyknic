@@ -178,7 +178,19 @@ class ConfigSection:
     def options(self) -> typing.Set[str]:
         """ Return set of available options (with respect to a prefix, if it was defined)
         """
-        return set(self.__parser.options(self.__section))
+        result = self.__parser.options(self.__section)
+        if self.__option_prefix is not None:
+            filtered_result = map(
+                lambda x: x[len(self.__option_prefix):],  # type: ignore[index, arg-type]
+                filter(
+                    lambda x: x.startswith(self.__option_prefix),  # type: ignore[arg-type]
+                    result
+                )
+            )
+        else:
+            filtered_result = result  # type: ignore[assignment]
+
+        return set(filtered_result)
 
     def has_option(self, option_name: str) -> bool:
         """ Return True if the specified option exists and return False otherwise

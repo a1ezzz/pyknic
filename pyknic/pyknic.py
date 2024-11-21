@@ -11,6 +11,7 @@ import pyknic.tasks  # noqa: F401  # force tasks loading
 from pyknic.tasks.log import LogTask
 from pyknic.tasks.config import ConfigTask
 
+from pyknic.lib.log import Logger
 from pyknic.lib.verify import verify_value
 from pyknic.lib.tasks.proto import TaskProto
 from pyknic.lib.tasks.scheduler.scheduler import Scheduler
@@ -70,6 +71,20 @@ class App(TaskProto):
         self.__main_source.execute(':log_task')
         self.__main_source.execute(':config_task')
 
+        config_result = self.__main_source.wait_for(
+            self.__main_source.datalog(), ':config_task'
+        )
+        config = config_result.result  # type: ignore[union-attr]
+
+        pc_config_section = config.section("pyknic:apps", "start_app_")
+        apps_options = list(pc_config_section.options())
+        apps_options.sort()
+
+        for i in apps_options:
+            app_id = str(pc_config_section[i])
+            Logger.info(f'Starting an app "{app_id}"')
+            self.__main_source.execute(app_id)
+
     def stop(self) -> None:
         self.__main_source_thread.stop()
         self.__main_source_thread.wait()
@@ -104,7 +119,10 @@ class App(TaskProto):
 
         signal.signal(signal.SIGINT, cls.terminate_app)
 
-        App.__instance__ = ThreadedTask(App(log_level=args.verbose), thread_name='pyknic:starter')
+        App.__instance__ = ThreadedTask(
+            App(log_level=args.verbose, config_file=args.config, config_dir=args.config_dir),
+            thread_name='pyknic:starter'
+        )
         App.__instance__.start()
         App.__instance__.wait()
 

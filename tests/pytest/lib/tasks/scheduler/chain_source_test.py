@@ -89,6 +89,7 @@ class TestChainedTask:
 
         task = Task(source.datalog(), 'task', uuid.uuid4())
         assert(task.wait_for('test-task') is result)
+        assert(source.wait_for(source.datalog(), 'test-task') is result)
 
         source_thread.stop()
         source_thread.wait()
@@ -114,6 +115,7 @@ class TestChainedTask:
 
         task = Task(source.datalog(), 'task', uuid.uuid4())
         assert(task.wait_for('test-task') is None)
+        assert(source.wait_for(source.datalog(), 'test-task') is None)
 
         source_thread.stop()
         source_thread.wait()
