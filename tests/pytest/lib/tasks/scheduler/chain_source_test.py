@@ -87,8 +87,8 @@ class TestChainedTask:
         source.execute('test-task')
 
         task = Task(source.datalog(), 'task', uuid.uuid4())
-        assert(task.wait_for('test-task').result is result_object)
-        assert(source.wait_for(source.datalog(), 'test-task').result is result_object)
+        assert(task.wait_for('test-task').result is result_object)  # type: ignore[union-attr]
+        assert(source.wait_for(source.datalog(), 'test-task').result is result_object)  # type: ignore[union-attr]
 
         source_thread.stop()
         source_thread.wait()

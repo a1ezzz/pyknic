@@ -77,6 +77,7 @@ class ConfigTask(ChainedTask):
 
         for e in os.listdir(dir_path):
             e_path = os.path.join(dir_path, e)
+            Logger.debug(f"Checking configuration in the directory \"{os.path.relpath(dir_path)}\" -- {e_path}")
 
             if os.path.isdir(e_path):
                 inner_dirs.add(e_path)

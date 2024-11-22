@@ -26,6 +26,7 @@ import fastapi
 
 from abc import ABCMeta, abstractmethod
 
+from pyknic.lib.config import Config
 from pyknic.lib.registry import APIRegistry
 
 
@@ -36,5 +37,5 @@ class FastAPIAppProto(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def create_app(cls, fastapi_app: fastapi.FastAPI) -> None:
+    def create_app(cls, fastapi_app: fastapi.FastAPI, config: Config) -> None:
         raise NotImplementedError('This method is abstract')

@@ -65,12 +65,14 @@ class FastAPIInitTask(ChainedTask):
         redoc_url = '/redoc' if bool(config_section["redoc"]) else None
 
         app = fastapi.FastAPI(docs_url=docs_url, redoc_url=redoc_url)  # TODO: check options!
-        uvicorn_config = uvicorn.Config(app)
+        uvicorn_config = uvicorn.Config(  # TODO: check options!
+            app, host=str(config_section["uvicorn_host"]), port=int(config_section["uvicorn_port"])
+        )
         uvicorn_server = uvicorn.Server(uvicorn_config)
 
         self.save_result(FastAPIServer(fastapi_app=app, uvicorn_server=uvicorn_server))
 
-        Logger.info('FastAPI prepared')
+        Logger.info(f'FastAPI prepared')
 
     def task_name(self) -> typing.Optional[str]:
         """ The :meth:`.ChainedTask.task_name` method implementation
@@ -99,7 +101,7 @@ class FastAPILoaderTask(ChainedTask):
         assert(config_result)
 
         config = config_result.result
-        pc_config_section = config.section("pyknic:fastapi:apps", "fastapi_app_")
+        pc_config_section = config.section("pyknic:fastapi", "fastapi_app_")
         apps_options = list(pc_config_section.options())
         apps_options.sort()
 
@@ -107,7 +109,7 @@ class FastAPILoaderTask(ChainedTask):
             app_id = str(pc_config_section[i])
             Logger.info(f'Reading the app "{app_id}"')
             fastapi_app_cls = __default_fastapi_apps_registry__.get(app_id)
-            fastapi_app_cls.create_app(fastapi_init.result.fastapi_app)
+            fastapi_app_cls.create_app(fastapi_init.result.fastapi_app, config)
 
     def task_name(self) -> typing.Optional[str]:
         """ The :meth:`.ChainedTask.task_name` method implementation
