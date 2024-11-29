@@ -1,0 +1,85 @@
+# English (United States) translations for PROJECT.
+# Copyright (C) 2024 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2024.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2024-11-28 22:15+0300\n"
+"PO-Revision-Date: 2024-11-27 22:13+0300\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en_US\n"
+"Language-Team: en_US <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.16.0\n"
+
+#: pyknic/tasks/fastapi/tgbot_word_games.py:75
+msgid "Choose a game"
+msgstr ""
+
+#: pyknic/tasks/fastapi/tgbot_word_games.py:78
+msgid "Cities (🇷🇺)"
+msgstr ""
+
+#: pyknic/tasks/fastapi/tgbot_word_games.py:91
+msgid "Start a game with the \"/reset\" command"
+msgstr ""
+
+#: pyknic/tasks/fastapi/tgbot_word_games.py:107
+msgid "Let's start! Name a city!"
+msgstr ""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:98
+msgid "Name any city you know! We have just started!"
+msgstr ""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:104
+#, python-format
+msgid "The \"%(cn)s\" city is an option"
+msgstr ""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:107
+msgid "Know nothing more. One more game?"
+msgstr ""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:112
+#, fuzzy, python-format
+msgid "We have mentioned %(cc)i city"
+msgid_plural "We have mentioned %(cc)i cities"
+msgstr[0] ""
+msgstr[1] ""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:117
+#, python-format
+msgid "Unknown command -- \"%(c)s\""
+msgstr ""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:129
+msgid "Please repeat"
+msgstr ""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:134
+#, python-format
+msgid "Unknown city -- \"%(cn)s\""
+msgstr ""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:140
+#, python-format
+msgid "The \"%(cn)s\" city has been mentioned already"
+msgstr ""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:148
+#: pyknic/tasks/fastapi/word_games/cities.py:162
+msgid "No more cities left. I -- loose; you -- win!"
+msgstr ""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:153
+#, python-format
+msgid "The \"%(cn)s\" city doesn't starts with the %(l)s"
+msgstr ""
+

@@ -1,0 +1,87 @@
+# Russian translations for PROJECT.
+# Copyright (C) 2024 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2024.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2024-11-28 22:15+0300\n"
+"PO-Revision-Date: 2024-11-28 22:16+0300\n"
+"Last-Translator: \n"
+"Language: ru\n"
+"Language-Team: ru <LL@li.org>\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.16.0\n"
+"X-Generator: Poedit 2.3.1\n"
+
+#: pyknic/tasks/fastapi/tgbot_word_games.py:75
+msgid "Choose a game"
+msgstr "Выбирай игру"
+
+#: pyknic/tasks/fastapi/tgbot_word_games.py:78
+msgid "Cities (🇷🇺)"
+msgstr "Города (🇷🇺)"
+
+#: pyknic/tasks/fastapi/tgbot_word_games.py:91
+msgid "Start a game with the \"/reset\" command"
+msgstr "Начни игру с команды \"/reset\""
+
+#: pyknic/tasks/fastapi/tgbot_word_games.py:107
+msgid "Let's start! Name a city!"
+msgstr "Начинаем! Назови город!"
+
+#: pyknic/tasks/fastapi/word_games/cities.py:98
+msgid "Name any city you know! We have just started!"
+msgstr "Назови любой город! Мы только начали!"
+
+#: pyknic/tasks/fastapi/word_games/cities.py:104
+#, python-format
+msgid "The \"%(cn)s\" city is an option"
+msgstr "Возможный вариант -- \"%(cn)s\""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:107
+msgid "Know nothing more. One more game?"
+msgstr "Я больше ничего не знаю. Сыграем ещё?"
+
+#: pyknic/tasks/fastapi/word_games/cities.py:112
+#, python-format
+msgid "We have mentioned %(cc)i city"
+msgid_plural "We have mentioned %(cc)i cities"
+msgstr[0] "Был упомянут %(cc)i город"
+msgstr[1] "Было упомянуто %(cc)i города"
+msgstr[2] "Было упомянуто %(cc)i городов"
+
+#: pyknic/tasks/fastapi/word_games/cities.py:117
+#, python-format
+msgid "Unknown command -- \"%(c)s\""
+msgstr "Неизвестная команда -- \"%(c)s\""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:129
+msgid "Please repeat"
+msgstr "Пожалуйста повтори"
+
+#: pyknic/tasks/fastapi/word_games/cities.py:134
+#, python-format
+msgid "Unknown city -- \"%(cn)s\""
+msgstr "Неизвестный город -- \"%(cn)s\""
+
+#: pyknic/tasks/fastapi/word_games/cities.py:140
+#, python-format
+msgid "The \"%(cn)s\" city has been mentioned already"
+msgstr "Город \"%(cn)s\" уже упоминался"
+
+#: pyknic/tasks/fastapi/word_games/cities.py:148
+#: pyknic/tasks/fastapi/word_games/cities.py:162
+msgid "No more cities left. I -- loose; you -- win!"
+msgstr "Больше городов не осталось. Я -- проиграл; ты -- выиграл!"
+
+#: pyknic/tasks/fastapi/word_games/cities.py:153
+#, python-format
+msgid "The \"%(cn)s\" city doesn't starts with the %(l)s"
+msgstr "Город \"%(cn)s\" не начинается на %(l)s"
