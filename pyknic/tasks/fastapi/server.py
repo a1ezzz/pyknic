@@ -72,7 +72,7 @@ class FastAPIInitTask(ChainedTask):
 
         self.save_result(FastAPIServer(fastapi_app=app, uvicorn_server=uvicorn_server))
 
-        Logger.info(f'FastAPI prepared')
+        Logger.info('FastAPI prepared')
 
     def task_name(self) -> typing.Optional[str]:
         """ The :meth:`.ChainedTask.task_name` method implementation
@@ -89,6 +89,12 @@ class FastAPIInitTask(ChainedTask):
 @register_api(__default_chained_tasks_registry__, ":fastapi-loader")
 class FastAPILoaderTask(ChainedTask):
 
+    def __init__(self, datalog: DatalogProto, api_id: str, uid: uuid.UUID):
+        ChainedTask.__init__(self, datalog, api_id, uid)
+
+        # just to be sure that important info will not be compacted by the mighty GC
+        self.__loaded_apps: typing.List[typing.Any] = []
+
     def start(self) -> None:
         """ The :meth:`.TaskProto.start` method implementation
         """
@@ -96,9 +102,11 @@ class FastAPILoaderTask(ChainedTask):
 
         fastapi_init = self.wait_for(':fastapi-init')
         config_result = self.wait_for(':config_task')
+        gettext_result = self.wait_for(':gettext_task')
 
         assert(fastapi_init)
         assert(config_result)
+        assert(gettext_result)
 
         config = config_result.result
         pc_config_section = config.section("pyknic:fastapi", "fastapi_app_")
@@ -109,7 +117,9 @@ class FastAPILoaderTask(ChainedTask):
             app_id = str(pc_config_section[i])
             Logger.info(f'Reading the app "{app_id}"')
             fastapi_app_cls = __default_fastapi_apps_registry__.get(app_id)
-            fastapi_app_cls.create_app(fastapi_init.result.fastapi_app, config)
+            created_app = fastapi_app_cls.create_app(fastapi_init.result.fastapi_app, config, gettext_result.result)
+            if created_app is not None:
+                self.__loaded_apps.append(created_app)
 
     def task_name(self) -> typing.Optional[str]:
         """ The :meth:`.ChainedTask.task_name` method implementation
@@ -120,7 +130,7 @@ class FastAPILoaderTask(ChainedTask):
     def dependencies(cls) -> typing.Optional[typing.Set[str]]:
         """ The :meth:`.ChainedTask.dependencies` method implementation
         """
-        return {":fastapi-init"}
+        return {":fastapi-init", ":gettext_task"}
 
 
 @register_api(__default_chained_tasks_registry__, ":fastapi-server")
