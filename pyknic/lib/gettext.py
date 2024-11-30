@@ -19,8 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: write tests for the code
-
 import functools
 import gettext
 import pathlib
@@ -30,21 +28,25 @@ class GetTextWrapper:
     """ This class wraps base input parameters for gettext calls. It simplifies and shortens gettext usage
     """
 
-    def __init__(self, translations_path: pathlib.Path):
+    def __init__(self, translations_path: pathlib.Path, fallback_lang: str | None = None):
         """ Create a wrapper with translations in a specified path
 
         :param translations_path: directory with language subdirectories
+        :param fallback_lang: language to be used if a requested one isn't known (by default the "en_US" is used)
         """
         self.__loc_path = translations_path
+        self.__fallback_lang = fallback_lang if fallback_lang else 'en_US'
 
-    def lang(self, lang_name: str) -> gettext.GNUTranslations | gettext.NullTranslations:
+    def lang(self, lang_name: str | None = None) -> gettext.GNUTranslations | gettext.NullTranslations:
         """ Return translation for a specified language
 
-        :param lang_name: language to return
+        :param lang_name: language to return when defined, otherwise a fallback language will be requested
         """
-        return self.translation(lang_name, str(self.__loc_path))
+        if lang_name:
+            return self.translation(lang_name, str(self.__loc_path))
+        return self.translation(self.__fallback_lang, str(self.__loc_path))
 
-    def __call__(self, lang_name: str) -> gettext.GNUTranslations | gettext.NullTranslations:
+    def __call__(self, lang_name: str | None = None) -> gettext.GNUTranslations | gettext.NullTranslations:
         """ Synonym for the :meth:`.GetTextWrapper.lang` method call
         """
         return self.lang(lang_name)

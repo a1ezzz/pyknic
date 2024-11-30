@@ -19,23 +19,34 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
 # TODO: write tests for the code
 
 import fastapi
+import typing
 
 from abc import ABCMeta, abstractmethod
 
 from pyknic.lib.config import Config
 from pyknic.lib.registry import APIRegistry
+from pyknic.lib.gettext import GetTextWrapper
 
 
 __default_fastapi_apps_registry__ = APIRegistry()
 
 
 class FastAPIAppProto(metaclass=ABCMeta):
+    """ Default prototype for loadable by the FastAPI task
+    """
 
     @classmethod
     @abstractmethod
-    def create_app(cls, fastapi_app: fastapi.FastAPI, config: Config) -> None:
+    def create_app(cls, fastapi_app: fastapi.FastAPI, config: Config, translations: GetTextWrapper) -> typing.Any:
+        """ Insert endpoints to a fastapi_app that about to be started
+
+        :param fastapi_app: application to update
+        :param config: pyknic's global configuration
+        :param translations: preloaded localization
+
+        :return: anything that should be saved during the work
+        """
         raise NotImplementedError('This method is abstract')

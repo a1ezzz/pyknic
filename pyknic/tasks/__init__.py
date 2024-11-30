@@ -22,3 +22,4 @@
 import pyknic.tasks.log      # noqa: F401
 import pyknic.tasks.config   # noqa: F401
 import pyknic.tasks.fastapi  # noqa: F401
+import pyknic.tasks.gettext  # noqa: F401

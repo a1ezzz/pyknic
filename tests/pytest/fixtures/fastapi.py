@@ -3,33 +3,38 @@ import asyncio
 import fastapi
 import pytest
 import uvicorn
+import typing
+
+from asyncio_helpers import BaseAsyncFixture, async_fixture_generator
 
 
-@pytest.fixture(scope="module")
-async def __fastapi_fixture(request: pytest.FixtureRequest) -> fastapi.FastAPI:
-    app = fastapi.FastAPI()
-    config = uvicorn.Config(app)
-    server = uvicorn.Server(config)
+class AsyncFastAPIFixture(BaseAsyncFixture):
 
-    loop = asyncio.get_event_loop()
-    server_task = loop.create_task(server.serve())
+    def __init__(self) -> None:
+        BaseAsyncFixture.__init__(self)
+        self.fastapi = fastapi.FastAPI()
+        self.config = uvicorn.Config(self.fastapi)
+        self.server = uvicorn.Server(self.config)
 
-    async def async_fin() -> None:
-        server.should_exit = True
-        await server.shutdown()
-        await server_task
+        self.__server_task: typing.Awaitable[typing.Any] | None = None
 
-    def fin() -> None:
-        loop.run_until_complete(async_fin())
+    async def _init_fixture(self) -> None:
+        self.__server_task = asyncio.create_task(self.server.serve())
 
-    request.addfinalizer(fin)
-    return app
+    async def __fin(self) -> None:
+        assert(self.__server_task is not None)
+
+        self.server.should_exit = True
+        await self.server.shutdown()
+        await self.__server_task
+
+    def finalize(self) -> None:
+        assert(self.loop is not None)
+        self.loop.run_until_complete(self.__fin())
 
 
-@pytest.fixture()
-def fastapi_fixture(__fastapi_fixture: fastapi.FastAPI) -> fastapi.FastAPI:
-
-    while len(__fastapi_fixture.router.routes):
-        del __fastapi_fixture.router.routes[0]
-
-    return __fastapi_fixture
+fastapi_fixture = async_fixture_generator(AsyncFastAPIFixture)
+fastapi_class_fixture = async_fixture_generator(AsyncFastAPIFixture, scope="class")
+fastapi_module_fixture = async_fixture_generator(AsyncFastAPIFixture, scope="module")
+fastapi_package_fixture = async_fixture_generator(AsyncFastAPIFixture, scope="package")
+fastapi_session_fixture = async_fixture_generator(AsyncFastAPIFixture, scope="session")

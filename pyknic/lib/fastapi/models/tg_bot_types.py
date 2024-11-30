@@ -87,6 +87,7 @@ class Update(pydantic.BaseModel):
 class User(pydantic.BaseModel):
     # origin: https://core.telegram.org/bots/api#user
     id_: int = pydantic.Field(alias='id')
+    language_code: str | None = None
 
     model_config = pydantic.ConfigDict(
         populate_by_name=True,
