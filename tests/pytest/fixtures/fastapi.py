@@ -21,6 +21,14 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
     async def _init_fixture(self) -> None:
         self.__server_task = asyncio.create_task(self.server.serve())
 
+    def __clear_routes(self):
+        self.fastapi.routes.clear()
+
+    async def __call__(self) -> typing.Any:
+        result = await BaseAsyncFixture.__call__(self)
+        self.__clear_routes()
+        return result
+
     async def __fin(self) -> None:
         assert(self.__server_task is not None)
 
