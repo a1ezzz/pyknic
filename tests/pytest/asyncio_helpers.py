@@ -49,13 +49,23 @@ class BaseAsyncFixture:
 
 def pyknic_async_test(decorated_coroutine: typing.Callable[..., typing.Any]) -> typing.Callable[..., typing.Any]:
 
-    def ordinary_fn(original_fn: typing.Callable[..., typing.Any], *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+    def ordinary_fn(
+        original_fn: typing.Callable[..., typing.Any], *args: typing.Any, **kwargs: typing.Any
+    ) -> typing.Any:
+
+        loop = None
+        for i in args:
+            if isinstance(i, asyncio.AbstractEventLoop) is True:
+                loop = i
+                break
+
+        if loop is None:
+            raise RuntimeError('Event loop must be set as a fixture for the test')
 
         async def asynced_fn() -> typing.Any:
             pre_processed_args = [(x if await x() else x) if isinstance(x, BaseAsyncFixture) else x for x in args]
             await original_fn(*pre_processed_args, **kwargs)
 
-        loop = asyncio.get_event_loop()
         return loop.run_until_complete(asynced_fn())
 
     return decorator(ordinary_fn)(decorated_coroutine)

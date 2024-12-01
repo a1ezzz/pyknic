@@ -13,7 +13,7 @@ def config_file() -> typing.Callable[[pathlib.Path], Config]:
 
     def return_config(path: pathlib.Path) -> Config:
         config = Config()
-        with open(root_path / path ) as f:
+        with open(root_path / path) as f:
             config.merge_file(f)
 
         return config

@@ -1,7 +1,6 @@
 
 import asyncio
 import fastapi
-import pytest
 import uvicorn
 import typing
 
@@ -21,7 +20,7 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
     async def _init_fixture(self) -> None:
         self.__server_task = asyncio.create_task(self.server.serve())
 
-    def __clear_routes(self):
+    def __clear_routes(self) -> None:
         self.fastapi.routes.clear()
 
     async def __call__(self) -> typing.Any:

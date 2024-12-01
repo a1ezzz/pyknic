@@ -84,7 +84,7 @@ class TestTgBotBaseFastAPIApp:
         module_event_loop: asyncio.AbstractEventLoop,
         fastapi_module_fixture: 'AsyncFastAPIFixture',
         gettext: GetTextWrapper
-    ):
+    ) -> None:
         pytest.raises(TypeError, TgBotBaseFastAPIApp, Config(), gettext)
         pytest.raises(NotImplementedError, TgBotBaseFastAPIApp.bot_path, Config())
 
@@ -94,7 +94,7 @@ class TestTgBotBaseFastAPIApp:
         module_event_loop: asyncio.AbstractEventLoop,
         fastapi_module_fixture: 'AsyncFastAPIFixture',
         gettext: GetTextWrapper
-    ):
+    ) -> None:
 
         class SampleBot(TgBotBaseFastAPIApp):
 
@@ -105,8 +105,12 @@ class TestTgBotBaseFastAPIApp:
             def process_message(
                 self, tg_update: tg_bot_types.Update
             ) -> tg_bot_methods.MethodSendMessage | base_models.NullableResponseModel | None:
+                assert(tg_update.message)
+                assert(tg_update.message.text)
+
                 if tg_update.message.text != 'Hello!':
                     return self.reply(tg_update, tg_update.message.text)
+                return None
 
         config = Config()
         translations = GetTextWrapper(root_path / 'locales')
@@ -114,10 +118,10 @@ class TestTgBotBaseFastAPIApp:
 
         request1 = tg_bot_types.Update(
             update_id=1,
-            message=tg_bot_types.Message(
+            message=tg_bot_types.Message(  # type: ignore[call-arg]
                 message_id=20,
-                from_=tg_bot_types.User(id_=300),
-                chat=tg_bot_types.Chat(id_=4000, type_="private"),
+                from_=tg_bot_types.User(id_=300),  # type: ignore[call-arg]
+                chat=tg_bot_types.Chat(id_=4000, type_="private"),  # type: ignore[call-arg]
                 text="Hello!"
             )
         )
@@ -133,10 +137,10 @@ class TestTgBotBaseFastAPIApp:
 
         request2 = tg_bot_types.Update(
             update_id=2,
-            message=tg_bot_types.Message(
+            message=tg_bot_types.Message(  # type: ignore[call-arg]
                 message_id=30,
-                from_=tg_bot_types.User(id_=400),
-                chat=tg_bot_types.Chat(id_=5000, type_="private"),
+                from_=tg_bot_types.User(id_=400),  # type: ignore[call-arg]
+                chat=tg_bot_types.Chat(id_=5000, type_="private"),  # type: ignore[call-arg]
                 text="Who are you?"
             )
         )
@@ -154,13 +158,13 @@ class TestTgBotBaseFastAPIApp:
                 pydantic_core.from_json(data, allow_partial=True)
             )
             assert(bot_response.method == "sendMessage")
+            assert(bot_response.reply_parameters is not None)
             assert(bot_response.reply_parameters.message_id == 30)
             assert(bot_response.text == 'Who are you?')
 
-        assert(app.user_lang(tg_bot_types.User(id_=500)).gettext("Choose a game") == "Choose a game")
-        assert(
-            app.user_lang(tg_bot_types.User(id_=500, language_code='fr')).gettext("Choose a game") == "Choose a game"
-        )
-        assert(
-            app.user_lang(tg_bot_types.User(id_=500, language_code='ru')).gettext("Choose a game") == "Выбирай игру"
-        )
+        user1 = tg_bot_types.User(id_=500)  # type: ignore[call-arg]
+        assert(app.user_lang(user1).gettext("Choose a game") == "Choose a game")
+        user2 = tg_bot_types.User(id_=500, language_code='fr')  # type: ignore[call-arg]
+        assert(app.user_lang(user2).gettext("Choose a game") == "Choose a game")
+        user3 = tg_bot_types.User(id_=500, language_code='ru')  # type: ignore[call-arg]
+        assert(app.user_lang(user3).gettext("Choose a game") == "Выбирай игру")

@@ -35,7 +35,7 @@ from pyknic.lib.fastapi.models.tg_bot_methods import MethodSendMessage, MethodAn
 from pyknic.lib.fastapi.models.base import NullableResponseModel
 
 
-#noinspection PyAbstractClass
+# noinspection PyAbstractClass
 class BaseFastAPIApp(FastAPIAppProto):
     """ Base implementation for FastAPI apps
     """
@@ -63,6 +63,9 @@ class BaseFastAPIApp(FastAPIAppProto):
         return self.__translations(lang_name)
 
 
+TgBotResponseType: typing.TypeAlias = typing.Union[MethodSendMessage, MethodAnswerCallbackQuery, NullableResponseModel]
+
+
 class TgBotBaseFastAPIApp(BaseFastAPIApp):
     """ Base implementation for telegram bot
     """
@@ -79,7 +82,7 @@ class TgBotBaseFastAPIApp(BaseFastAPIApp):
         fastapi_app.post(
             cls.bot_path(config),
             status_code=200,
-            response_model=(MethodSendMessage | MethodAnswerCallbackQuery | NullableResponseModel),
+            response_model=TgBotResponseType,
             response_model_exclude_none=True
         )(app.tgbot_webhook_request)
 
@@ -92,9 +95,7 @@ class TgBotBaseFastAPIApp(BaseFastAPIApp):
         """
         raise NotImplementedError('This method is abstract')
 
-    async def tgbot_webhook_request(
-        self, request: fastapi.Request
-    ) -> MethodSendMessage | MethodAnswerCallbackQuery | NullableResponseModel:
+    async def tgbot_webhook_request(self, request: fastapi.Request) -> TgBotResponseType:
         """ Process request from a Telegram's server. This method just parses a input and all the work is done inside
         the :meth:`.TgBotBaseFastAPIApp.process_request` method
         """
@@ -102,9 +103,7 @@ class TgBotBaseFastAPIApp(BaseFastAPIApp):
         tg_update = Update.model_validate(data)
         return self.process_request(tg_update)
 
-    def process_request(
-        self, tg_update: Update
-    ) -> MethodSendMessage | MethodAnswerCallbackQuery | NullableResponseModel:
+    def process_request(self, tg_update: Update) -> TgBotResponseType:
         """ Try to process a request. Request is processed in the following order:
           - first of all if the request has a callback_query then
           the :meth:`TgBotBaseFastAPIApp.callback_query` method result is returned
@@ -138,14 +137,14 @@ class TgBotBaseFastAPIApp(BaseFastAPIApp):
         assert(tg_update.callback_query is not None)
         return MethodAnswerCallbackQuery(callback_query_id=str(tg_update.callback_query.id_))
 
-    def process_command(self, command: str, tg_update: Update) -> MethodSendMessage | NullableResponseModel | None:
+    def process_command(self, command: str, tg_update: Update) -> TgBotResponseType | None:
         """ A request is a command -- return a result if command is valid and return None otherwise
         """
         assert(tg_update.message is not None)
         assert(tg_update.message.from_ is not None)
         return None
 
-    def process_message(self, tg_update: Update) -> MethodSendMessage | NullableResponseModel | None:
+    def process_message(self, tg_update: Update) -> TgBotResponseType | None:
         """ A request is just a text -- try to process it
         """
         assert(tg_update.message is not None)
