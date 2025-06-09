@@ -120,7 +120,7 @@ class TestQueueProxy:
         results = []
 
         def callback(source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
-            nonlocal results, lock
+            nonlocal results, lock  # noqa: F824
             with lock:
                 results.append((source, signal, value))
 
@@ -155,7 +155,7 @@ class TestQueueProxy:
         threaded_task.start()
 
         def callback() -> None:
-            nonlocal clbk_event
+            nonlocal clbk_event  # noqa: F824
             clbk_event.set()
 
         queue_proxy.exec(callback)
@@ -173,7 +173,7 @@ class TestQueueProxy:
         threaded_task.start()
 
         def callback() -> object:
-            nonlocal callback_result
+            nonlocal callback_result  # noqa: F824
             return callback_result
 
         assert(queue_proxy.exec(callback, blocking=True) is callback_result)
@@ -188,7 +188,7 @@ class TestQueueProxy:
         threaded_task.start()
 
         def callback() -> None:
-            nonlocal callback_exception
+            nonlocal callback_exception  # noqa: F824
             raise callback_exception
 
         with pytest.raises(QueueCallbackException):
@@ -235,7 +235,7 @@ class TestQueueProxy:
         threaded_task.start()
 
         def callback() -> object:
-            nonlocal queue_proxy
+            nonlocal queue_proxy  # noqa: F824
             return queue_proxy.is_inside()
 
         assert(queue_proxy.exec(callback, blocking=True) is True)
