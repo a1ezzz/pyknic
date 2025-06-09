@@ -18,7 +18,7 @@ resources:
     icon: github
     source:
       uri: https://github.com/a1ezzz/pyknic
-      branch: "feature/concourse-ci"
+      branch: "main"
 
 jobs:
   - name: set-pipelines
@@ -35,22 +35,24 @@ jobs:
       - load_var: branches
         file: ci-code/branches.json
 
-      - across:
-        - var: branch
-          values: ((.:branches))
+      - try:
+          across:
+          - var: branch
+            values: ((.:branches))
 
-        set_pipeline: pyknic-test-3.12
-        file: code/concourse-ci/pyknic-test.yml
-        vars:
-          branch: ((.:branch.name))
-          python_version: 3.12
+          set_pipeline: pyknic-test-3.12
+          file: code/concourse-ci/pyknic-test.yml
+          vars:
+            branch: ((.:branch.name))
+            python_version: 3.12
 
-      - across:
-        - var: branch
-          values: ((.:branches))
+      - try:
+          across:
+          - var: branch
+            values: ((.:branches))
 
-        set_pipeline: pyknic-test-3.11
-        file: code/concourse-ci/pyknic-test.yml
-        vars:
-          branch: ((.:branch.name))
-          python_version: 3.11
+          set_pipeline: pyknic-test-3.11
+          file: code/concourse-ci/pyknic-test.yml
+          vars:
+            branch: ((.:branch.name))
+            python_version: 3.11
