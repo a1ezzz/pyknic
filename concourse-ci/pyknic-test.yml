@@ -35,8 +35,7 @@ jobs:
               - -ecx
               - |
                 mkdir -p /sandbox/pip-cache
-                apt-get update
-                apt-get install -y python3-virtualenv  # TODO: it is better to do this inside base container
+                pip3 --cache-dir /sandbox/pip-cache install virtualenv  # TODO: it is better to do this inside base container
                 virtualenv -p /usr/local/bin/python /sandbox/venv
 
       - task: install_dependencies
