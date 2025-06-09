@@ -9,7 +9,7 @@ resources:
       branch: ((branch))
 
 jobs:
-  - name: pyknic-test-job-py-3.12
+  - name: pyknic-test-job-py-((python_version))
     build_log_retention:
       builds: 20
     plan:
@@ -23,7 +23,7 @@ jobs:
             type: registry-image
             source:
               repository: python  # TODO: replace!!!
-              tag: 3.12
+              tag: ((python_version))
           outputs:
             - name: sandbox
               path: /sandbox
@@ -46,7 +46,7 @@ jobs:
             type: registry-image
             source:
               repository: python
-              tag: 3.12
+              tag: ((python_version))
           inputs:
             - name: sandbox
               path: /sandbox
@@ -72,7 +72,7 @@ jobs:
             type: registry-image
             source:
               repository: python
-              tag: 3.12
+              tag: ((python_version))
           inputs:
             - name: sandbox
               path: /sandbox

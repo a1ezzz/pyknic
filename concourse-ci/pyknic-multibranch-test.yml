@@ -8,7 +8,7 @@ resource_types:
 resources:
 
   - name: ci-code
-    type: git-brances
+    type: git-branches
     icon: github
     source:
       uri: https://github.com/a1ezzz/pyknic
@@ -22,6 +22,8 @@ resources:
 
 jobs:
   - name: set-pipelines
+    build_log_retention:
+      builds: 20
     plan:
       - in_parallel:
 
@@ -30,11 +32,21 @@ jobs:
 
         - get: code
 
+      - load_var: branches
+        file: ci-code/branches.json
+
       - across:
         - var: branch
           values: ((.:branches))
 
-        set_pipeline: pyknic-test
+        set_pipeline: pyknic-test-3.12
         file: code/concourse-ci/pyknic-test.yml
         vars:
-          branch: ((.:branch.name))}
+          branch: ((.:branch.name))
+          python_version: 3.12
+
+        set_pipeline: pyknic-test-3.11
+        file: code/concourse-ci/pyknic-test.yml
+        vars:
+          branch: ((.:branch.name))
+          python_version: 3.11
