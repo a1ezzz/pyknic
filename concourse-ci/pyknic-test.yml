@@ -1,25 +1,12 @@
 
-resource_types:
-  - name: git-branches
-    type: registry-image
-    source:
-      repository: aoldershaw/git-branches-resource
-
 resources:
 
-  - name: ci-code
-    type: git-branches
-    icon: github
-    source:
-      uri: https://github.com/a1ezzz/pyknic
-      branch: "feature/concourse-ci"
-
   - name: code
-    type: git-branches
+    type: git
     icon: github
     source:
       uri: https://github.com/a1ezzz/pyknic
-      # branch_regex: 'feature/(?P<feature>.*)'
+      branch: ((branch))
 
 jobs:
   - name: pyknic-test-job-py-3.12

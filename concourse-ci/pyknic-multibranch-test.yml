@@ -1,0 +1,40 @@
+
+resource_types:
+  - name: git-branches
+    type: registry-image
+    source:
+      repository: aoldershaw/git-branches-resource
+
+resources:
+
+  - name: ci-code
+    type: git-brances
+    icon: github
+    source:
+      uri: https://github.com/a1ezzz/pyknic
+
+  - name: code
+    type: git
+    icon: github
+    source:
+      uri: https://github.com/a1ezzz/pyknic
+      branch: "feature/concourse-ci"
+
+jobs:
+  - name: set-pipelines
+    plan:
+      - in_parallel:
+
+        - get: ci-code
+          trigger: true
+
+        - get: code
+
+      - across:
+        - var: branch
+          values: ((.:branches))
+
+        set_pipeline: pyknic-test
+        file: code/concourse-ci/pyknic-test.yml
+        vars:
+          branch: ((.:branch.name))}
