@@ -1,0 +1,86 @@
+
+resources:
+
+  - name: code
+    type: git
+    icon: github
+    source:
+      uri: https://github.com/a1ezzz/pyknic
+      branch: ((branch))
+
+jobs:
+  - name: pyknic-test-job-py-((python_version))
+    build_log_retention:
+      builds: 20
+    plan:
+      - get: code
+        trigger: true
+
+      - task: prepare_venv
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: python  # TODO: replace!!!
+              tag: ((python_version))
+          outputs:
+            - name: sandbox
+              path: /sandbox
+          caches:
+            - path: sandbox/pip-cache
+          run:
+            path: /bin/bash
+            args:
+              - -ecx
+              - |
+                mkdir -p /sandbox/pip-cache
+                pip3 --cache-dir /sandbox/pip-cache install virtualenv  # TODO: it is better to do this inside base container
+                virtualenv -p /usr/local/bin/python /sandbox/venv
+
+      - task: install_dependencies
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: python
+              tag: ((python_version))
+          inputs:
+            - name: sandbox
+              path: /sandbox
+            - name: code
+          outputs:
+            - name: sandbox
+              path: /sandbox
+          caches:
+            - path: /sandbox/pip-cache
+          run:
+            dir: code
+            path: /bin/bash
+            args:
+              - -ecx
+              - |
+                source /sandbox/venv/bin/activate
+                /sandbox/venv/bin/pip3 --cache-dir /sandbox/pip-cache install '.[all]'
+
+      - task: run_tests
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: python
+              tag: ((python_version))
+          inputs:
+            - name: sandbox
+              path: /sandbox
+            - name: code
+          run:
+            dir: code
+            path: /bin/bash
+            args:
+              - -ecx
+              - |
+                source /sandbox/venv/bin/activate
+                pytest -v
