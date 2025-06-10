@@ -20,6 +20,7 @@ resources:
     source:
         repository: a1ezzz/pyknic
         access_token: ((github-access-token))
+        base_branch: ((branch))
 
 jobs:
   - name: pyknic-test-job-py-((python_version))
