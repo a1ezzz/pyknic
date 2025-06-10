@@ -158,7 +158,7 @@ class FastAPIServerTask(ChainedTask):
         assert(fastapi_init)
 
         self.__uvicorn_server = fastapi_init.result.uvicorn_server
-        self.__loop.run_until_complete(self.__uvicorn_server.serve())  # type: ignore[union-attr]
+        self.__loop.run_until_complete(self.__uvicorn_server.serve())
 
         Logger.info('FastAPI stopped')
 
