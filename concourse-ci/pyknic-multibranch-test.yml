@@ -42,6 +42,8 @@ jobs:
 
           set_pipeline: pyknic-test-3.12
           file: code/concourse-ci/pyknic-test.yml
+          instance_vars:
+            branch: ((.:branch.name))
           vars:
             branch: ((.:branch.name))
             python_version: 3.12
@@ -53,6 +55,8 @@ jobs:
 
           set_pipeline: pyknic-test-3.11
           file: code/concourse-ci/pyknic-test.yml
+          instance_vars:
+            branch: ((.:branch.name))
           vars:
             branch: ((.:branch.name))
             python_version: 3.11
