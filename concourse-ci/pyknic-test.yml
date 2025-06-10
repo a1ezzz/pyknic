@@ -104,4 +104,5 @@ jobs:
               - -ecx
               - |
                 source /sandbox/venv/bin/activate
-                mypy -v
+                mypy --install-types --non-interactive
+                mypy
