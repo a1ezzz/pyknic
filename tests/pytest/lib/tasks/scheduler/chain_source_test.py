@@ -73,7 +73,7 @@ class TestChainedTask:
         @register_api(source_helper.api_registry, 'test-task')
         class Task(ChainedTask):
             def start(self) -> None:
-                nonlocal event, result_object
+                nonlocal event, result_object  # noqa: F824
                 time.sleep(0.5)
                 event.set()
 
@@ -101,7 +101,7 @@ class TestChainedTask:
         @register_api(source_helper.api_registry, 'test-task')
         class Task(ChainedTask):
             def start(self) -> None:
-                nonlocal event
+                nonlocal event  # noqa: F824
                 time.sleep(0.5)
                 event.set()
 

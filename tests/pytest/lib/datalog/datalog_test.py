@@ -60,7 +60,7 @@ class TestDatalog:
         start_event = threading.Event()
 
         def concurrency_push(number_of_object: int) -> None:
-            nonlocal test_obj, start_event
+            nonlocal test_obj, start_event  # noqa: F824
             start_event.wait()
             for i in range(number_of_object):
                 test_obj.append(i)

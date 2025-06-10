@@ -49,7 +49,7 @@ class TestThreadExecutor:
         assert(executor.submit_task(task) is True)
 
         def thread_fn() -> None:
-            nonlocal task
+            nonlocal task  # noqa: F824
             time.sleep(0.5)
             task.stop()
 
@@ -67,7 +67,7 @@ class TestThreadExecutor:
         assert (executor.submit_task(task) is True)
 
         def thread_fn() -> None:
-            nonlocal task
+            nonlocal task  # noqa: F824
             time.sleep(0.5)
             task.stop()
 

@@ -164,7 +164,7 @@ def register_api(
     :raise ValueError: if the 'callable_api_id' variable is True but the 'api_id' is not callable object
     """
     def decorator_fn(decorated_obj: typing.Callable[..., typing.Any]) -> typing.Callable[..., typing.Any]:
-        nonlocal api_id, callable_api_id
+        nonlocal api_id, callable_api_id  # noqa: F824
         if callable_api_id is True:
             if not callable(api_id):
                 raise ValueError('Unable to retrieve an id - "api_id" is non-callable')
