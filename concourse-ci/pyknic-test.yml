@@ -24,7 +24,7 @@ resources:
 jobs:
   - name: pyknic-test-job-py-((python_version))
     build_log_retention:
-      builds: 21
+      builds: 20
     plan:
 
       - get: pull-request
