@@ -1,4 +1,11 @@
 
+resource_types:
+
+  - name: github-pull-request
+    type: docker-image
+    source:
+      repository: teliaoss/github-pr-resource
+
 resources:
 
   - name: code
@@ -8,13 +15,34 @@ resources:
       uri: https://github.com/a1ezzz/pyknic
       branch: ((branch))
 
+  - name: pull-request
+    type: github-pull-request
+    source:
+        repository: a1ezzz/pyknic
+        access_token: ((github-access-token))
+
 jobs:
   - name: pyknic-test-job-py-((python_version))
     build_log_retention:
       builds: 20
     plan:
+
+      - get: pull-request
+    
       - get: code
         trigger: true
+
+      - put: pull-request
+        params:
+          path: pull-request
+          status: pending
+          context: py-((python_version))-pytest
+
+      - put: pull-request
+        params:
+          path: pull-request
+          status: pending
+          context: py-((python_version))-mypy
 
       - task: prepare_venv
         config:
@@ -85,6 +113,13 @@ jobs:
                 source /sandbox/venv/bin/activate
                 pytest -v
 
+        on_failure:
+          put: pull-request
+          params:
+            path: pull-request
+            status: failure
+            context: py-((python_version))-pytest
+
       - task: run_mypy
         config:
           platform: linux
@@ -106,3 +141,22 @@ jobs:
                 source /sandbox/venv/bin/activate
                 mypy --install-types --non-interactive
                 mypy
+
+        on_failure:
+          put: pull-request
+          params:
+            path: pull-request
+            status: failure
+            context: py-((python_version))-mypy
+
+      - put: pull-request
+        params:
+          path: pull-request
+          status: success                
+          context: py-((python_version))-pytest
+
+      - put: pull-request
+        params:
+          path: pull-request
+          status: success                
+          context: py-((python_version))-mypy
