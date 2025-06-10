@@ -120,6 +120,12 @@ jobs:
             status: failure
             context: py-((python_version))-pytest
 
+      - put: pull-request
+        params:
+          path: pull-request
+          status: success                
+          context: py-((python_version))-pytest
+
       - task: run_mypy
         config:
           platform: linux
@@ -148,12 +154,6 @@ jobs:
             path: pull-request
             status: failure
             context: py-((python_version))-mypy
-
-      - put: pull-request
-        params:
-          path: pull-request
-          status: success                
-          context: py-((python_version))-pytest
 
       - put: pull-request
         params:
