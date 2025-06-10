@@ -47,6 +47,7 @@ jobs:
           vars:
             branch: ((.:branch.name))
             python_version: 3.12
+            github-access-token: ((github-access-token))
 
       - try:
           across:
@@ -60,3 +61,4 @@ jobs:
           vars:
             branch: ((.:branch.name))
             python_version: 3.11
+            github-access-token: ((github-access-token))
