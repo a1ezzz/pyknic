@@ -69,7 +69,7 @@ class TestSignalSource:
         results = []
 
         def callback(source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
-            nonlocal results
+            nonlocal results  # noqa: F824
             results.append((source, signal, value))
 
         s = Source()
