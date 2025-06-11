@@ -50,4 +50,4 @@ jobs:
             args:
               - -ecx
               - |
-                echo "Hello World!"
+                echo "Hello!"
