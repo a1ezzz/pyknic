@@ -19,6 +19,7 @@ resources:
 
   - name: pull-request
     type: github-pr-resource
+    check_every: 5m
     icon: source-pull
     source:
         repository: a1ezzz/pyknic
