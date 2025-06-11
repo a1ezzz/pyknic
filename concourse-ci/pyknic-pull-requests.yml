@@ -83,7 +83,7 @@ jobs:
         instance_vars:
           pull_request_id: ((.:pull_request_id))
         vars:
-          branch: main # ((.:pull_request_base_name))
+          branch: ((.:pull_request_base_name))
           commit: ((.:pull_request_head_sha))
           github-access-token: ((github-access-token))
           pull_request_branch_name: ((.: pull_request_head_name)
