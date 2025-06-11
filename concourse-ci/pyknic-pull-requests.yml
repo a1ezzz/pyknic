@@ -1,0 +1,92 @@
+
+# TODO: set main python version (3.11) as a var
+
+resource_types:
+
+  - name: github-pr-resource
+    type: docker-image
+    source:
+      repository: teliaoss/github-pr-resource
+
+resources:
+
+  - name: ci-code
+    type: git
+    icon: github
+    source:
+      uri: https://github.com/a1ezzz/pyknic
+      branch: main
+
+  - name: pull-request
+    type: github-pr-resource
+    check_every: 5m
+    icon: source-pull
+    source:
+        repository: a1ezzz/pyknic
+        access_token: ((github-access-token))
+
+jobs:
+  - name: pyknic-pr
+    build_log_retention:
+      builds: 20
+    plan:
+
+      - get: pull-request
+        version: every
+        trigger: true
+
+      - get: ci-code
+
+      - put: pull-request
+        params:
+          path: pull-request
+          status: pending
+          context: py-3.11-pytest
+
+      - put: pull-request
+        params:
+          path: pull-request
+          status: pending
+          context: py-3.11-mypy
+
+      # there are:
+      #   - author
+      #   - author_email
+      #   - base_name
+      #   - base_sha
+      #   - head_name
+      #   - head_sha
+      #   - message
+      #   - metadata.json
+      #   - pr
+      #   - state
+      #   - title
+      #   - url
+      #   - version.json
+
+      - load_var: pull_request_base_name
+        file: pull-request/.git/resource/base_name
+        format: trim
+
+      - load_var: pull_request_head_name
+        file: pull-request/.git/resource/head_name
+        format: trim
+
+      - load_var: pull_request_head_sha
+        file: pull-request/.git/resource/head_sha
+        format: trim
+
+      - load_var: pull_request_id
+        file: pull-request/.git/resource/pr
+        format: trim
+
+      - set_pipeline: pyknic-pr-test
+        file: ci-code/concourse-ci/pyknic-test.yml
+        instance_vars:
+          pull_request_id: ((.:pull_request_id))
+        vars:
+          branch: ((.:pull_request_base_name))
+          commit: ((.:pull_request_head_sha))
+          github-access-token: ((github-access-token))
+          pull_request_branch_name: ((.:pull_request_head_name))
+          python_version: 3.11
