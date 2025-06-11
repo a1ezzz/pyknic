@@ -8,6 +8,7 @@
 
 # TODO: replace docker image with more suitable one
 # TODO: simplify github routine
+# TODO: hide shell-code in a dedicated file in git?
 
 resource_types:
   - name: build-metadata
