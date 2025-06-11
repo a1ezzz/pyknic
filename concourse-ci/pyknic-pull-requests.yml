@@ -86,5 +86,5 @@ jobs:
           branch: ((.:pull_request_base_name))
           commit: ((.:pull_request_head_sha))
           github-access-token: ((github-access-token))
-          pull_request_branch_name: ((.: pull_request_head_name)
+          pull_request_branch_name: ((.:pull_request_head_name))
           python_version: 3.11

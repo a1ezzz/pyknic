@@ -46,9 +46,9 @@ jobs:
             branch: ((.:branch.name))
           vars:
             branch: ((.:branch.name))
-            commit:
-            github-access-token:
-            pull_request_branch_name:
+            commit: ""
+            github-access-token: ""
+            pull_request_branch_name: ""
             python_version: 3.12
 
       - try:
@@ -62,7 +62,7 @@ jobs:
             branch: ((.:branch.name))
           vars:
             branch: ((.:branch.name))
-            commit:
-            github-access-token:
-            pull_request_branch_name:
+            commit: ""
+            github-access-token: ""
+            pull_request_branch_name: ""
             python_version: 3.11
