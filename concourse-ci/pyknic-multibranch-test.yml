@@ -7,13 +7,13 @@ resource_types:
 
 resources:
 
-  - name: ci-code
+  - name: ci-branches
     type: git-branches
     icon: github
     source:
       uri: https://github.com/a1ezzz/pyknic
 
-  - name: code
+  - name: ci-code
     type: git
     icon: github
     source:
@@ -27,13 +27,13 @@ jobs:
     plan:
       - in_parallel:
 
-        - get: ci-code
+        - get: ci-branches
           trigger: true
 
-        - get: code
+        - get: ci-code
 
       - load_var: branches
-        file: ci-code/branches.json
+        file: ci-branches/branches.json
 
       - try:
           across:
@@ -41,13 +41,15 @@ jobs:
             values: ((.:branches))
 
           set_pipeline: pyknic-test-3.12
-          file: code/concourse-ci/pyknic-test.yml
+          file: ci-code/concourse-ci/pyknic-test.yml
           instance_vars:
             branch: ((.:branch.name))
           vars:
             branch: ((.:branch.name))
+            commit:
+            github-access-token:
+            pull_request_branch_name:
             python_version: 3.12
-            github-access-token: ((github-access-token))
 
       - try:
           across:
@@ -55,10 +57,12 @@ jobs:
             values: ((.:branches))
 
           set_pipeline: pyknic-test-3.11
-          file: code/concourse-ci/pyknic-test.yml
+          file: ci-code/concourse-ci/pyknic-test.yml
           instance_vars:
             branch: ((.:branch.name))
           vars:
             branch: ((.:branch.name))
+            commit:
+            github-access-token:
+            pull_request_branch_name:
             python_version: 3.11
-            github-access-token: ((github-access-token))
