@@ -24,6 +24,13 @@ resources:
       uri: https://github.com/a1ezzz/pyknic
       branch: ((branch))
 
+  - name: pr-code
+    type: git
+    icon: github
+    source:
+      uri: https://github.com/a1ezzz/pyknic
+      branch: ((pull_request_branch_name))
+
   - name: metadata
     type: build-metadata
 
@@ -34,6 +41,9 @@ jobs:
     plan:
 
       - get: code
+        trigger: true
+
+      - get: pr-code
         trigger: true
 
       - get: metadata
