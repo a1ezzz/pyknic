@@ -102,7 +102,7 @@ class TestTgBotBaseFastAPIApp:
             def bot_path(cls, config: Config) -> str:
                 return '/smart/bot'
 
-            def process_message(
+            async def process_message(
                 self, tg_update: tg_bot_types.Update
             ) -> tg_bot_methods.MethodSendMessage | base_models.NullableResponseModel | None:
                 assert(tg_update.message)

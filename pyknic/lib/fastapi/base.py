@@ -101,9 +101,9 @@ class TgBotBaseFastAPIApp(BaseFastAPIApp):
         """
         data = await request.json()
         tg_update = Update.model_validate(data)
-        return self.process_request(tg_update)
+        return await self.process_request(tg_update)
 
-    def process_request(self, tg_update: Update) -> TgBotResponseType:
+    async def process_request(self, tg_update: Update) -> TgBotResponseType:
         """ Try to process a request. Request is processed in the following order:
           - first of all if the request has a callback_query then
           the :meth:`TgBotBaseFastAPIApp.callback_query` method result is returned
@@ -115,17 +115,17 @@ class TgBotBaseFastAPIApp(BaseFastAPIApp):
           - at the end a "null" ("{}" -- empty dict) result is returned
         """
         if tg_update.callback_query is not None:
-            return self.callback_query(tg_update)
+            return await self.callback_query(tg_update)  # TODO: everything else to async!
 
         if tg_update.message is not None and tg_update.message.text is not None and tg_update.message.from_ is not None:
             msg = tg_update.message.text.strip().lower()
 
             if msg.startswith('/') and len(msg) > 1:
-                result = self.process_command(msg, tg_update)
+                result = await self.process_command(msg, tg_update)
                 if result is not None:
                     return result
 
-            result = self.process_message(tg_update)
+            result = await self.process_message(tg_update)
             if result is not None:
                 return result
 
@@ -137,14 +137,14 @@ class TgBotBaseFastAPIApp(BaseFastAPIApp):
         assert(tg_update.callback_query is not None)
         return MethodAnswerCallbackQuery(callback_query_id=str(tg_update.callback_query.id_))
 
-    def process_command(self, command: str, tg_update: Update) -> TgBotResponseType | None:
+    async def process_command(self, command: str, tg_update: Update) -> TgBotResponseType | None:
         """ A request is a command -- return a result if command is valid and return None otherwise
         """
         assert(tg_update.message is not None)
         assert(tg_update.message.from_ is not None)
         return None
 
-    def process_message(self, tg_update: Update) -> TgBotResponseType | None:
+    async def process_message(self, tg_update: Update) -> TgBotResponseType | None:
         """ A request is just a text -- try to process it
         """
         assert(tg_update.message is not None)
