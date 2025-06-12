@@ -23,7 +23,9 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
         with warnings.catch_warnings():
             # TODO: check deprecation that uvicorn produce
             warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.legacy")
-            warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.server.WebSocketServerProtocol")
+            warnings.filterwarnings(
+                "ignore", category=DeprecationWarning, message="websockets.server.WebSocketServerProtocol"
+            )
 
             await self.server.serve()
 
