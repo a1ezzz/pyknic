@@ -3,6 +3,7 @@ import asyncio
 import fastapi
 import uvicorn
 import typing
+import warnings
 
 from asyncio_helpers import BaseAsyncFixture, async_fixture_generator
 
@@ -17,8 +18,17 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
 
         self.__server_task: typing.Awaitable[typing.Any] | None = None
 
+    async def __start_server(self):
+
+        with warnings.catch_warnings():
+            # TODO: check deprecation that uvicorn produce
+            warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.legacy")
+            warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.server.WebSocketServerProtocol")
+
+            await self.server.serve()
+
     async def _init_fixture(self) -> None:
-        self.__server_task = asyncio.create_task(self.server.serve())
+        self.__server_task = asyncio.create_task(self.__start_server())
 
     def __clear_routes(self) -> None:
         self.fastapi.routes.clear()
