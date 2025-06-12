@@ -38,7 +38,7 @@ resources:
 jobs:
   - name: pyknic-test-job-py-((python_version))
     build_log_retention:
-      builds: 20
+      builds: 15
     plan:
 
       - get: code

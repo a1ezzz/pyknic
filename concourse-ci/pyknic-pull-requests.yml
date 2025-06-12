@@ -28,7 +28,7 @@ resources:
 jobs:
   - name: pyknic-pr
     build_log_retention:
-      builds: 20
+      builds: 15
     plan:
 
       - get: pull-request

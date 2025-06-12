@@ -23,7 +23,7 @@ resources:
 jobs:
   - name: set-pipelines
     build_log_retention:
-      builds: 20
+      builds: 15
     plan:
       - in_parallel:
 
