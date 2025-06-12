@@ -18,7 +18,7 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
 
         self.__server_task: typing.Awaitable[typing.Any] | None = None
 
-    async def __start_server(self):
+    async def __start_server(self) -> None:
 
         with warnings.catch_warnings():
             # TODO: check deprecation that uvicorn produce
