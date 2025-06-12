@@ -43,6 +43,8 @@ class TestThreadExecutor:
         while not executor.complete_task(task):
             time.sleep(0.1)
 
+    @pytest.mark.filterwarnings("ignore", category=pytest.PytestUnhandledThreadExceptionWarning)  # this is a part
+    # of the test
     def test_awaited_join(self, sample_tasks: 'SampleTasks') -> None:
         task = sample_tasks.DummyTask()
         executor = ThreadExecutor()
