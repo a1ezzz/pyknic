@@ -131,7 +131,7 @@ class TgBotBaseFastAPIApp(BaseFastAPIApp):
 
         return NullableResponseModel()
 
-    def callback_query(self,  tg_update: Update) -> MethodAnswerCallbackQuery:
+    async def callback_query(self,  tg_update: Update) -> MethodAnswerCallbackQuery:
         """ A request treated as a callback_query -- return a default value
         """
         assert(tg_update.callback_query is not None)
