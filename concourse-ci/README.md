@@ -9,3 +9,7 @@ $ fly -t <name> set-pipeline -n -p pyknic-pull-requests --var github-access-toke
 
 For regular cleanup check:
 $ fly -t <name> builds
+
+and:
+$ fly -t <name> pipelines --include-archived
+
