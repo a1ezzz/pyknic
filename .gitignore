@@ -1,9 +1,8 @@
 .coverage
 .eggs
-pyknic.egg-info
+.idea
 __pycache__
 build
 dist
 docs
-
-.idea
+pyknic.egg-info
