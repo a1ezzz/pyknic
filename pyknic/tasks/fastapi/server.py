@@ -109,7 +109,7 @@ class FastAPILoaderTask(ChainedTask):
         assert(gettext_result)
 
         config = config_result.result
-        pc_config_section = config.section("pyknic:fastapi", "fastapi_app_")
+        pc_config_section = config["pyknic"]["fastapi"]
         apps_options = list(pc_config_section.options())
         apps_options.sort()
 
