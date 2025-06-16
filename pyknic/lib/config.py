@@ -23,7 +23,127 @@ import typing
 
 import yaml
 
+from pyknic.lib.capability import CapabilitiesHolder, capability
 from pyknic.lib.verify import verify_type, verify_value
+
+
+class ConfigStorageProto(CapabilitiesHolder):
+    """This class is used mostly by mypy to detect possible methods and results of methods. It is
+    full of "capabilities" that are implemented in some classes and not in others.
+
+    In a real implementation each object is similar to one of:
+     - dict
+     - list
+     - str
+     - bool
+     - int
+     - float
+     - None
+    and implement related methods only
+    """
+
+    @capability
+    def getitem(self, item: typing.Union[str, int]) -> 'ConfigStorageProto':
+        """Return value that is stored within a key, or get a value by an index (a real behaviour depends on
+        implementation).
+
+        :param item: key (index) which value should be retrieved
+        """
+        raise NotImplementedError('This method is abstract')
+
+    def __getitem__(self, item: typing.Union[str, int]) -> 'ConfigStorageProto':
+        """Shortcut for the :meth:`.ConfigStorageProto.getitem` capability."""
+        return self.getitem(item)
+
+    @capability
+    def as_int(self) -> int:
+        """If possible return integer value of this config. Suitable for a plain, non-aggregated entries."""
+        raise NotImplementedError('This method is abstract')
+
+    def __int__(self) -> int:
+        """Shortcut for the :meth:`.ConfigStorageProto.as_int` capability."""
+        return self.as_int()
+
+    @capability
+    def as_float(self) -> float:
+        """If possible return floating point value of this config. Suitable for a plain, non-aggregated entries."""
+        raise NotImplementedError('This method is abstract')
+
+    def __float__(self) -> float:
+        """Shortcut for the :meth:`.ConfigStorageProto.as_float` capability."""
+        return self.as_float()
+
+    @capability
+    def as_bool(self) -> bool:
+        """If possible return boolean value of this config. Suitable for a plain, non-aggregated entries."""
+        raise NotImplementedError('This method is abstract')
+
+    def __bool__(self) -> bool:
+        """Shortcut for the :meth:`.ConfigStorageProto.as_bool` capability."""
+        return self.as_bool()
+
+    @capability
+    def as_str(self) -> str:
+        """If possible return string value of this config. Suitable for a plain, non-aggregated entries."""
+        raise NotImplementedError('This method is abstract')
+
+    def __str__(self) -> str:
+        """Shortcut for the :meth:`.ConfigStorageProto.as_str` capability."""
+        return self.as_str()
+
+    @capability
+    def is_none(self) -> bool:
+        """Return True if this option is defined as None. Suitable for a plain, non-aggregated entries."""
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    def properties(self) -> typing.Set[str]:
+        """Return keys that this dict-a-like aggregator holds"""
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    def has_property(self, name: str) -> bool:
+        """Return True if this dict-a-like aggregator holds the specified key
+
+        :param name: a key name to check
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    def property(self, name: str) -> 'ConfigStorageProto':
+        """Return True if this dict-a-like aggregator holds the specified key
+
+        :param name: a key name to check
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    def reset_properties(self) -> None:
+        """Remove everything that this dict-a-like aggregator holds."""
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    def merge_file(self, file_obj: typing.IO[str], property_name: typing.Optional[str] = None) -> None:
+        """Union this dict-a-like configuration with another one.
+
+        :param file_obj: file object to merge
+        :param property_name: if defined then only this section will be imported from a file
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    def merge_config(self, config: 'ConfigStorageProto', property_name: typing.Optional[str] = None) -> None:
+        """Union this dict-a-like configuration with another one.
+
+        :param config: a config to read
+        :param property_name: if defined then only this section will be imported from a config
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    def iterate_list(self) -> typing.Generator['ConfigStorageProto', None, None]:
+        """Iterate over list-a-like configuration."""
+        raise NotImplementedError('This method is abstract')
 
 
 RawConfigPlainTypes: typing.TypeAlias = typing.Optional[typing.Union[int, float, str, bool]]
@@ -54,10 +174,6 @@ class _ConfigImplementation:
                 init_value.__value if isinstance(init_value, _ConfigImplementation) else init_value
 
         init(value)
-
-    def raw_type(self) -> typing.Optional[type]:
-        """Return basic type of the inside stored object."""
-        return type(self.__value) if self.__value is not None else None
 
     def __ensure_type(self, *value_types: type) -> None:
         """Check that inside storage suites specified types.
@@ -169,7 +285,7 @@ class _ConfigImplementation:
         return typing.cast(str, self.__value)
 
 
-class _ConfigStorage:
+class _ConfigStorage(ConfigStorageProto):
     """This is a shared storage, that is shared between target configuration classes."""
 
     def __init__(self) -> None:
@@ -227,55 +343,62 @@ class Config(_ConfigStorage):
         merge_config(self._config, value)
 
     def properties(self) -> typing.Set[str]:
-        """Return keys."""
+        """:meth:`.ConfigStorageProto.properties` implementation"""
         return self._config.dict_properties()
 
     def has_property(self, name: str) -> bool:
-        """Check that this configuration has a specified key.
-
-        :param name: key to check
-        """
+        """:meth:`.ConfigStorageProto.has_property` implementation"""
         return self._config.dict_has(name)
 
-    def property(self, name: str) -> typing.Optional[typing.Union['Config', 'ConfigList', 'ConfigOption']]:
-        """Return value that is stored within a key.
-
-        :param name: key which value should be retrieved
-        """
+    def property(self, name: str) -> ConfigStorageProto:
+        """:meth:`.ConfigStorageProto.property` implementation"""
         property_value = self._config.dict_property(name)
         return _cast_implementation(property_value)
 
-    def __getitem__(self, item: str) -> typing.Optional[typing.Union['Config', 'ConfigList', 'ConfigOption']]:
-        """Return value that is stored within a key.
+    @verify_type(item=str)
+    def __getitem__(self, item: typing.Union[str, int]) -> ConfigStorageProto:
+        """:meth:`.ConfigStorageProto.__getitem__` implementation"""
+        return self.property(item)  # type: ignore[arg-type]  # verify_type do the job
 
-        :param item: key which value should be retrieved
-        """
-        return self.property(item)
-
-    def reset(self) -> None:
-        """Clear this configuration."""
+    def reset_properties(self) -> None:
+        """:meth:`.ConfigStorageProto.reset_properties` implementation"""
         self._config.dict_clear()
 
     def merge_file(self, file_obj: typing.IO[str], property_name: typing.Optional[str] = None) -> None:
-        """Read config from a file and update this configuration from it.
-
-        :param file_obj: a file to import
-        :param property_name: if defined then only this section will be imported from a file
-        """
+        """:meth:`.ConfigStorageProto.merge_file` implementation"""
         self.merge_config(Config(file_obj=file_obj, property_name=property_name))
 
-    def merge_config(self, config: 'Config', property_name: typing.Optional[str] = None) -> None:
-        """Update this config with another one.
+    def merge_config(self, config: 'ConfigStorageProto', property_name: typing.Optional[str] = None) -> None:
+        """:meth:`.ConfigStorageProto.merge_config` implementation"""
+        if not isinstance(config, Config):
+            raise TypeError('Unable to merge with non-Config instance')
 
-        :param config: a config to read
-        :param property_name: if defined then only this section will be imported from a config
-        """
         raw_config = config._config
         if property_name is not None:
             if not raw_config.dict_has(property_name):
                 raise ValueError(f'There is no {property_name} property in a configuration object')
             raw_config = _ConfigImplementation({property_name: raw_config.dict_property(property_name)})
         self.__merge(raw_config)
+
+
+class ConfigList(_ConfigStorage):
+    """List-a-like configuration of the application."""
+
+    @verify_value(value=lambda x: x is None or x.is_list())
+    def __init__(self, value: typing.Optional[_ConfigImplementation] = None) -> None:
+        """Create list-a-like config."""
+        _ConfigStorage.__init__(self)
+        self._config = value if value is not None else _ConfigImplementation([])
+
+    @verify_type(item=int)
+    def __getitem__(self, item: typing.Union[int, str]) -> ConfigStorageProto:
+        """:meth:`.ConfigStorageProto.__getitem__` implementation"""
+        return _cast_implementation(self._config.list_get(item))  # type: ignore[arg-type]  # verify_type do the job
+
+    def iterate_list(self) -> typing.Generator[ConfigStorageProto, None, None]:
+        """:meth:`.ConfigStorageProto.iterate_list` implementation"""
+        for i in self._config.list_iterate():
+            yield _cast_implementation(i)
 
 
 class ConfigOption(_ConfigStorage):
@@ -292,61 +415,30 @@ class ConfigOption(_ConfigStorage):
 
         self._config = _ConfigImplementation(value)
 
-    def option_type(self) -> typing.Optional[type]:
-        """Return internal object type."""
-        return self._config.raw_type()
-
     def is_none(self) -> bool:
-        """Return True if internal object is None."""
+        """:meth:`.ConfigStorageProto.is_none` implementation"""
         return self._config.is_none()
 
-    def __str__(self) -> str:
-        """Return option's value if it is a string and raise exception otherwise."""
+    def as_str(self) -> str:
+        """:meth:`.ConfigStorageProto.as_str` implementation"""
         return str(self._config)
 
-    def __int__(self) -> int:
-        """Return option's value if it is an integer and raise exception otherwise."""
+    def as_int(self) -> int:
+        """:meth:`.ConfigStorageProto.as_int` implementation"""
         return int(self._config)
 
-    def __float__(self) -> float:
-        """Return option's value if it is an floating point number and raise exception otherwise."""
+    def as_float(self) -> float:
+        """:meth:`.ConfigStorageProto.as_float` implementation"""
         return float(self._config)
 
-    def __bool__(self) -> bool:
-        """Return option's value if it is an boolean and raise exception otherwise."""
+    def as_bool(self) -> bool:
+        """:meth:`.ConfigStorageProto.as_bool` implementation"""
         return bool(self._config)
 
 
-class ConfigList(_ConfigStorage):
-    """List-a-like configuration of the application."""
-
-    @verify_value(value=lambda x: x is None or x.is_list())
-    def __init__(self, value: typing.Optional[_ConfigImplementation] = None) -> None:
-        """Create list-a-like config."""
-        _ConfigStorage.__init__(self)
-        self._config = value if value is not None else _ConfigImplementation([])
-
-    @verify_type(item=int)
-    def __getitem__(self, item: int) -> typing.Optional[typing.Union[Config, 'ConfigList', ConfigOption]]:
-        """Return item from internal storage by an index.
-
-        :param item: index of object to retrieve
-        """
-        return _cast_implementation(self._config.list_get(item))
-
-    def iterate(self) -> typing.Generator[
-        typing.Optional[typing.Union[Config, 'ConfigList', ConfigOption]],
-        None,
-        None
-    ]:
-        """Iterate over internal storage items."""
-        for i in self._config.list_iterate():
-            yield _cast_implementation(i)
-
-
 @verify_type(value=_ConfigImplementation)
-def _cast_implementation(value: _ConfigImplementation) -> typing.Union[Config, ConfigList, ConfigOption]:
-    """Return internal config representation as "public" objects.
+def _cast_implementation(value: _ConfigImplementation) -> ConfigStorageProto:
+    """Cast internal config representation to "public" objects.
 
     :param value: internal representation of configuration
     """
