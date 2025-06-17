@@ -25,6 +25,7 @@ from abc import ABCMeta
 from inspect import isfunction
 
 from pyknic.lib.verify import verify_value
+from pyknic.lib.typing import GenericFunc, P, R
 
 
 class CapabilityDescriptor:
@@ -52,7 +53,7 @@ class CapabilityDescriptor:
         return self.__name
 
 
-def capability(f: typing.Callable[..., typing.Any]) -> typing.Callable[..., typing.Any]:
+def capability(f: GenericFunc[P, R]) -> GenericFunc[P, R]:
     """ Mark a decorated function as a capability
 
     :param f: function that is defined as a capability

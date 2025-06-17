@@ -99,4 +99,4 @@ class TGBotWordGames(TgBotBaseFastAPIApp):
 
     @classmethod
     def bot_path(cls, config: Config) -> str:
-        return str(config["pyknic:fastapi:tgbot_word_games"]["inner_path"])
+        return str(config["pyknic"]["fastapi"]["tgbot_word_games"]["url_inner_path"])
