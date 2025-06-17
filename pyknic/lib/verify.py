@@ -473,7 +473,7 @@ class ValueVerifier(Verifier):
 
 
 def verify_type(
-    **type_kwargs: typing.Union[type, typing.Tuple[type, None]]
+    **type_kwargs: typing.Union[type, typing.Tuple[typing.Optional[type], ...]]
 ) -> typing.Callable[[GenericFunc[P, R]], GenericFunc[P, R]]:
     """ Shortcut for :class:`.TypeVerifier`
 
