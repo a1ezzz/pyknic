@@ -2,58 +2,77 @@
 import asyncio
 import fastapi
 import uvicorn
+import pytest
 import typing
 import warnings
 
-from asyncio_helpers import BaseAsyncFixture, async_fixture_generator
+from fixtures.asyncio import BaseAsyncFixture
+from fixture_helpers import pyknic_fixture
 
 
 class AsyncFastAPIFixture(BaseAsyncFixture):
 
+    __startup_retries__ = 10
+    __startup_pause__ = 0.5
+
     def __init__(self) -> None:
         BaseAsyncFixture.__init__(self)
         self.fastapi = fastapi.FastAPI()
+
         self.config = uvicorn.Config(self.fastapi)
         self.server = uvicorn.Server(self.config)
 
-        self.__server_task: typing.Awaitable[typing.Any] | None = None
+    async def start_async_service(self, loop_descriptor):
+        assert(not self.server.started)
+        if not self.server.started:
 
-    async def __start_server(self) -> None:
+            with warnings.catch_warnings():
+                # TODO: check deprecation that uvicorn produce
+                warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.legacy")
+                warnings.filterwarnings(
+                    "ignore", category=DeprecationWarning, message="websockets.server.WebSocketServerProtocol"
+                )
+                await self.server.serve()
 
-        with warnings.catch_warnings():
-            # TODO: check deprecation that uvicorn produce
-            warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.legacy")
-            warnings.filterwarnings(
-                "ignore", category=DeprecationWarning, message="websockets.server.WebSocketServerProtocol"
-            )
+    async def wait_startup(self, loop_descriptor):
+        for _ in range(self.__startup_retries__):
+            if self.server.started:
+                break
+            await asyncio.sleep(self.__startup_pause__)
+        assert(self.server.started)
 
-            await self.server.serve()
-
-    async def _init_fixture(self) -> None:
-        self.__server_task = asyncio.create_task(self.__start_server())
-
-    def __clear_routes(self) -> None:
+    async def flush_async(self, loop_descriptor):
         self.fastapi.routes.clear()
 
-    async def __call__(self) -> typing.Any:
-        result = await BaseAsyncFixture.__call__(self)
-        self.__clear_routes()
-        return result
-
-    async def __fin(self) -> None:
-        assert(self.__server_task is not None)
-
+    async def stop_async(self):
         self.server.should_exit = True
         await self.server.shutdown()
-        await self.__server_task
-
-    def finalize(self) -> None:
-        assert(self.loop is not None)
-        self.loop.run_until_complete(self.__fin())
 
 
-fastapi_fixture = async_fixture_generator(AsyncFastAPIFixture)
-fastapi_class_fixture = async_fixture_generator(AsyncFastAPIFixture, scope="class")
-fastapi_module_fixture = async_fixture_generator(AsyncFastAPIFixture, scope="module")
-fastapi_package_fixture = async_fixture_generator(AsyncFastAPIFixture, scope="package")
-fastapi_session_fixture = async_fixture_generator(AsyncFastAPIFixture, scope="session")
+def _fastapi_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+    yield from pyknic_fixture(AsyncFastAPIFixture)
+
+
+@pytest.fixture
+def fastapi_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+    yield from _fastapi_fixture()
+
+
+@pytest.fixture(scope='class')
+def fastapi_class_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+    yield from _fastapi_fixture()
+
+
+@pytest.fixture(scope='module')
+def fastapi_module_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+    yield from _fastapi_fixture()
+
+
+@pytest.fixture(scope='package')
+def fastapi_package_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+    yield from _fastapi_fixture()
+
+
+@pytest.fixture(scope='session')
+def fastapi_session_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+    yield from _fastapi_fixture()

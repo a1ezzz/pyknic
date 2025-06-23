@@ -8,7 +8,7 @@ import pydantic_core
 import pytest
 import typing
 
-from asyncio_helpers import pyknic_async_test
+from fixtures.asyncio import pyknic_async_test
 
 if typing.TYPE_CHECKING:
     # noinspection PyUnresolvedReferences
