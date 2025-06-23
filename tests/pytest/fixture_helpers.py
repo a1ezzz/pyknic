@@ -33,7 +33,7 @@ class BaseFixture:
         pass
 
 
-def pyknic_fixture(fixture_cls):
+def pyknic_fixture(fixture_cls: typing.Type[BaseFixture]) -> typing.Any:
     result = fixture_cls.start()
     yield result
     fixture_cls.finalize(result)
