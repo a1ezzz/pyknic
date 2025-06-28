@@ -20,38 +20,35 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
-import pytest
-import threading
 import typing
 
 from decorator import decorator
-from watchfiles import awatch
 
 from fixture_helpers import BaseFixture
-from fixtures.event_loop import EventLoopDescriptor, EventLoop
+from fixtures.event_loop import EventLoop, EventLoopDescriptor
 
 
 class BaseAsyncFixture(BaseFixture):
 
-    def __init__(self):
+    def __init__(self) -> None:
         BaseFixture.__init__(self)
-        self.loop_descriptor = None
-        self.__start_task = None
+        self.loop_descriptor: typing.Optional[EventLoopDescriptor] = None
+        self.__start_task: typing.Optional[typing.Awaitable[typing.Any]] = None
         self.stop_wrapper_obj = None
 
-    async def start_async_service(self, loop_descriptor):
+    async def start_async_service(self, loop_descriptor: EventLoopDescriptor) -> None:
         pass
 
-    async def wait_startup(self, loop_descriptor):
+    async def wait_startup(self, loop_descriptor: EventLoopDescriptor) -> None:
         pass
 
-    async def flush_async(self, loop_descriptor):
+    async def flush_async(self, loop_descriptor: EventLoopDescriptor) -> None:
         pass
 
-    async def stop_async(self):
+    async def stop_async(self) -> None:
         pass
 
-    async def start_async_wrapper(self, loop_descriptor):
+    async def start_async_wrapper(self, loop_descriptor: EventLoopDescriptor) -> None:
         # note: may be called more than one time
 
         if self.loop_descriptor is None:
@@ -62,21 +59,21 @@ class BaseAsyncFixture(BaseFixture):
             self.__start_task = asyncio.create_task(self.start_async_service(loop_descriptor))
             await self.wait_startup(loop_descriptor)
 
-            self.stop_wrapper_obj = self.__stop_wrapper()
-            self.loop_descriptor.add(self.stop_wrapper_obj)
+            self.stop_wrapper_obj = self.__stop_wrapper()  # type: ignore[assignment]
+            self.loop_descriptor.add(self.stop_wrapper_obj)  # type: ignore[arg-type]  # mypy issue
 
     @classmethod
     def start(cls) -> typing.Any:
         return cls()
 
-    async def __stop_wrapper(self):
+    async def __stop_wrapper(self) -> None:
         await self.stop_async()
         if self.__start_task is not None:
             await self.__start_task
             self.__start_task = None
 
     @classmethod
-    def finalize(cls, start_result: typing.Any):
+    def finalize(cls, start_result: typing.Any) -> None:
         # note: may be called more than one time
         if start_result.loop_descriptor:
             start_result.loop_descriptor.wait(start_result.stop_wrapper_obj)
