@@ -35,34 +35,26 @@ jobs:
       - load_var: branches
         file: ci-branches/branches.json
 
-      - try:
-          across:
-          - var: branch
-            values: ((.:branches))
+      - across:
+          - var: python_version
+            values:
+              - "3.13"
+              - "3.12"
+              - "3.11"
+              # - "3.10"  # fails with the "AttributeError: module 'typing' has no attribute 'Self'"
+        do:
+          - try:
+              across:
+              - var: branch
+                values: ((.:branches))
 
-          set_pipeline: pyknic-test-3.12
-          file: ci-code/concourse-ci/pyknic-test.yml
-          instance_vars:
-            branch: ((.:branch.name))
-          vars:
-            branch: ((.:branch.name))
-            commit: ""
-            github-access-token: ""
-            pull_request_branch_name: ""
-            python_version: 3.12
-
-      - try:
-          across:
-          - var: branch
-            values: ((.:branches))
-
-          set_pipeline: pyknic-test-3.11
-          file: ci-code/concourse-ci/pyknic-test.yml
-          instance_vars:
-            branch: ((.:branch.name))
-          vars:
-            branch: ((.:branch.name))
-            commit: ""
-            github-access-token: ""
-            pull_request_branch_name: ""
-            python_version: 3.11
+              set_pipeline: pyknic-test-((.:python_version))
+              file: ci-code/concourse-ci/pyknic-test.yml
+              instance_vars:
+                branch: ((.:branch.name))
+              vars:
+                branch: ((.:branch.name))
+                commit: ""
+                github-access-token: ""
+                pull_request_branch_name: ""
+                python_version: ((.:python_version))
