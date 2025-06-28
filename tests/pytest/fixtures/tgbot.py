@@ -19,50 +19,70 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import asyncio
+import json
 import random
 import typing
 
 import aiohttp
 import decorator
-import pydantic_core
+import pydantic
 import pytest
 
-from pyknic.lib.fastapi.models.tg_bot_types import Message, Chat, User, Update
-from pyknic.lib.fastapi.models.tg_bot_methods import MethodSendMessage
+from pyknic.lib.fastapi.base import BaseFastAPIApp, TgBotResponseType
+from pyknic.lib.fastapi.models.tg_bot_types import Message, Chat, User, Update, CallbackQuery
 
-from fixture_helpers import pyknic_fixture, BaseFixture
+from fixture_helpers import pyknic_fixture
+from fixtures.fastapi import AsyncFastAPIFixture
 
 
-class TGFixture(BaseFixture):
+class Counter:
+
+    def __init__(self, min_value: int, max_value: int):
+        self.__value = random.randint(min_value, max_value)
+
+    def __next__(self) -> 'Counter':
+        self.__value += 1
+        return self
+
+    def __int__(self) -> int:
+        return self.__value
+
+    def __str__(self) -> str:
+        return str(self.__value)
+
+
+class TGBotFixture(AsyncFastAPIFixture):
 
     def __init__(self) -> None:
+        AsyncFastAPIFixture.__init__(self)
         self.user = User(id_=random.randint(10000, 15000))  # type: ignore[call-arg]
         self.chat = Chat(id_=random.randint(20000, 25000), type_="private")  # type: ignore[call-arg]
-        self.next_update_id = random.randint(30000, 35000)
-        self.next_message_id = random.randint(40000, 45000)
+
+        self.update_id = Counter(30000, 35000)
+        self.message_id = Counter(40000, 45000)
+        self.callback_id = Counter(50000, 55000)
         self.handler_path: typing.Optional[str] = None
 
-    def __next_update_id(self) -> int:
-        result = self.next_update_id
-        self.next_update_id += 1
-        return result
-
-    def __next_message_id(self) -> int:
-        result = self.next_message_id
-        self.next_message_id += 1
-        return result
-
-    async def request(self, text: str, *, handler_path: typing.Optional[str] = None) -> aiohttp.ClientResponse:
+    async def request(
+        self,
+        *,
+        text: typing.Optional[str] = None,
+        callback_data: typing.Optional[str] = None,
+        handler_path: typing.Optional[str] = None
+    ) -> aiohttp.ClientResponse:
         msg = Update(
-            update_id=self.__next_update_id(),
-            message=Message(  # type: ignore[call-arg]
-                message_id=self.__next_message_id(),
-                from_=self.user,
-                chat=self.chat,
-                text=text
-            )
+            update_id=int(next(self.update_id)),
         )
+
+        if text:
+            msg.message = Message(
+                message_id=int(next(self.message_id)), from_=self.user, chat=self.chat, text=text
+            )  # type: ignore[call-arg]
+
+        if callback_data:
+            msg.callback_query = CallbackQuery(
+                id_=str(next(self.callback_id)), from_=self.user, data=callback_data
+            )  # type: ignore[call-arg]
 
         if handler_path is None:
             handler_path = self.handler_path
@@ -76,18 +96,27 @@ class TGFixture(BaseFixture):
             json=msg.model_dump(exclude_none=True, by_alias=True)
         )
 
-    async def tg_response_to(self, text: str, *, handler_path: typing.Optional[str] = None) -> MethodSendMessage:
-        response = await self.request(text, handler_path=handler_path)
+    async def tg_response_to(
+        self,
+        *,
+        text: typing.Optional[str] = None,
+        callback_data: typing.Optional[str] = None,
+        handler_path: typing.Optional[str] = None
+    ) -> TgBotResponseType:
+        response = await self.request(text=text, callback_data=callback_data, handler_path=handler_path)
         assert(response.status == 200)
+
         data = await response.text()
-        return MethodSendMessage.model_validate(pydantic_core.from_json(data, allow_partial=True))
+        json_data = json.loads(data)
+        return pydantic.TypeAdapter(TgBotResponseType).validate_python(json_data)
 
     @classmethod
     def start(cls) -> typing.Any:
-        return TGFixture()
+        return TGBotFixture()
 
     @staticmethod
     def tg_setup(
+        fast_api_cls: typing.Type[BaseFastAPIApp],
         *,
         chat: typing.Optional[typing.Dict[str, typing.Any]] = None,
         user: typing.Optional[typing.Dict[str, typing.Any]] = None,
@@ -103,8 +132,15 @@ class TGFixture(BaseFixture):
 
                 fixture_found = False
                 for i in args:
-                    if isinstance(i, TGFixture):
+                    if isinstance(i, TGBotFixture):
+
+                        if fixture_found:
+                            raise RuntimeError('Multiple TGBotFixture instances found!')
+
                         fixture_found = True
+
+                        i.setup_fastapi(fast_api_cls)
+
                         if handler_path is not None:
                             i.handler_path = handler_path
                         if user is not None:
@@ -125,5 +161,5 @@ class TGFixture(BaseFixture):
 
 
 @pytest.fixture
-def tgbot_fixture() -> typing.Generator[TGFixture, None, None]:
-    yield from pyknic_fixture(TGFixture)
+def tgbot_fixture() -> typing.Generator[TGBotFixture, None, None]:
+    yield from pyknic_fixture(TGBotFixture)
