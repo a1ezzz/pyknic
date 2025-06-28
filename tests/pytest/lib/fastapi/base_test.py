@@ -8,7 +8,7 @@ import pydantic_core
 import pytest
 import typing
 
-from asyncio_helpers import pyknic_async_test
+from fixtures.asyncio import pyknic_async_test
 
 if typing.TYPE_CHECKING:
     # noinspection PyUnresolvedReferences
@@ -102,7 +102,7 @@ class TestTgBotBaseFastAPIApp:
             def bot_path(cls, config: Config) -> str:
                 return '/smart/bot'
 
-            def process_message(
+            async def process_message(
                 self, tg_update: tg_bot_types.Update
             ) -> tg_bot_methods.MethodSendMessage | base_models.NullableResponseModel | None:
                 assert(tg_update.message)

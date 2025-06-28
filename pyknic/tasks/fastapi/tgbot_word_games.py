@@ -49,7 +49,7 @@ class TGBotWordGames(TgBotBaseFastAPIApp):
         self.__sessions: typing.Dict[int, TGBotWordGames.UserSessionMode] = dict()
         self.__city_game = TGBotCityGame(config, translations)
 
-    def process_command(self, msg: str, tg_update: Update) -> TgBotResponseType | None:
+    async def process_command(self, msg: str, tg_update: Update) -> TgBotResponseType | None:
         assert(tg_update.message is not None)
         assert(tg_update.message.from_ is not None)
 
@@ -67,7 +67,7 @@ class TGBotWordGames(TgBotBaseFastAPIApp):
             )
         return None
 
-    def process_message(self, tg_update: Update) -> TgBotResponseType | None:
+    async def process_message(self, tg_update: Update) -> TgBotResponseType | None:
         assert(tg_update.message is not None)
         assert(tg_update.message.from_ is not None)
 
@@ -77,15 +77,15 @@ class TGBotWordGames(TgBotBaseFastAPIApp):
         if mode == TGBotWordGames.UserSessionMode.null:
             return self.reply(tg_update.message, lang.gettext('Start a game with the "/reset" command'))
         elif mode == TGBotWordGames.UserSessionMode.city:
-            return self.__city_game.process_request(tg_update)
+            return await self.__city_game.process_request(tg_update)
 
-    def callback_query(self,  tg_update: Update) -> MethodAnswerCallbackQuery:
+    async def callback_query(self,  tg_update: Update) -> MethodAnswerCallbackQuery:
         assert(tg_update.callback_query is not None)
 
         if tg_update.callback_query.data is not None and tg_update.callback_query.from_ is not None:
             if tg_update.callback_query.data == "/reset-to-cities":
                 self.__sessions[tg_update.callback_query.from_.id_] = TGBotWordGames.UserSessionMode.city
-                self.__city_game.reset(tg_update.callback_query.from_.id_)
+                await self.__city_game.reset(tg_update.callback_query.from_.id_, tg_update)
 
                 lang = self.user_lang(tg_update.callback_query.from_)
 
@@ -99,4 +99,5 @@ class TGBotWordGames(TgBotBaseFastAPIApp):
 
     @classmethod
     def bot_path(cls, config: Config) -> str:
+        """Return configured path (as a part of url) for TG-bot."""
         return str(config["pyknic"]["fastapi"]["tgbot_word_games"]["url_inner_path"])

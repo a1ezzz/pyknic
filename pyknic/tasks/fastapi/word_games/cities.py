@@ -75,7 +75,7 @@ class TGBotCityGame(TgBotBaseFastAPIApp):
             return self.__allowed_city(city_name[:-1], user_id)
         return None
 
-    def reset(self, id_: int) -> None:
+    async def reset(self, id_: int, _: Update) -> None:
         self.__sessions.setdefault(id_, []).clear()
 
     def last_city(self, id_: int) -> str | None:
@@ -84,7 +84,7 @@ class TGBotCityGame(TgBotBaseFastAPIApp):
             return cities[-1]
         return None
 
-    def process_command(self, command: str, tg_update: Update) -> TgBotResponseType | None:
+    async def process_command(self, command: str, tg_update: Update) -> TgBotResponseType | None:
         assert(tg_update.message is not None)
         assert(tg_update.message.from_ is not None)
 
@@ -116,7 +116,7 @@ class TGBotCityGame(TgBotBaseFastAPIApp):
 
         return self.reply(tg_update.message, lang.gettext('Unknown command -- "%(c)s"') % {'c': command})
 
-    def process_message(self, tg_update: Update) -> TgBotResponseType:
+    async def process_message(self, tg_update: Update) -> TgBotResponseType:
         assert(tg_update.message is not None)
         assert(tg_update.message.from_ is not None)
         assert(tg_update.message.text is not None)

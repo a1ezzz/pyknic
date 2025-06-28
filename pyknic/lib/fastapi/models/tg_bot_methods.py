@@ -31,7 +31,7 @@ from pyknic.lib.fastapi.models.tg_bot_types import ReplyParameters, InlineKeyboa
 # These models are based on https://core.telegram.org/bots/api#available-methods
 
 
-class _MethodSendMessageArgs(pydantic.BaseModel):
+class MethodSendMessageArgs(pydantic.BaseModel):
     # origin: https://core.telegram.org/bots/api#sendmessage
     chat_id: int | str
     text: str
@@ -39,18 +39,18 @@ class _MethodSendMessageArgs(pydantic.BaseModel):
     reply_markup: InlineKeyboardMarkup | None = None
 
 
-class MethodSendMessage(_MethodSendMessageArgs):
+class MethodSendMessage(MethodSendMessageArgs):
     # origin: https://core.telegram.org/bots/api#sendmessage
     method: typing.Literal['sendMessage'] = pydantic.Field(default='sendMessage')
 
 
-class _MethodAnswerCallbackQueryArgs(pydantic.BaseModel):
+class MethodAnswerCallbackQueryArgs(pydantic.BaseModel):
     # origin: https://core.telegram.org/bots/api#answercallbackquery
     callback_query_id: str
     text: str | None = None
     show_alert: bool | None = None
 
 
-class MethodAnswerCallbackQuery(_MethodAnswerCallbackQueryArgs):
+class MethodAnswerCallbackQuery(MethodAnswerCallbackQueryArgs):
     # origin: https://core.telegram.org/bots/api#answercallbackquery
     method: typing.Literal['answerCallbackQuery'] = pydantic.Field(default='answerCallbackQuery')

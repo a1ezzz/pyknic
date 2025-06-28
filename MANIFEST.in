@@ -1,5 +1,7 @@
 
 recursive-include pyknic *.ini
+recursive-include pyknic *.yaml
+recursive-include pyknic *.yml
 recursive-include pyknic *.txt
 recursive-include pyknic *.html.j2
 recursive-include pyknic/locales *.mo

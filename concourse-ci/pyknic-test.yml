@@ -38,7 +38,7 @@ resources:
 jobs:
   - name: pyknic-test-job-py-((python_version))
     build_log_retention:
-      builds: 20
+      builds: 15
     plan:
 
       - get: code
@@ -171,7 +171,7 @@ jobs:
                           -H "Authorization: Bearer ((github-access-token))" \
                           -H "X-GitHub-Api-Version: 2022-11-28" \
                           "https://api.github.com/repos/a1ezzz/pyknic/statuses/((commit))" \
-                          -d '{"state":"failure","target_url":"https://concourse-ci.home.a1ezzz.ru/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-pytest"}'
+                          -d '{"state":"failure","target_url":"https://concourse-ci.binblob.com/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-pytest"}'
                   fi
 
       - task: set_pytest_status_as_succeeded
@@ -195,7 +195,7 @@ jobs:
                         -H "Authorization: Bearer ((github-access-token))" \
                         -H "X-GitHub-Api-Version: 2022-11-28" \
                         "https://api.github.com/repos/a1ezzz/pyknic/statuses/((commit))" \
-                        -d '{"state":"success","target_url":"https://concourse-ci.home.a1ezzz.ru/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-pytest"}'
+                        -d '{"state":"success","target_url":"https://concourse-ci.binblob.com/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-pytest"}'
                 fi
 
       - task: run_mypy
@@ -241,7 +241,7 @@ jobs:
                           -H "Authorization: Bearer ((github-access-token))" \
                           -H "X-GitHub-Api-Version: 2022-11-28" \
                           "https://api.github.com/repos/a1ezzz/pyknic/statuses/((commit))" \
-                          -d '{"state":"failure","target_url":"https://concourse-ci.home.a1ezzz.ru/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-mypy"}'
+                          -d '{"state":"failure","target_url":"https://concourse-ci.binblob.com/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-mypy"}'
                   fi
 
       - task: set_mypy_status_as_succeeded
@@ -265,5 +265,5 @@ jobs:
                         -H "Authorization: Bearer ((github-access-token))" \
                         -H "X-GitHub-Api-Version: 2022-11-28" \
                         "https://api.github.com/repos/a1ezzz/pyknic/statuses/((commit))" \
-                        -d '{"state":"success","target_url":"https://concourse-ci.home.a1ezzz.ru/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-mypy"}'
+                        -d '{"state":"success","target_url":"https://concourse-ci.binblob.com/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-mypy"}'
                 fi
