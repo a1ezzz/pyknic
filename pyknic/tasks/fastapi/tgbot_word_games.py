@@ -35,7 +35,7 @@ from pyknic.lib.gettext import GetTextWrapper
 from pyknic.lib.fastapi.base import TgBotBaseFastAPIApp, TgBotResponseType
 
 
-@register_api(__default_fastapi_apps_registry__, ":tgbot_word_games")
+@register_api(__default_fastapi_apps_registry__, "tgbot_word_games")
 class TGBotWordGames(TgBotBaseFastAPIApp):
 
     @enum.unique

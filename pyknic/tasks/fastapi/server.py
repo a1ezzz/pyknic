@@ -110,12 +110,10 @@ class FastAPILoaderTask(ChainedTask):
 
         config = config_result.result
 
-        apps_enabled = list(config["pyknic"]["fastapi"]["apps"])
+        apps_enabled = [str(x) for x in config["pyknic"]["fastapi"]["apps"]]
         apps_enabled.sort()
 
-        for app_id_option in apps_enabled:
-            app_id = str(app_id_option)
-
+        for app_id in apps_enabled:
             Logger.info(f'Reading the app "{app_id}"')
             fastapi_app_cls = __default_fastapi_apps_registry__.get(app_id)
             created_app = fastapi_app_cls.create_app(fastapi_init.result.fastapi_app, config, gettext_result.result)

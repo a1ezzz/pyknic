@@ -76,11 +76,10 @@ class App(TaskProto):
         )
         config = config_result.result  # type: ignore[union-attr]
 
-        apps_enabled = list(config["pyknic"]["apps"])
+        apps_enabled = [str(x) for x in config["pyknic"]["apps"]]
         apps_enabled.sort()
 
-        for app_id_option in apps_enabled:
-            app_id = str(app_id_option)
+        for app_id in apps_enabled:
             Logger.info(f'Starting an app "{app_id}"')
             self.__main_source.execute(app_id)
 
