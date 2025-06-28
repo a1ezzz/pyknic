@@ -1,6 +1,7 @@
 
 pyknic:
     fastapi:
+        apps: []
         swagger: no
         redoc:   yes
 

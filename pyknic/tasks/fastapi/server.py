@@ -46,7 +46,7 @@ class FastAPIServer:
     uvicorn_server: uvicorn.Server
 
 
-@register_api(__default_chained_tasks_registry__, ":fastapi-init")
+@register_api(__default_chained_tasks_registry__, "fastapi-init")
 class FastAPIInitTask(ChainedTask):
 
     def start(self) -> None:
@@ -54,12 +54,12 @@ class FastAPIInitTask(ChainedTask):
         """
         Logger.info('Check dependencies')
 
-        self.wait_for(':log_task')
-        config = self.wait_for(':config_task').result  # type: ignore[union-attr]
+        self.wait_for('log_task')
+        config = self.wait_for('config_task').result  # type: ignore[union-attr]
 
         Logger.info('Prepare fastAPI')
 
-        config_section = config["pyknic:fastapi"]
+        config_section = config["pyknic"]["fastapi"]
 
         docs_url = '/docs' if bool(config_section["swagger"]) else None
         redoc_url = '/redoc' if bool(config_section["redoc"]) else None
@@ -83,10 +83,10 @@ class FastAPIInitTask(ChainedTask):
     def dependencies(cls) -> typing.Optional[typing.Set[str]]:
         """ The :meth:`.ChainedTask.dependencies` method implementation
         """
-        return {":log_task", ":config_task"}
+        return {"log_task", "config_task"}
 
 
-@register_api(__default_chained_tasks_registry__, ":fastapi-loader")
+@register_api(__default_chained_tasks_registry__, "fastapi-loader")
 class FastAPILoaderTask(ChainedTask):
 
     def __init__(self, datalog: DatalogProto, api_id: str, uid: uuid.UUID):
@@ -100,21 +100,22 @@ class FastAPILoaderTask(ChainedTask):
         """
         Logger.info('Populate fastAPI server')
 
-        fastapi_init = self.wait_for(':fastapi-init')
-        config_result = self.wait_for(':config_task')
-        gettext_result = self.wait_for(':gettext_task')
+        fastapi_init = self.wait_for('fastapi-init')
+        config_result = self.wait_for('config_task')
+        gettext_result = self.wait_for('gettext_task')
 
         assert(fastapi_init)
         assert(config_result)
         assert(gettext_result)
 
         config = config_result.result
-        pc_config_section = config["pyknic"]["fastapi"]
-        apps_options = list(pc_config_section.options())
-        apps_options.sort()
 
-        for i in apps_options:
-            app_id = str(pc_config_section[i])
+        apps_enabled = list(config["pyknic"]["fastapi"]["apps"])
+        apps_enabled.sort()
+
+        for app_id_option in apps_enabled:
+            app_id = str(app_id_option)
+
             Logger.info(f'Reading the app "{app_id}"')
             fastapi_app_cls = __default_fastapi_apps_registry__.get(app_id)
             created_app = fastapi_app_cls.create_app(fastapi_init.result.fastapi_app, config, gettext_result.result)
@@ -130,10 +131,10 @@ class FastAPILoaderTask(ChainedTask):
     def dependencies(cls) -> typing.Optional[typing.Set[str]]:
         """ The :meth:`.ChainedTask.dependencies` method implementation
         """
-        return {":fastapi-init", ":gettext_task"}
+        return {"fastapi-init", "gettext_task"}
 
 
-@register_api(__default_chained_tasks_registry__, ":fastapi-server")
+@register_api(__default_chained_tasks_registry__, "fastapi-server")
 class FastAPIServerTask(ChainedTask):
 
     def __init__(self, datalog: DatalogProto, api_id: str, uid: uuid.UUID):
@@ -154,7 +155,7 @@ class FastAPIServerTask(ChainedTask):
         Logger.info('Starting fastAPI')
         assert(self.__loop)
 
-        fastapi_init = self.wait_for(':fastapi-init')
+        fastapi_init = self.wait_for('fastapi-init')
         assert(fastapi_init)
 
         self.__uvicorn_server = fastapi_init.result.uvicorn_server
@@ -177,4 +178,4 @@ class FastAPIServerTask(ChainedTask):
     def dependencies(cls) -> typing.Optional[typing.Set[str]]:
         """ The :meth:`.ChainedTask.dependencies` method implementation
         """
-        return {":fastapi-loader"}
+        return {"fastapi-loader"}

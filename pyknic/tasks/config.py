@@ -32,7 +32,7 @@ from pyknic.lib.log import Logger
 from pyknic.lib.config import Config
 
 
-@register_api(__default_chained_tasks_registry__, ":config_task")
+@register_api(__default_chained_tasks_registry__, "config_task")
 class ConfigTask(ChainedTask):
     """ Generate a configuration
 
@@ -104,7 +104,7 @@ class ConfigTask(ChainedTask):
     def start(self) -> None:
         """ The :meth:`.TaskProto.start` method implementation
         """
-        self.wait_for(':log_task')
+        self.wait_for('log_task')
         Logger.info('Reading configuration')
 
         result = Config()
@@ -128,4 +128,4 @@ class ConfigTask(ChainedTask):
     def dependencies(cls) -> typing.Optional[typing.Set[str]]:
         """ The :meth:`.ChainedTask.dependencies` method implementation
         """
-        return {":log_task"}
+        return {"log_task"}

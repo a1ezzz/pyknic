@@ -28,7 +28,7 @@ from pyknic.lib.gettext import GetTextWrapper
 from pyknic.path import root_path
 
 
-@register_api(__default_chained_tasks_registry__, ":gettext_task")
+@register_api(__default_chained_tasks_registry__, "gettext_task")
 class GetTextInitTask(ChainedTask):
     """ This task creates a pre-defined localization object (GetTextWrapper)
     """
@@ -38,7 +38,7 @@ class GetTextInitTask(ChainedTask):
     def start(self) -> None:
         """ The :meth:`.ChainedTask.start` method implementation
         """
-        self.wait_for(':log_task')
+        self.wait_for('log_task')
         Logger.info('Setting up a localization structure')
 
         translations = GetTextWrapper(self.__translations_loc__.absolute())
@@ -53,4 +53,4 @@ class GetTextInitTask(ChainedTask):
     def dependencies(cls) -> typing.Optional[typing.Set[str]]:
         """ The :meth:`.ChainedTask.dependencies` method implementation
         """
-        return {":log_task"}
+        return {"log_task"}

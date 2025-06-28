@@ -323,7 +323,8 @@ class Config(_ConfigStorage):
             if property_name is not None:
                 yaml_data = {property_name: yaml_data[property_name]}
 
-            self.__merge(_ConfigImplementation(yaml_data))
+            if yaml_data is not None:
+                self.__merge(_ConfigImplementation(yaml_data))
 
     @verify_value(value=lambda x: x.is_dict())
     def __merge(self, value: _ConfigImplementation) -> None:
