@@ -1,12 +1,20 @@
 
 import asyncio
-import fastapi
-import uvicorn
-import pytest
 import typing
 import warnings
 
+import decorator
+import fastapi
+import uvicorn
+import pytest
+
+from pyknic.lib.fastapi.base import BaseFastAPIApp
+from pyknic.path import root_path
+from pyknic.lib.config import Config
+from pyknic.lib.gettext import GetTextWrapper
+
 from fixtures.asyncio import BaseAsyncFixture
+from fixtures.event_loop import EventLoopDescriptor
 from fixture_helpers import pyknic_fixture
 
 
@@ -22,7 +30,12 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
         self.config = uvicorn.Config(self.fastapi)
         self.server = uvicorn.Server(self.config)
 
-    async def start_async_service(self, loop_descriptor):
+        with open(root_path / 'tasks/fastapi/config.yaml') as f:
+            self.default_config = Config(file_obj=f)
+        self.gettext = GetTextWrapper(root_path / 'locales')
+        self.configured_with: typing.Optional[typing.Type[BaseFastAPIApp]] = None
+
+    async def start_async_service(self, loop_descriptor: EventLoopDescriptor) -> None:
         assert(not self.server.started)
         if not self.server.started:
 
@@ -34,19 +47,56 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
                 )
                 await self.server.serve()
 
-    async def wait_startup(self, loop_descriptor):
+    async def wait_startup(self, loop_descriptor: EventLoopDescriptor) -> None:
         for _ in range(self.__startup_retries__):
             if self.server.started:
                 break
             await asyncio.sleep(self.__startup_pause__)
         assert(self.server.started)
 
-    async def flush_async(self, loop_descriptor):
+    async def flush_async(self, loop_descriptor: EventLoopDescriptor) -> None:
         self.fastapi.routes.clear()
+        self.configured_with = None
 
-    async def stop_async(self):
+    async def stop_async(self) -> None:
         self.server.should_exit = True
         await self.server.shutdown()
+
+    def setup_fastapi(self, fast_api_cls: typing.Type[BaseFastAPIApp]) -> None:
+        if self.configured_with is None:
+            self.configured_with = fast_api_cls
+            fast_api_cls.create_app(self.fastapi, self.default_config, self.gettext)
+        elif self.configured_with is not fast_api_cls:
+            raise ValueError('Already configured fixture!')
+
+    @staticmethod
+    def base_config(
+        fast_api_cls: typing.Type[BaseFastAPIApp],
+    ) -> typing.Callable[..., typing.Any]:
+
+        def first_level_decorator(
+            decorated_function: typing.Callable[..., typing.Any]
+        ) -> typing.Callable[..., typing.Any]:
+            def second_level_decorator(
+                original_function: typing.Callable[..., typing.Any], *args: typing.Any, **kwargs: typing.Any
+            ) -> typing.Any:
+
+                fixture_found = False
+                for i in args:
+                    if isinstance(i, AsyncFastAPIFixture):
+                        if fixture_found:
+                            raise RuntimeError('Multiple AsyncFastAPIFixture instances found!')
+
+                        fixture_found = True
+                        i.setup_fastapi(fast_api_cls)
+
+                if not fixture_found:
+                    raise RuntimeError('No suitable fixture found')
+
+                return original_function(*args, **kwargs)
+
+            return decorator.decorator(second_level_decorator)(decorated_function)
+        return first_level_decorator
 
 
 def _fastapi_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
