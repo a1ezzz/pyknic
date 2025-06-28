@@ -29,7 +29,7 @@ class BaseFixture:
         pass
 
     @classmethod
-    def finalize(cls, start_result: typing.Any):
+    def finalize(cls, start_result: typing.Any) -> None:
         pass
 
 
