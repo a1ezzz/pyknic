@@ -19,8 +19,13 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-from abc import ABCMeta, abstractmethod
+import hashlib
+import re
 import typing
+
+from abc import ABCMeta, abstractmethod
+
+from pyknic.lib.verify import verify_value
 
 
 class NoSuchAPIIdError(Exception):
@@ -177,3 +182,24 @@ def register_api(
         return decorated_obj
 
     return decorator_fn
+
+
+@verify_value(first_token=lambda x: x.isascii(), other_tokens=lambda x: x.isascii())
+def hash_id_by_tokens(first_token: str, *other_tokens: str, pre_sort: bool = False) -> typing.Hashable:
+    """Generate a determinate value as api_id by input tokens
+
+    :param first_token: minimal required token to generate a hash
+    :param other_tokens: other tokens for hash generation
+    :param pre_sort: whether to sort tokens before hashing or not. Different parameters order will lead to different
+    results when this value is False
+    """
+
+    tokens = [first_token, *other_tokens]
+
+    if pre_sort:
+        tokens.sort()
+
+    result = hashlib.sha256()
+    for i in tokens:
+        result.update(i.encode('ascii'))
+    return result.digest()
