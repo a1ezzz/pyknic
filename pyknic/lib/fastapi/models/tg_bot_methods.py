@@ -41,7 +41,7 @@ class MethodSendMessageArgs(pydantic.BaseModel):
 
 class MethodSendMessage(MethodSendMessageArgs):
     # origin: https://core.telegram.org/bots/api#sendmessage
-    method: typing.Literal['sendMessage'] = pydantic.Field(default='sendMessage')
+    method: typing.Literal['sendMessage'] = pydantic.Field(default='sendMessage', frozen=True)
 
 
 class MethodAnswerCallbackQueryArgs(pydantic.BaseModel):
@@ -53,4 +53,4 @@ class MethodAnswerCallbackQueryArgs(pydantic.BaseModel):
 
 class MethodAnswerCallbackQuery(MethodAnswerCallbackQueryArgs):
     # origin: https://core.telegram.org/bots/api#answercallbackquery
-    method: typing.Literal['answerCallbackQuery'] = pydantic.Field(default='answerCallbackQuery')
+    method: typing.Literal['answerCallbackQuery'] = pydantic.Field(default='answerCallbackQuery', frozen=True)
