@@ -27,32 +27,22 @@ import typing
 import pydantic
 
 
-class LobbyArgDescriptor(pydantic.BaseModel):
-    arg_type: str
+class LobbyKeyWordArgs(pydantic.BaseModel):
+    pass
 
 
-class LobbyPositionalArgs(LobbyArgDescriptor):
-    arg_type: typing.Literal['positional'] = pydantic.Field(default='positional', frozen=True)
-    values: typing.Tuple[()] = pydantic.Field(default=tuple())
-
-
-class LobbyKeyWordArgValue(pydantic.BaseModel):
-    name: str = pydantic.Field(min_length=1)
-    value: int | float | bool | str
-
-
-class LobbyLobbyKeyWordArgs(pydantic.BaseModel):
-    arg_type: typing.Literal['keyword'] = pydantic.Field(default='keyword', frozen=True)
-    values: typing.Tuple[()] = pydantic.Field(default=tuple())
-
-
-class LobbyContextArg(LobbyKeyWordArgValue):
-    arg_type: typing.Literal['contextual'] = pydantic.Field(default='contextual', frozen=True)
-    values: typing.Tuple[()] = pydantic.Field(default=tuple())
+class LobbyContextArg(pydantic.BaseModel):
+    pass
 
 
 class LobbyCommand(pydantic.BaseModel):
     name: str = pydantic.Field(min_length=1)
-    args: LobbyPositionalArgs | None = None
-    kwargs: LobbyLobbyKeyWordArgs | None = None
+    args: typing.Tuple[()] | None = None
+    kwargs: LobbyKeyWordArgs | None = None
     cargs: LobbyContextArg | None = None
+
+
+class LobbyCommandResult(pydantic.BaseModel):
+    # TODO: there may be predefined properties as the "status" (0 -- command scheduled,
+    #  1 -- command completed successfully, 2 -- command completed with error)
+    pass
