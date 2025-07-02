@@ -20,9 +20,10 @@ def test_abstract() -> None:
     pytest.raises(NotImplementedError, APIRegistryProto.get, None, None)
     pytest.raises(NotImplementedError, APIRegistryProto.ids, None)
     pytest.raises(NotImplementedError, APIRegistryProto.has, None, None)
+    pytest.raises(NotImplementedError, APIRegistryProto.__iter__, None)
 
 
-class TestWAPIRegistry:
+class TestAPIRegistry:
 
     def test(self) -> None:
         registry = APIRegistry()
@@ -95,6 +96,17 @@ class TestWAPIRegistry:
         assert(len(secondary_registry_ids_gen) == 2)
         assert('xxx' in secondary_registry_ids_gen)
         assert('zzz' in secondary_registry_ids_gen)
+
+    def test_iter(self) -> None:
+        registry = APIRegistry()
+
+        assert(list(registry) == [])
+
+        registry.register('foo', 1)
+        registry.register('bar', 2)
+        registry.register('xxx', 3)
+
+        assert(set(registry) == {('foo', 1), ('bar', 2), ('xxx', 3)})
 
 
 def test_register_api() -> None:

@@ -91,6 +91,12 @@ class APIRegistryProto(metaclass=ABCMeta):
         """
         raise NotImplementedError('This method is abstract')
 
+    @abstractmethod
+    def __iter__(self) -> typing.Generator[typing.Tuple[typing.Hashable, typing.Any], None, None]:
+        """ Iterate over all the registered descriptors
+        """
+        raise NotImplementedError('This method is abstract')
+
 
 class APIRegistry(APIRegistryProto):
     """ This is a basic registry implementation. It behaves like a dict mostly
@@ -153,6 +159,11 @@ class APIRegistry(APIRegistryProto):
         """ Shortcut to :meth:`.APIRegistryProto.has`
         """
         return self.has(item)
+
+    def __iter__(self) -> typing.Generator[typing.Tuple[typing.Hashable, typing.Any], None, None]:
+        """ :meth:`.APIRegistryProto.__iter__` method implementation
+        """
+        yield from self.__descriptors.items()
 
 
 def register_api(
