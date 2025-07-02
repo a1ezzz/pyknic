@@ -19,27 +19,33 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
-
 import typing
 
 import pydantic
 
 
 class LobbyKeyWordArgs(pydantic.BaseModel):
+    """ This is a base class for default "kwargs" arguments of a command
+    """
     pass
 
 
 class LobbyContextArg(pydantic.BaseModel):
+    """ This is a base class for default "cargs" arguments of a command
+    """
     pass
 
 
 class LobbyCommand(pydantic.BaseModel):
-    name: str = pydantic.Field(min_length=1)
-    args: typing.Tuple[()] | None = None
-    kwargs: LobbyKeyWordArgs | None = None
-    cargs: LobbyContextArg | None = None
+    """ This is a lobby command
+    """
+
+    name: str = pydantic.Field(min_length=1)                # name of a command to execute
+    args: typing.Tuple[()] | None = None                    # positional arguments to a command
+    kwargs: LobbyKeyWordArgs | None = None                  # kw-arguments to a command
+    cargs: LobbyContextArg | None = None                    # context value
+
+    _command_origin: typing.Type[typing.Any] | None = None  # special private class that implements command
 
 
 class LobbyCommandResult(pydantic.BaseModel):

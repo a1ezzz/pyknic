@@ -142,7 +142,7 @@ def test_register_api() -> None:
         register_api(registry, api_id=1, callable_api_id=True)(D)
 
 
-def test_hash_id_by_tokens():
+def test_hash_id_by_tokens() -> None:
     unsorted_hashes = [
         hash_id_by_tokens('single_token'),
         hash_id_by_tokens('first_token'),

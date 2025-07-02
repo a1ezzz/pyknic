@@ -20,7 +20,6 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import hashlib
-import re
 import typing
 
 from abc import ABCMeta, abstractmethod
