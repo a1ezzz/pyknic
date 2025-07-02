@@ -3,8 +3,9 @@
 import pytest
 import typing
 
-from pyknic.lib.fastapi.lobby import LobbyContextProto, register_context, LobbyCommandDescriptor
-from pyknic.lib.fastapi.lobby import SingleLobbyCommandRegistry, LobbyRegistry
+from pyknic.lib.fastapi.lobby import LobbyContextProto, register_context, LobbyCommandDescriptorProto
+from pyknic.lib.fastapi.lobby import SingleLobbyCommandRegistry, LobbyRegistry, LobbyCommandMeta
+from pyknic.lib.fastapi.models.lobby import LobbyCommand, LobbyCommandResult
 from pyknic.lib.registry import APIRegistry, DuplicateAPIIdError
 
 
@@ -13,9 +14,17 @@ def test_abstract() -> None:
     pytest.raises(NotImplementedError, LobbyContextProto.context_name)
     pytest.raises(NotImplementedError, LobbyContextProto.context_type)
 
-    pytest.raises(TypeError, LobbyCommandDescriptor)
-    pytest.raises(NotImplementedError, LobbyCommandDescriptor.command_name)
-    pytest.raises(NotImplementedError, LobbyCommandDescriptor.exec)
+    pytest.raises(TypeError, LobbyCommandDescriptorProto)
+    pytest.raises(NotImplementedError, LobbyCommandDescriptorProto.command_name)
+    pytest.raises(NotImplementedError, LobbyCommandDescriptorProto.exec, LobbyCommand(name='some_command'))
+
+
+def test_exception() -> None:
+    class A(metaclass=LobbyCommandMeta):
+        pass
+
+    with pytest.raises(TypeError):
+        A.pydantic_model()
 
 
 def test_register_context() -> None:
@@ -50,30 +59,31 @@ def test_register_context() -> None:
                 return int
 
 
-class TestLobbyCommandDescriptor:
+class TestLobbyCommandDescriptorProto:
 
-    def test_defaults(self):
-        assert(list(LobbyCommandDescriptor.context_required()) == [])
-        assert(list(LobbyCommandDescriptor.kwargs_required()) == [])
-        assert(list(LobbyCommandDescriptor.args_required()) == [])
+    def test_defaults(self) -> None:
+        assert(list(LobbyCommandDescriptorProto.context_required()) == [])
+        assert(list(LobbyCommandDescriptorProto.kwargs_required()) == [])
+        assert(list(LobbyCommandDescriptorProto.args_required()) == [])
 
-    def test_noargs_model(self):
+    def test_noargs_model(self) -> None:
 
-        class SampleCommand(LobbyCommandDescriptor):
+        class SampleCommand(LobbyCommandDescriptorProto):
             @classmethod
             def command_name(cls) -> str:
                 return 'sample'
 
             @classmethod
-            def exec(cls, *args, **kwargs):
-                return None
+            def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+                return LobbyCommandResult()
 
         model = SampleCommand.pydantic_model()
-        assert(model().model_dump() == {'name': 'sample', 'args': None, 'kwargs': None, 'cargs': None})
+        dump_result = model().model_dump()  # type: ignore[call-arg]
+        assert(dump_result == {'name': 'sample', 'args': None, 'kwargs': None, 'cargs': None})
 
-    def test_args_model(self):
+    def test_args_model(self) -> None:
 
-        class SampleCommand(LobbyCommandDescriptor):
+        class SampleCommand(LobbyCommandDescriptorProto):
             @classmethod
             def command_name(cls) -> str:
                 return 'sample'
@@ -83,19 +93,16 @@ class TestLobbyCommandDescriptor:
                 yield from [int, str]
 
             @classmethod
-            def exec(cls, *args, **kwargs):
-                return None
+            def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+                return LobbyCommandResult()
 
         model = SampleCommand.pydantic_model()
-        assert(
-            model(args=(10, 'foo')).model_dump() == {
-                'name': 'sample', 'args': (10, 'foo'), 'kwargs': None, 'cargs': None
-            }
-        )
+        dump_result = model(args=(10, 'foo')).model_dump()  # type: ignore[call-arg, arg-type]
+        assert(dump_result == {'name': 'sample', 'args': (10, 'foo'), 'kwargs': None, 'cargs': None})
 
-    def test_kwargs_model(self):
+    def test_kwargs_model(self) -> None:
 
-        class SampleCommand(LobbyCommandDescriptor):
+        class SampleCommand(LobbyCommandDescriptorProto):
             @classmethod
             def command_name(cls) -> str:
                 return 'sample'
@@ -105,17 +112,14 @@ class TestLobbyCommandDescriptor:
                 return {'foo': int, 'bar': str}
 
             @classmethod
-            def exec(cls, *args, **kwargs):
-                return None
+            def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+                return LobbyCommandResult()
 
         model = SampleCommand.pydantic_model()
-        assert(
-            model(kwargs={'foo': 10, 'bar': 'xxx'}).model_dump() == {
-                'name': 'sample', 'args': None, 'kwargs': {'foo': 10, 'bar': 'xxx'}, 'cargs': None
-            }
-        )
+        dump_result = model(kwargs={'foo': 10, 'bar': 'xxx'}).model_dump()  # type: ignore[call-arg, arg-type]
+        assert(dump_result == {'name': 'sample', 'args': None, 'kwargs': {'foo': 10, 'bar': 'xxx'}, 'cargs': None})
 
-    def test_cargs_model(self):
+    def test_cargs_model(self) -> None:
 
         class SampleContext(LobbyContextProto):
 
@@ -127,41 +131,38 @@ class TestLobbyCommandDescriptor:
             def context_type(cls) -> type:
                 return int
 
-        class SampleCommand(LobbyCommandDescriptor):
+        class SampleCommand(LobbyCommandDescriptorProto):
             @classmethod
             def command_name(cls) -> str:
                 return 'sample'
 
             @classmethod
-            def context_required(cls) -> typing.Generator[LobbyContextProto, None, None]:
+            def context_required(cls) -> typing.Generator[typing.Type[LobbyContextProto], None, None]:
                 yield from [SampleContext]
 
             @classmethod
-            def exec(cls, *args, **kwargs):
-                return None
+            def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+                return LobbyCommandResult()
 
         model = SampleCommand.pydantic_model()
-        assert(
-            model(cargs={'context_var': 10}).model_dump() == {
-                'name': 'sample', 'args': None, 'kwargs': None, 'cargs': {'context_var': 10}
-            }
-        )
+        dump_result = model(cargs={'context_var': 10}).model_dump()  # type: ignore[call-arg, arg-type]
+        assert(dump_result == {'name': 'sample', 'args': None, 'kwargs': None, 'cargs': {'context_var': 10}})
 
 
 class TestSingleLobbyCommandRegistry:
 
-    class DoCommand(LobbyCommandDescriptor):
+    class DoCommand(LobbyCommandDescriptorProto):
         @classmethod
         def command_name(cls) -> str:
             return 'do'
 
         @classmethod
-        def exec(cls, *args, **kwargs):
-            return None
+        def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+            return LobbyCommandResult()
 
-    class ContextCommand(LobbyCommandDescriptor):
+    class ContextCommand(LobbyCommandDescriptorProto):
         @classmethod
-        def context_required(cls) -> typing.Generator[LobbyContextProto, None, None]:
+        def context_required(cls) -> typing.Generator[typing.Type[LobbyContextProto], None, None]:
             yield from [TestSingleLobbyCommandRegistry.LobbyContext1]
 
         @classmethod
@@ -169,8 +170,21 @@ class TestSingleLobbyCommandRegistry:
             return 'do'
 
         @classmethod
-        def exec(cls, *args, **kwargs):
-            return None
+        def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+            return LobbyCommandResult()
+
+    class MoreContextCommand(LobbyCommandDescriptorProto):
+        @classmethod
+        def context_required(cls) -> typing.Generator[typing.Type[LobbyContextProto], None, None]:
+            yield from [TestSingleLobbyCommandRegistry.LobbyContext1, TestSingleLobbyCommandRegistry.LobbyContext2]
+
+        @classmethod
+        def command_name(cls) -> str:
+            return 'do'
+
+        @classmethod
+        def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+            return LobbyCommandResult()
 
     class LobbyContext1(LobbyContextProto):
         @classmethod
@@ -190,7 +204,7 @@ class TestSingleLobbyCommandRegistry:
         def context_type(cls) -> type:
             return int
 
-    def test_plain(self):
+    def test_plain(self) -> None:
         context_registry = APIRegistry()
         registry = SingleLobbyCommandRegistry('do', context_registry)
         assert({registry.get(x) for x in registry.ids()} == set())
@@ -198,36 +212,36 @@ class TestSingleLobbyCommandRegistry:
         registry.register_lobby_command(self.DoCommand)
         assert({registry.get(x) for x in registry.ids()} == {self.DoCommand, })
 
-        class OtherCommand(LobbyCommandDescriptor):
+        class OtherCommand(LobbyCommandDescriptorProto):
             @classmethod
             def command_name(cls) -> str:
                 return 'other'
 
             @classmethod
-            def exec(cls, *args, **kwargs):
-                return None
+            def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+                return LobbyCommandResult()
 
         with pytest.raises(ValueError):
             registry.register_lobby_command(OtherCommand)
 
-    def test_same_command(self):
+    def test_same_command(self) -> None:
         context_registry = APIRegistry()
         registry = SingleLobbyCommandRegistry('do', context_registry)
         registry.register_lobby_command(self.DoCommand)
 
-        class SameCommand(LobbyCommandDescriptor):
+        class SameCommand(LobbyCommandDescriptorProto):
             @classmethod
             def command_name(cls) -> str:
                 return 'do'
 
             @classmethod
-            def exec(cls, *args, **kwargs):
-                return None
+            def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+                return LobbyCommandResult()
 
         with pytest.raises(DuplicateAPIIdError):
             registry.register_lobby_command(SameCommand)
 
-    def test_unknown_context(self):
+    def test_unknown_context(self) -> None:
         context_registry = APIRegistry()
         registry = SingleLobbyCommandRegistry('do', context_registry)
 
@@ -235,7 +249,7 @@ class TestSingleLobbyCommandRegistry:
             # no context at the moment
             registry.register_lobby_command(self.ContextCommand)
 
-    def test_context(self):
+    def test_context(self) -> None:
         context_registry = APIRegistry()
         registry = SingleLobbyCommandRegistry('do', context_registry)
         registry.register_lobby_command(self.DoCommand)
@@ -243,14 +257,14 @@ class TestSingleLobbyCommandRegistry:
         register_context(context_registry)(self.LobbyContext1)
         registry.register_lobby_command(self.ContextCommand)
 
-    def test_conflicted_context(self):
+    def test_conflicted_context(self) -> None:
         context_registry = APIRegistry()
         registry = SingleLobbyCommandRegistry('do', context_registry)
         register_context(context_registry)(self.LobbyContext1)
 
-        class ConflictedContextCommand(LobbyCommandDescriptor):
+        class ConflictedContextCommand(LobbyCommandDescriptorProto):
             @classmethod
-            def context_required(cls) -> typing.Generator[LobbyContextProto, None, None]:
+            def context_required(cls) -> typing.Generator[typing.Type[LobbyContextProto], None, None]:
                 yield from [self.LobbyContext1]
 
             @classmethod
@@ -258,42 +272,29 @@ class TestSingleLobbyCommandRegistry:
                 return 'do'
 
             @classmethod
-            def exec(cls, *args, **kwargs):
-                return None
+            def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+                return LobbyCommandResult()
 
         registry.register_lobby_command(self.ContextCommand)
         with pytest.raises(DuplicateAPIIdError):
             registry.register_lobby_command(ConflictedContextCommand)
 
-    def test_multiple_context_command(self):
+    def test_multiple_context_command(self) -> None:
         context_registry = APIRegistry()
         registry = SingleLobbyCommandRegistry('do', context_registry)
         registry.register_lobby_command(self.DoCommand)
         register_context(context_registry)(self.LobbyContext1)
         register_context(context_registry)(self.LobbyContext2)
 
-        class MoreContextCommand(LobbyCommandDescriptor):
-            @classmethod
-            def context_required(cls) -> typing.Generator[LobbyContextProto, None, None]:
-                yield from [self.LobbyContext1, self.LobbyContext2]
-
-            @classmethod
-            def command_name(cls) -> str:
-                return 'do'
-
-            @classmethod
-            def exec(cls, *args, **kwargs):
-                return None
-
         registry.register_lobby_command(self.ContextCommand)
-        registry.register_lobby_command(MoreContextCommand)
+        registry.register_lobby_command(self.MoreContextCommand)
 
-    def test_conflicted_kwargs(self):
+    def test_conflicted_kwargs(self) -> None:
         context_registry = APIRegistry()
         registry = SingleLobbyCommandRegistry('do', context_registry)
         register_context(context_registry)(self.LobbyContext1)
 
-        class ConflictedKWArgsCommand(LobbyCommandDescriptor):
+        class ConflictedKWArgsCommand(LobbyCommandDescriptorProto):
 
             @classmethod
             def kwargs_required(cls) -> typing.Dict[str, type]:
@@ -304,8 +305,8 @@ class TestSingleLobbyCommandRegistry:
                 return 'do'
 
             @classmethod
-            def exec(cls, *args, **kwargs):
-                return None
+            def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+                return LobbyCommandResult()
 
         with pytest.raises(ValueError):
             registry.register_lobby_command(ConflictedKWArgsCommand)
@@ -313,7 +314,7 @@ class TestSingleLobbyCommandRegistry:
 
 class TestLobbyRegistry:
 
-    def test_plain(self):
+    def test_plain(self) -> None:
         context_registry = APIRegistry()
         registry = LobbyRegistry(context_registry)
         register_context(context_registry)(TestSingleLobbyCommandRegistry.LobbyContext1)
@@ -321,7 +322,46 @@ class TestLobbyRegistry:
         registry.register_lobby_command(TestSingleLobbyCommandRegistry.DoCommand)
         registry.register_lobby_command(TestSingleLobbyCommandRegistry.ContextCommand)
 
-    def test_deserialize(self):
+    def test_exceptions(self) -> None:
+        context_registry = APIRegistry()
+        registry = LobbyRegistry(context_registry)
+
+        class NullCommandOrigin(LobbyCommandDescriptorProto):
+            @classmethod
+            def command_name(cls) -> str:
+                return 'do'
+
+            @classmethod
+            def pydantic_model(cls) -> typing.Type[LobbyCommand]:
+                return LobbyCommand
+
+            @classmethod
+            def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+                return LobbyCommandResult()
+
+        with pytest.raises(ValueError):
+            registry.register_lobby_command(NullCommandOrigin)
+
+        class InvalidCommandModel(LobbyCommand):
+            _command_origin = 1  # type: ignore[assignment]
+
+        class InvalidCommandOrigin(LobbyCommandDescriptorProto):
+            @classmethod
+            def command_name(cls) -> str:
+                return 'do'
+
+            @classmethod
+            def pydantic_model(cls) -> typing.Type[LobbyCommand]:
+                return InvalidCommandModel
+
+            @classmethod
+            def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+                return LobbyCommandResult()
+
+        with pytest.raises(ValueError):
+            registry.register_lobby_command(InvalidCommandOrigin)
+
+    def test_deserialize(self) -> None:
         context_registry = APIRegistry()
         registry = LobbyRegistry(context_registry)
         register_context(context_registry)(TestSingleLobbyCommandRegistry.LobbyContext1)
@@ -329,14 +369,75 @@ class TestLobbyRegistry:
         registry.register_lobby_command(TestSingleLobbyCommandRegistry.DoCommand)
         registry.register_lobby_command(TestSingleLobbyCommandRegistry.ContextCommand)
 
-        deserialized_model = registry.deserialize_command(
+        command, model = registry.deserialize_command(
             {"name": "do", "args": None, "kwargs": None, "cargs": None}
         )
-        assert(isinstance(deserialized_model, TestSingleLobbyCommandRegistry.DoCommand.__auto_generated_model__) is True)
-        assert(isinstance(deserialized_model, TestSingleLobbyCommandRegistry.ContextCommand.__auto_generated_model__) is False)
+        assert(command is TestSingleLobbyCommandRegistry.DoCommand)
+        assert(model.args is None)
+        assert(model.kwargs is None)
+        assert(model.cargs is None)
 
-        deserialized_model = registry.deserialize_command(
+        command, model = registry.deserialize_command(
             {"name": "do", "args": None, "kwargs": None, "cargs": {"context_var1": 10}}
         )
-        assert(isinstance(deserialized_model, TestSingleLobbyCommandRegistry.DoCommand.__auto_generated_model__) is False)
-        assert(isinstance(deserialized_model, TestSingleLobbyCommandRegistry.ContextCommand.__auto_generated_model__) is True)
+        assert(command is TestSingleLobbyCommandRegistry.ContextCommand)
+        assert(model.args is None)
+        assert(model.kwargs is None)
+        assert(model.cargs.context_var1 == 10)  # type: ignore[union-attr]
+
+    def test_list_commands(self) -> None:
+        context_registry = APIRegistry()
+        registry = LobbyRegistry(context_registry)
+        register_context(context_registry)(TestSingleLobbyCommandRegistry.LobbyContext1)
+        register_context(context_registry)(TestSingleLobbyCommandRegistry.LobbyContext2)
+
+        assert(list(registry.list_commands(None)) == [])
+
+        class OtherCommand(LobbyCommandDescriptorProto):
+            @classmethod
+            def command_name(cls) -> str:
+                return 'other_command'
+
+            @classmethod
+            def exec(cls, command: LobbyCommand) -> LobbyCommandResult:
+                return LobbyCommandResult()
+
+        registry.register_lobby_command(TestSingleLobbyCommandRegistry.DoCommand)
+        registry.register_lobby_command(TestSingleLobbyCommandRegistry.ContextCommand)
+        registry.register_lobby_command(TestSingleLobbyCommandRegistry.MoreContextCommand)
+        registry.register_lobby_command(OtherCommand)
+
+        assert(set(registry.list_commands(None)) == {
+            TestSingleLobbyCommandRegistry.DoCommand,
+            TestSingleLobbyCommandRegistry.ContextCommand,
+            TestSingleLobbyCommandRegistry.MoreContextCommand,
+            OtherCommand
+        })
+
+        assert(set(registry.list_commands('do')) == {
+            TestSingleLobbyCommandRegistry.DoCommand,
+            TestSingleLobbyCommandRegistry.ContextCommand,
+            TestSingleLobbyCommandRegistry.MoreContextCommand
+        })
+
+        assert(set(registry.list_commands('other_command')) == {OtherCommand, })
+
+        assert(list(registry.list_commands('other_command', 'context_var1')) == [])
+
+        assert(set(registry.list_commands(None, 'context_var1')) == {
+            TestSingleLobbyCommandRegistry.ContextCommand,
+            TestSingleLobbyCommandRegistry.MoreContextCommand
+        })
+
+        assert(set(registry.list_commands('do', 'context_var1')) == {
+            TestSingleLobbyCommandRegistry.ContextCommand,
+            TestSingleLobbyCommandRegistry.MoreContextCommand
+        })
+
+        assert(set(registry.list_commands(None, 'context_var1', 'context_var2')) == {
+            TestSingleLobbyCommandRegistry.MoreContextCommand
+        })
+
+        assert(set(registry.list_commands('do', 'context_var1', 'context_var2')) == {
+            TestSingleLobbyCommandRegistry.MoreContextCommand
+        })
