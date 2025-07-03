@@ -63,8 +63,9 @@ class FastAPIInitTask(ChainedTask):
 
         docs_url = '/docs' if bool(config_section["swagger"]) else None
         redoc_url = '/redoc' if bool(config_section["redoc"]) else None
+        openapi_url = '/openapi.json' if bool(config_section["openapi"]) else None
 
-        app = fastapi.FastAPI(docs_url=docs_url, redoc_url=redoc_url)  # TODO: check options!
+        app = fastapi.FastAPI(docs_url=docs_url, redoc_url=redoc_url, openapi_url=openapi_url)  # TODO: check options!
         uvicorn_config = uvicorn.Config(  # TODO: check options!
             app, host=str(config_section["uvicorn_host"]), port=int(config_section["uvicorn_port"])
         )
