@@ -41,6 +41,7 @@ class LobbyContextArg(pydantic.BaseModel):
 class LobbyCommand(pydantic.BaseModel):
     """ This is a lobby command
     """
+    model_config = pydantic.ConfigDict(extra='forbid')
 
     name: str = pydantic.Field(min_length=1)                # name of a command to execute
     args: typing.Tuple[()] | None = None                    # positional arguments to a command

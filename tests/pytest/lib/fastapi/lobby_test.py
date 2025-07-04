@@ -3,9 +3,10 @@
 import pytest
 import typing
 
-from pyknic.lib.fastapi.lobby import LobbyContextProto, register_context, LobbyCommandDescriptorProto
-from pyknic.lib.fastapi.lobby import SingleLobbyCommandRegistry, LobbyRegistry, LobbyCommandMeta
+from pyknic.lib.fastapi.lobby import LobbyContextProto, register_context, LobbyCommandDescriptorProto, register_command
+from pyknic.lib.fastapi.lobby import SingleLobbyCommandRegistry, LobbyRegistry, LobbyCommandMeta, LobbyCommandError
 from pyknic.lib.fastapi.models.lobby import LobbyCommand, LobbyCommandResult
+from pyknic.lib.fastapi.models.base import NullableResponseModel
 from pyknic.lib.registry import APIRegistry, DuplicateAPIIdError
 
 
@@ -75,7 +76,7 @@ class TestLobbyCommandDescriptorProto:
 
             @classmethod
             def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-                return LobbyCommandResult()
+                return NullableResponseModel()
 
         model = SampleCommand.pydantic_model()
         dump_result = model().model_dump()  # type: ignore[call-arg]
@@ -94,7 +95,7 @@ class TestLobbyCommandDescriptorProto:
 
             @classmethod
             def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-                return LobbyCommandResult()
+                return NullableResponseModel()
 
         model = SampleCommand.pydantic_model()
         dump_result = model(args=(10, 'foo')).model_dump()  # type: ignore[call-arg, arg-type]
@@ -113,7 +114,7 @@ class TestLobbyCommandDescriptorProto:
 
             @classmethod
             def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-                return LobbyCommandResult()
+                return NullableResponseModel()
 
         model = SampleCommand.pydantic_model()
         dump_result = model(kwargs={'foo': 10, 'bar': 'xxx'}).model_dump()  # type: ignore[call-arg, arg-type]
@@ -142,7 +143,7 @@ class TestLobbyCommandDescriptorProto:
 
             @classmethod
             def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-                return LobbyCommandResult()
+                return NullableResponseModel()
 
         model = SampleCommand.pydantic_model()
         dump_result = model(cargs={'context_var': 10}).model_dump()  # type: ignore[call-arg, arg-type]
@@ -158,7 +159,7 @@ class TestSingleLobbyCommandRegistry:
 
         @classmethod
         def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-            return LobbyCommandResult()
+            return NullableResponseModel()
 
     class ContextCommand(LobbyCommandDescriptorProto):
         @classmethod
@@ -171,7 +172,7 @@ class TestSingleLobbyCommandRegistry:
 
         @classmethod
         def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-            return LobbyCommandResult()
+            return NullableResponseModel()
 
     class MoreContextCommand(LobbyCommandDescriptorProto):
         @classmethod
@@ -184,7 +185,7 @@ class TestSingleLobbyCommandRegistry:
 
         @classmethod
         def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-            return LobbyCommandResult()
+            return NullableResponseModel()
 
     class LobbyContext1(LobbyContextProto):
         @classmethod
@@ -219,7 +220,7 @@ class TestSingleLobbyCommandRegistry:
 
             @classmethod
             def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-                return LobbyCommandResult()
+                return NullableResponseModel()
 
         with pytest.raises(ValueError):
             registry.register_lobby_command(OtherCommand)
@@ -236,7 +237,7 @@ class TestSingleLobbyCommandRegistry:
 
             @classmethod
             def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-                return LobbyCommandResult()
+                return NullableResponseModel()
 
         with pytest.raises(DuplicateAPIIdError):
             registry.register_lobby_command(SameCommand)
@@ -273,7 +274,7 @@ class TestSingleLobbyCommandRegistry:
 
             @classmethod
             def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-                return LobbyCommandResult()
+                return NullableResponseModel()
 
         registry.register_lobby_command(self.ContextCommand)
         with pytest.raises(DuplicateAPIIdError):
@@ -306,7 +307,7 @@ class TestSingleLobbyCommandRegistry:
 
             @classmethod
             def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-                return LobbyCommandResult()
+                return NullableResponseModel()
 
         with pytest.raises(ValueError):
             registry.register_lobby_command(ConflictedKWArgsCommand)
@@ -337,7 +338,7 @@ class TestLobbyRegistry:
 
             @classmethod
             def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-                return LobbyCommandResult()
+                return NullableResponseModel()
 
         with pytest.raises(ValueError):
             registry.register_lobby_command(NullCommandOrigin)
@@ -356,7 +357,7 @@ class TestLobbyRegistry:
 
             @classmethod
             def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-                return LobbyCommandResult()
+                return NullableResponseModel()
 
         with pytest.raises(ValueError):
             registry.register_lobby_command(InvalidCommandOrigin)
@@ -366,8 +367,20 @@ class TestLobbyRegistry:
         registry = LobbyRegistry(context_registry)
         register_context(context_registry)(TestSingleLobbyCommandRegistry.LobbyContext1)
 
+        with pytest.raises(ValueError):
+            # no commands
+            _ = registry.deserialize_command(
+                {"name": "do", "args": None, "kwargs": None, "cargs": None}
+            )
+
         registry.register_lobby_command(TestSingleLobbyCommandRegistry.DoCommand)
         registry.register_lobby_command(TestSingleLobbyCommandRegistry.ContextCommand)
+
+        with pytest.raises(LobbyCommandError):
+            # unknown commands
+            _ = registry.deserialize_command(
+                {"name": "unknown", "args": None, "kwargs": None, "cargs": None}
+            )
 
         command, model = registry.deserialize_command(
             {"name": "do", "args": None, "kwargs": None, "cargs": None}
@@ -400,7 +413,7 @@ class TestLobbyRegistry:
 
             @classmethod
             def exec(cls, command: LobbyCommand) -> LobbyCommandResult:
-                return LobbyCommandResult()
+                return NullableResponseModel()
 
         registry.register_lobby_command(TestSingleLobbyCommandRegistry.DoCommand)
         registry.register_lobby_command(TestSingleLobbyCommandRegistry.ContextCommand)
@@ -441,3 +454,15 @@ class TestLobbyRegistry:
         assert(set(registry.list_commands('do', 'context_var1', 'context_var2')) == {
             TestSingleLobbyCommandRegistry.MoreContextCommand
         })
+
+
+def test_register_command() -> None:
+    context_registry = APIRegistry()
+    registry = LobbyRegistry(context_registry)
+
+    register_command(registry=registry)(TestSingleLobbyCommandRegistry.DoCommand)
+
+    command, model = registry.deserialize_command(
+        {"name": "do", "args": None, "kwargs": None, "cargs": None}
+    )
+    assert (command is TestSingleLobbyCommandRegistry.DoCommand)

@@ -35,6 +35,11 @@ from pyknic.lib.verify import verify_value
 __default_lobby_context_registry__ = APIRegistry()
 
 
+class LobbyCommandError(Exception):
+    """This exception is raised for command execution errors."""
+    pass
+
+
 class LobbyContextProto(metaclass=ABCMeta):
     """ Prototype of a context definition
     """
@@ -113,6 +118,8 @@ class LobbyCommandMeta(ABCMeta):
         command_cargs_field = pydantic.Field() if command_cargs else pydantic.Field(default=None, frozen=True)
 
         class CommandModel(LobbyCommand):
+            model_config = pydantic.ConfigDict(extra='forbid')
+
             name: typing.Literal[command_name] = pydantic.Field(  # type: ignore[valid-type]
                 default=command_name, frozen=True
             )
@@ -273,9 +280,27 @@ class LobbyRegistry(APIRegistry):
         :param json_data: JSON data to convert
         """
 
-        type_decl = typing.Union[LobbyKeyWordArgs, *self.__command_models]  # type: ignore[valid-type, name-defined]
-        model_data: LobbyCommand = pydantic.TypeAdapter(type_decl).validate_python(json_data)
-        return model_data._command_origin, model_data  # type: ignore[return-value]
+        if not self.__command_models:
+            raise ValueError('No commands registered')
+
+        type_decl = typing.Union[*self.__command_models]  # type: ignore[valid-type, name-defined]
+        try:
+            model_data: LobbyCommand = pydantic.TypeAdapter(type_decl).validate_python(json_data)
+            return model_data._command_origin, model_data  # type: ignore[return-value]
+        except pydantic.ValidationError:
+            raise LobbyCommandError('Invalid JSON data or unknown command')
 
 
 __default_lobby_commands_registry__ = LobbyRegistry()
+
+
+def register_command(registry: LobbyRegistry | None = None,) -> typing.Callable[..., typing.Callable[..., type]]:
+
+    if registry is None:
+        registry = __default_lobby_commands_registry__
+
+    def decorator_fn(decorated_cls: type) -> typing.Callable[..., type]:
+        registry.register_lobby_command(decorated_cls)
+        return decorated_cls
+
+    return decorator_fn
