@@ -23,6 +23,8 @@ import typing
 
 import pydantic
 
+from pyknic.lib.fastapi.models.base import NullableResponseModel
+
 
 class LobbyKeyWordArgs(pydantic.BaseModel):
     """ This is a base class for default "kwargs" arguments of a command
@@ -48,7 +50,10 @@ class LobbyCommand(pydantic.BaseModel):
     _command_origin: typing.Type[typing.Any] | None = None  # special private class that implements command
 
 
-class LobbyCommandResult(pydantic.BaseModel):
+class LobbyStrFeedbackResult(pydantic.BaseModel):
     # TODO: there may be predefined properties as the "status" (0 -- command scheduled,
     #  1 -- command completed successfully, 2 -- command completed with error)
-    pass
+    result: str
+
+
+LobbyCommandResult = typing.Union[NullableResponseModel, LobbyStrFeedbackResult]
