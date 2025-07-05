@@ -27,7 +27,7 @@ from pyknic.lib.registry import register_api
 from pyknic.lib.log import Logger
 
 
-@register_api(__default_chained_tasks_registry__, ":log_task")
+@register_api(__default_chained_tasks_registry__, "log_task")
 class LogTask(ChainedTask):
     """ This task sets up the project's logger
     """

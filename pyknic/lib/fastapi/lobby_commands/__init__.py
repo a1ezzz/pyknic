@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# pyknic/tasks/fastapi/__init__.py
+# pyknic/lib/fastapi/lobby_commands/__init__.py
 #
-# Copyright (C) 2024 the pyknic authors and contributors
+# Copyright (C) 2025 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -18,7 +18,3 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
-
-import pyknic.tasks.fastapi.server  # noqa: F401
-import pyknic.tasks.fastapi.tgbot_word_games  # noqa: F401
-import pyknic.tasks.fastapi.lobby  # noqa: F401

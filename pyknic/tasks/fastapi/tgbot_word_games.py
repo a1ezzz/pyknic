@@ -35,7 +35,7 @@ from pyknic.lib.gettext import GetTextWrapper
 from pyknic.lib.fastapi.base import TgBotBaseFastAPIApp, TgBotResponseType
 
 
-@register_api(__default_fastapi_apps_registry__, ":tgbot_word_games")
+@register_api(__default_fastapi_apps_registry__, "tgbot_word_games")
 class TGBotWordGames(TgBotBaseFastAPIApp):
 
     @enum.unique
@@ -100,4 +100,4 @@ class TGBotWordGames(TgBotBaseFastAPIApp):
     @classmethod
     def bot_path(cls, config: Config) -> str:
         """Return configured path (as a part of url) for TG-bot."""
-        return str(config["pyknic"]["fastapi"]["tgbot_word_games"]["url_inner_path"])
+        return str(config["pyknic"]["fastapi"]["tgbot_word_games"]["url_path"])

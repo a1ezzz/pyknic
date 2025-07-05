@@ -68,20 +68,18 @@ class App(TaskProto):
         self.__main_source_thread.start()
 
         self.__scheduler.subscribe(self.__main_source)
-        self.__main_source.execute(':log_task')
-        self.__main_source.execute(':config_task')
+        self.__main_source.execute('log_task')
+        self.__main_source.execute('config_task')
 
         config_result = self.__main_source.wait_for(
-            self.__main_source.datalog(), ':config_task'
+            self.__main_source.datalog(), 'config_task'
         )
         config = config_result.result  # type: ignore[union-attr]
 
-        pc_config_section = config.section("pyknic:apps", "start_app_")
-        apps_options = list(pc_config_section.options())
-        apps_options.sort()
+        apps_enabled = [str(x) for x in config["pyknic"]["apps"]]
+        apps_enabled.sort()
 
-        for i in apps_options:
-            app_id = str(pc_config_section[i])
+        for app_id in apps_enabled:
             Logger.info(f'Starting an app "{app_id}"')
             self.__main_source.execute(app_id)
 
