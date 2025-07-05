@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# pyknic/tasks/fastapi/__init__.py
+# pyknic/lib/fastapi/lobby_commands/ping.py
 #
-# Copyright (C) 2024 the pyknic authors and contributors
+# Copyright (C) 2025 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -19,6 +19,20 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import pyknic.tasks.fastapi.server  # noqa: F401
-import pyknic.tasks.fastapi.tgbot_word_games  # noqa: F401
-import pyknic.tasks.fastapi.lobby  # noqa: F401
+# TODO: document the code
+
+from pyknic.lib.fastapi.lobby import LobbyCommandDescriptorProto, register_command
+from pyknic.lib.fastapi.models.lobby import LobbyCommand, LobbyCommandResult, LobbyStrFeedbackResult
+from pyknic.version import __version__
+
+
+@register_command()
+class PingCommand(LobbyCommandDescriptorProto):
+
+    @classmethod
+    def command_name(cls) -> str:
+        return "ping"
+
+    @classmethod
+    def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+        return LobbyStrFeedbackResult(result=f"pong... Server's version is {__version__}")

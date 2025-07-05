@@ -1,5 +1,6 @@
 
 import asyncio
+import io
 import typing
 import warnings
 
@@ -34,6 +35,7 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
             self.default_config = Config(file_obj=f)
         self.gettext = GetTextWrapper(root_path / 'locales')
         self.configured_with: typing.Optional[typing.Type[BaseFastAPIApp]] = None
+        self.app_config = Config()
 
     async def start_async_service(self, loop_descriptor: EventLoopDescriptor) -> None:
         assert(not self.server.started)
@@ -62,16 +64,25 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
         self.server.should_exit = True
         await self.server.shutdown()
 
-    def setup_fastapi(self, fast_api_cls: typing.Type[BaseFastAPIApp]) -> None:
+    def setup_fastapi(
+        self, fast_api_cls: typing.Type[BaseFastAPIApp], extra_config: str | None = None
+    ) -> None:
         if self.configured_with is None:
             self.configured_with = fast_api_cls
-            fast_api_cls.create_app(self.fastapi, self.default_config, self.gettext)
+
+            self.app_config = Config()
+            self.app_config.merge_config(self.default_config)
+            if extra_config:
+                self.app_config.merge_config(Config(file_obj = io.StringIO(extra_config)))
+
+            fast_api_cls.create_app(self.fastapi, self.app_config, self.gettext)
         elif self.configured_with is not fast_api_cls:
             raise ValueError('Already configured fixture!')
 
     @staticmethod
     def base_config(
         fast_api_cls: typing.Type[BaseFastAPIApp],
+        extra_config: str | None = None,
     ) -> typing.Callable[..., typing.Any]:
 
         def first_level_decorator(
@@ -88,7 +99,7 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
                             raise RuntimeError('Multiple AsyncFastAPIFixture instances found!')
 
                         fixture_found = True
-                        i.setup_fastapi(fast_api_cls)
+                        i.setup_fastapi(fast_api_cls, extra_config=extra_config)
 
                 if not fixture_found:
                     raise RuntimeError('No suitable fixture found')
@@ -99,30 +110,30 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
         return first_level_decorator
 
 
-def _fastapi_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+def _fastapi_fixture() -> typing.Generator[AsyncFastAPIFixture, None, None]:
     yield from pyknic_fixture(AsyncFastAPIFixture)
 
 
 @pytest.fixture
-def fastapi_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+def fastapi_fixture() -> typing.Generator[AsyncFastAPIFixture, None, None]:
     yield from _fastapi_fixture()
 
 
 @pytest.fixture(scope='class')
-def fastapi_class_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+def fastapi_class_fixture() -> typing.Generator[AsyncFastAPIFixture, None, None]:
     yield from _fastapi_fixture()
 
 
 @pytest.fixture(scope='module')
-def fastapi_module_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+def fastapi_module_fixture() -> typing.Generator[AsyncFastAPIFixture, None, None]:
     yield from _fastapi_fixture()
 
 
 @pytest.fixture(scope='package')
-def fastapi_package_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+def fastapi_package_fixture() -> typing.Generator[AsyncFastAPIFixture, None, None]:
     yield from _fastapi_fixture()
 
 
 @pytest.fixture(scope='session')
-def fastapi_session_fixture() -> typing.Generator[asyncio.AbstractEventLoop, None, None]:
+def fastapi_session_fixture() -> typing.Generator[AsyncFastAPIFixture, None, None]:
     yield from _fastapi_fixture()

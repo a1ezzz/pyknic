@@ -11,3 +11,9 @@ pyknic:
 
         tgbot_word_games:
             url_path: /tgbot/word_games
+        lobby:
+            modules: []
+            secret_token:
+            main_url_path: /lobby
+            fingerprint_url_path: /lobby/fingerprint
+            commands: []
