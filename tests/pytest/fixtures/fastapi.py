@@ -73,7 +73,7 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
             self.app_config = Config()
             self.app_config.merge_config(self.default_config)
             if extra_config:
-                self.app_config.merge_config(Config(file_obj = io.StringIO(extra_config)))
+                self.app_config.merge_config(Config(file_obj=io.StringIO(extra_config)))
 
             fast_api_cls.create_app(self.fastapi, self.app_config, self.gettext)
         elif self.configured_with is not fast_api_cls:

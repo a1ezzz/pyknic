@@ -295,6 +295,7 @@ __default_lobby_commands_registry__ = LobbyRegistry()
 
 
 def register_command(registry: LobbyRegistry | None = None,) -> typing.Callable[..., typing.Callable[..., type]]:
+    """This decorator help to register commands with the given registry."""
 
     if registry is None:
         registry = __default_lobby_commands_registry__

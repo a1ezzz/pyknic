@@ -19,8 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-
 from pyknic.lib.fastapi.lobby import LobbyCommandDescriptorProto, register_command
 from pyknic.lib.fastapi.models.lobby import LobbyCommand, LobbyCommandResult, LobbyStrFeedbackResult
 from pyknic.version import __version__
@@ -28,11 +26,14 @@ from pyknic.version import __version__
 
 @register_command()
 class PingCommand(LobbyCommandDescriptorProto):
+    """This command helps to check server's sanity."""
 
     @classmethod
     def command_name(cls) -> str:
+        """:meth:`.LobbyCommandDescriptorProto.command_name` implementation."""
         return "ping"
 
     @classmethod
     def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
+        """Return pong-response message."""
         return LobbyStrFeedbackResult(result=f"pong... Server's version is {__version__}")

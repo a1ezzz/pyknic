@@ -19,8 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-
 import importlib
 import typing
 import secrets
@@ -41,12 +39,19 @@ from pyknic.lib.log import Logger
 
 @register_api(__default_fastapi_apps_registry__, "lobby")
 class LobbyApp(BaseFastAPIApp):
+    """This web-app executes commands on remote server."""
 
     __default_modules__ = {
         'pyknic.lib.fastapi.lobby_commands.ping'
     }
 
     def __init__(self, config: Config, translations: GetTextWrapper):
+        """Create a new web-app.
+
+        :param config: config with which this app should be initialized
+        :param translations: gettext access
+        """
+
         BaseFastAPIApp.__init__(self, config, translations)
 
         self.__lobby_registry = __default_lobby_commands_registry__
@@ -77,6 +82,7 @@ class LobbyApp(BaseFastAPIApp):
         return app
 
     def load_lobby_modules(self) -> None:
+        """Import required modules so theirs commands may be used within this web-app."""
         modules_enabled = {str(x) for x in self.config()["pyknic"]["fastapi"]["lobby"]["modules"].iterate_list()}
         modules_enabled.update(self.__default_modules__)
 
@@ -92,6 +98,10 @@ class LobbyApp(BaseFastAPIApp):
         return NullableResponseModel()
 
     async def login_with_bearer(self, request: fastapi.Request) -> None:
+        """Authenticate request with bearer token.
+
+        :param request: request with bearer token
+        """
         # TODO: make it more secure
         #
         # And consider this:
@@ -124,6 +134,10 @@ class LobbyApp(BaseFastAPIApp):
         )
 
     async def lobby_command(self, request: fastapi.Request) -> LobbyCommandResult:
+        """Process command execution request.
+
+        :param request: request with command request
+        """
         await self.login_with_bearer(request)
 
         try:
@@ -141,13 +155,16 @@ class LobbyApp(BaseFastAPIApp):
 
     @classmethod
     def main_lobby_path(cls, config: Config) -> str:
+        """Return path for command execution requests."""
         return str(config["pyknic"]["fastapi"]["lobby"]["main_url_path"])
 
     @classmethod
     def fingerprint_lobby_path(cls, config: Config) -> str:
+        """Return path for fingerprint request."""
         return str(config["pyknic"]["fastapi"]["lobby"]["fingerprint_url_path"])
 
     @classmethod
     def secret_token(cls, config: Config) -> typing.Optional[str]:
+        """Return secret token that is used for authentication."""
         token = config["pyknic"]["fastapi"]["lobby"]["secret_token"]
         return str(token) if not token.is_none() else None

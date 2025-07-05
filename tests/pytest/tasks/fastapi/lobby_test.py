@@ -2,7 +2,6 @@
 
 import asyncio
 import io
-import typing
 
 import aiohttp
 import fastapi
@@ -28,7 +27,7 @@ class TestLobbyApp:
                 secret_token: {__secret_token__}
     """
 
-    def test_config(self, gettext: GetTextWrapper):
+    def test_config(self, gettext: GetTextWrapper) -> None:
         fastapi_server = fastapi.FastAPI()
 
         with open(root_path / 'tasks/fastapi/config.yaml') as f:
