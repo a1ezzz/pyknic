@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import pydantic
 import pytest
 import typing
 
@@ -79,8 +79,26 @@ class TestLobbyCommandDescriptorProto:
                 return NullableResponseModel()
 
         model = SampleCommand.pydantic_model()
-        dump_result = model().model_dump()  # type: ignore[call-arg]
+        dump_result = model(name='sample').model_dump()
         assert(dump_result == {'name': 'sample', 'args': None, 'kwargs': None, 'cargs': None})
+
+    def test_no_command_model(self) -> None:
+
+        class SampleCommand(LobbyCommandDescriptorProto):
+            @classmethod
+            def command_name(cls) -> str:
+                return 'sample'
+
+        model = SampleCommand.pydantic_model()
+        dump_result = model(name='sample').model_dump()
+        assert(dump_result == {'name': 'sample', 'args': None, 'kwargs': None, 'cargs': None})
+
+        with pytest.raises(pydantic.ValidationError):
+            # a test that no defaults allowed
+            model().model_dump()  # type: ignore[call-arg]
+
+        with pytest.raises(pydantic.ValidationError):
+            model(name='unknown').model_dump()  # invalid name
 
     def test_args_model(self) -> None:
 
@@ -98,7 +116,7 @@ class TestLobbyCommandDescriptorProto:
                 return NullableResponseModel()
 
         model = SampleCommand.pydantic_model()
-        dump_result = model(args=(10, 'foo')).model_dump()  # type: ignore[call-arg, arg-type]
+        dump_result = model(name='sample', args=(10, 'foo')).model_dump()  # type: ignore[arg-type]
         assert(dump_result == {'name': 'sample', 'args': (10, 'foo'), 'kwargs': None, 'cargs': None})
 
     def test_kwargs_model(self) -> None:
@@ -117,7 +135,7 @@ class TestLobbyCommandDescriptorProto:
                 return NullableResponseModel()
 
         model = SampleCommand.pydantic_model()
-        dump_result = model(kwargs={'foo': 10, 'bar': 'xxx'}).model_dump()  # type: ignore[call-arg, arg-type]
+        dump_result = model(name='sample', kwargs={'foo': 10, 'bar': 'xxx'}).model_dump()  # type: ignore[arg-type]
         assert(dump_result == {'name': 'sample', 'args': None, 'kwargs': {'foo': 10, 'bar': 'xxx'}, 'cargs': None})
 
     def test_cargs_model(self) -> None:
@@ -146,7 +164,7 @@ class TestLobbyCommandDescriptorProto:
                 return NullableResponseModel()
 
         model = SampleCommand.pydantic_model()
-        dump_result = model(cargs={'context_var': 10}).model_dump()  # type: ignore[call-arg, arg-type]
+        dump_result = model(name='sample', cargs={'context_var': 10}).model_dump()  # type: ignore[arg-type]
         assert(dump_result == {'name': 'sample', 'args': None, 'kwargs': None, 'cargs': {'context_var': 10}})
 
 

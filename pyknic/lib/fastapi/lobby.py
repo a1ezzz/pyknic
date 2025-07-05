@@ -121,7 +121,7 @@ class LobbyCommandMeta(ABCMeta):
             model_config = pydantic.ConfigDict(extra='forbid')
 
             name: typing.Literal[command_name] = pydantic.Field(  # type: ignore[valid-type]
-                default=command_name, frozen=True
+                frozen=True, validate_default=True
             )
             args: command_args_type = command_args_field  # type: ignore[valid-type]
             kwargs: command_kwargs_type = command_kwargs_field  # type: ignore[valid-type]
@@ -285,7 +285,7 @@ class LobbyRegistry(APIRegistry):
 
         type_decl = typing.Union[*self.__command_models]  # type: ignore[valid-type, name-defined]
         try:
-            model_data: LobbyCommand = pydantic.TypeAdapter(type_decl).validate_python(json_data)
+            model_data: LobbyCommand = pydantic.TypeAdapter(type_decl).validate_python(json_data, strict=True)
             return model_data._command_origin, model_data  # type: ignore[return-value]
         except pydantic.ValidationError:
             raise LobbyCommandError('Invalid JSON data or unknown command')

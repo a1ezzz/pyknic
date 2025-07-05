@@ -43,10 +43,10 @@ class LobbyCommand(pydantic.BaseModel):
     """
     model_config = pydantic.ConfigDict(extra='forbid')
 
-    name: str = pydantic.Field(min_length=1)                # name of a command to execute
-    args: typing.Tuple[()] | None = None                    # positional arguments to a command
-    kwargs: LobbyKeyWordArgs | None = None                  # kw-arguments to a command
-    cargs: LobbyContextArg | None = None                    # context value
+    name: str = pydantic.Field(min_length=1, validate_default=True)  # name of a command to execute
+    args: typing.Tuple[()] | None = None                             # positional arguments to a command
+    kwargs: LobbyKeyWordArgs | None = None                           # kw-arguments to a command
+    cargs: LobbyContextArg | None = None                             # context value
 
     _command_origin: typing.Type[typing.Any] | None = None  # special private class that implements command
 
