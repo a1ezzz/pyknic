@@ -216,7 +216,7 @@ class LobbyRegistry(APIRegistry):
 
     def __init__(self, context_registry: APIRegistryProto | None = None) -> None:
         APIRegistry.__init__(self)
-        self.__context_registry = context_registry
+        self.__context_registry = context_registry if context_registry else __default_lobby_context_registry__
         self.__command_models: typing.Set[typing.Type[LobbyCommand]] = set()
 
     def register_lobby_command(self, command: typing.Type[LobbyCommandDescriptorProto]) -> None:
@@ -247,6 +247,10 @@ class LobbyRegistry(APIRegistry):
 
         single_command_registry.register_lobby_command(command)
         self.__command_models.add(command_model)
+
+    def list_contexts(self) -> typing.Generator[str, None, None]:
+        """Iterate over available contexts."""
+        yield from self.__context_registry.ids()  # type: ignore[misc]
 
     def list_commands(
         self, command_name: str | None, *contexts: str

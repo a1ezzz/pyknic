@@ -58,3 +58,10 @@ class LobbyStrFeedbackResult(pydantic.BaseModel):
 
 
 LobbyCommandResult = typing.Union[NullableResponseModel, LobbyStrFeedbackResult]
+
+
+class LobbyServerFingerprint(pydantic.BaseModel):
+    _fingerprint_bytes: int = 32
+    fingerprint: str = pydantic.Field(min_length=44, max_length=44, validate_default=True)  # since it is used in
+    # HMAC-SHA256 it must be the same size as 32 bytes (256 bit). In base64 every 3 bytes are encoded with 4 symbols
+    # so the target size is 44

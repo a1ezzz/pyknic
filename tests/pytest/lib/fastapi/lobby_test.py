@@ -473,6 +473,20 @@ class TestLobbyRegistry:
             TestSingleLobbyCommandRegistry.MoreContextCommand
         })
 
+    def test_list_contexts(self) -> None:
+        context_registry = APIRegistry()
+        registry = LobbyRegistry(context_registry)
+
+        assert(list(registry.list_contexts()) == [])
+
+        register_context(context_registry)(TestSingleLobbyCommandRegistry.LobbyContext1)
+        assert(list(registry.list_contexts()) == ['context_var1'])
+
+        register_context(context_registry)(TestSingleLobbyCommandRegistry.LobbyContext2)
+        result = list(registry.list_contexts())
+        result.sort()
+        assert(list(registry.list_contexts()) == ['context_var1', 'context_var2'])
+
 
 def test_register_command() -> None:
     context_registry = APIRegistry()
