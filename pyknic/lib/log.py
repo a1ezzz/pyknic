@@ -25,3 +25,5 @@ from pyknic.lib.singleton import create_singleton
 
 
 Logger: logging.Logger = create_singleton(logging.getLogger("pyknic"))  # type: ignore[assignment]  # metaclass
+
+# TODO: check it out -- https://docs.python.org/3/library/logging.config.html
