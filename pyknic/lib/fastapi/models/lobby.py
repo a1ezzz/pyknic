@@ -27,18 +27,6 @@ from pyknic.lib.fastapi.models.base import NullableResponseModel
 from pyknic.lib.fastapi.lobby_fingerprint import LobbyFingerprint
 
 
-class LobbyKeyWordArgs(pydantic.BaseModel):
-    """ This is a base class for default "kwargs" arguments of a command
-    """
-    pass
-
-
-class LobbyContextArg(pydantic.BaseModel):
-    """ This is a base class for default "cargs" arguments of a command
-    """
-    pass
-
-
 class LobbyCommand(pydantic.BaseModel):
     """ This is a lobby command
     """
@@ -46,19 +34,29 @@ class LobbyCommand(pydantic.BaseModel):
 
     name: str = pydantic.Field(min_length=1, validate_default=True)  # name of a command to execute
     args: typing.Tuple[()] | None = None                             # positional arguments to a command
-    kwargs: LobbyKeyWordArgs | None = None                           # kw-arguments to a command
-    cargs: LobbyContextArg | None = None                             # context value
+    kwargs: None = None                                              # kw-arguments to a command
+    cargs: None = None                                               # context value
 
     _command_origin: typing.Type[typing.Any] | None = None  # special private class that implements command
 
 
+class LobbyCommandRequest(LobbyCommand):
+    args: typing.Tuple[typing.Any, ...] | None = None  # positional arguments to a command
+    kwargs: typing.Any | None = None                   # kw-arguments to a command
+    cargs: typing.Any | None = None                    # context value
+
+
 class LobbyStrFeedbackResult(pydantic.BaseModel):
-    # TODO: there may be predefined properties as the "status" (0 -- command scheduled,
-    #  1 -- command completed successfully, 2 -- command completed with error)
-    result: str
+    model_config = pydantic.ConfigDict(extra='forbid')
+    str_result: str
 
 
-LobbyCommandResult = typing.Union[NullableResponseModel, LobbyStrFeedbackResult]
+class LobbyKeyValueFeedbackResult(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra='forbid')
+    kv_result: typing.Dict[str, typing.Any]
+
+
+LobbyCommandResult = typing.Union[NullableResponseModel, LobbyStrFeedbackResult, LobbyKeyValueFeedbackResult]
 
 
 class LobbyServerFingerprint(pydantic.BaseModel):
