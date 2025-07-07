@@ -46,7 +46,8 @@ class LobbyApp(BaseFastAPIApp):
     """This web-app executes commands on remote server."""
 
     __default_modules__ = {
-        'pyknic.lib.fastapi.lobby_commands.ping'
+        'pyknic.lib.fastapi.lobby_commands.ping',
+        'pyknic.lib.fastapi.lobby_commands.resources',
     }
 
     def __init__(self, config: Config, translations: GetTextWrapper):
@@ -88,7 +89,6 @@ class LobbyApp(BaseFastAPIApp):
         fastapi_app.get(
             cls.lobby_contexts_path(config),
             status_code=200,
-            response_model=typing.List[str]
         )(app.lobby_contexts)
 
         return app
@@ -105,9 +105,22 @@ class LobbyApp(BaseFastAPIApp):
             Logger.info(f'Import module "{module_name}" so commands will be loaded')
             importlib.import_module(module_name)
 
-    async def lobby_contexts(self, request: fastapi.Request) -> typing.List[str]:
+    def __sign_result(self, json_data: str) -> fastapi.Response:
+        """Sign request result.
+
+        :param json_data: json to sign
+        """
+        signature = self.__fingerprint.sign(json_data.encode(), encode_base64=True)
+
+        response_headers = dict()
+        response_headers[FastAPIHeaders.fingerprint.value] = signature.decode('ascii')
+
+        return fastapi.Response(content=json_data, media_type="application/json", headers=response_headers)
+
+    async def lobby_contexts(self, request: fastapi.Request) -> fastapi.Response:
         await self.login_with_bearer(request)
-        return list(self.__lobby_registry.list_contexts())
+        json_result = list(self.__lobby_registry.list_contexts())
+        return self.__sign_result(json.dumps(json_result))
 
     async def fingerprint(self, request: fastapi.Request) -> LobbyServerFingerprint:
         return LobbyServerFingerprint(fingerprint=str(self.__fingerprint))
@@ -165,15 +178,8 @@ class LobbyApp(BaseFastAPIApp):
             command, args = self.__lobby_registry.deserialize_command(data)
 
             command_result = command.exec(args)
-            json_ready_result = fastapi.encoders.jsonable_encoder(command_result)
-            json_result = json.dumps(json_ready_result)
-
-            signature = self.__fingerprint.sign(json_result.encode(), encode_base64=True)
-
-            response_headers = dict()
-            response_headers[FastAPIHeaders.fingerprint.value] = signature.decode('ascii')
-
-            return fastapi.Response(content=json_result, media_type="application/json", headers=response_headers)
+            json_result = fastapi.encoders.jsonable_encoder(command_result)
+            return self.__sign_result(json.dumps(json_result))
 
         except LobbyCommandError as e:
             raise fastapi.HTTPException(status_code=fastapi.status.HTTP_400_BAD_REQUEST, detail=str(e))

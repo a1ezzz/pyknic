@@ -127,5 +127,5 @@ class TestLobbyApp:
 
             response_data = await response.content.read()
             feedback = LobbyStrFeedbackResult.model_validate(json.loads(response_data))
-            assert(len(feedback.result) > 0)
+            assert(len(feedback.str_result) > 0)
             assert(fingerprint.sign(response_data, encode_base64=True).decode('ascii') == fingerprint_signing)

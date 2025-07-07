@@ -414,7 +414,7 @@ class TestLobbyRegistry:
         assert(command is TestSingleLobbyCommandRegistry.ContextCommand)
         assert(model.args is None)
         assert(model.kwargs is None)
-        assert(model.cargs.context_var1 == 10)  # type: ignore[union-attr]
+        assert(model.cargs.context_var1 == 10)  # type: ignore[attr-defined]
 
     def test_list_commands(self) -> None:
         context_registry = APIRegistry()

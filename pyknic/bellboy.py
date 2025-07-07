@@ -2,7 +2,8 @@
 import argparse
 import asyncio
 
-from pyknic.lib.bellboy.app import BellboyCLIApp, BellboyCLIError
+from pyknic.lib.bellboy.app import BellboyCLIApp
+from pyknic.lib.bellboy.error import BellboyCLIError
 
 
 class Bellboy:
