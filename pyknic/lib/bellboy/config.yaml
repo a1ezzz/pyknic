@@ -1,0 +1,6 @@
+
+bellboy:
+    logger:
+        app_name: bellboy
+        format_string: '[%(name)s] [%(levelname)s] [%(asctime)s] %(message)s'
+        date_format: '%Y-%m-%d %H:%M:%S'
