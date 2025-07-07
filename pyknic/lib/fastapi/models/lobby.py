@@ -41,9 +41,9 @@ class LobbyCommand(pydantic.BaseModel):
 
 
 class LobbyCommandRequest(LobbyCommand):
-    args: typing.Tuple[typing.Any, ...] | None = None  # positional arguments to a command
-    kwargs: typing.Any | None = None                   # kw-arguments to a command
-    cargs: typing.Any | None = None                    # context value
+    args: typing.Tuple[typing.Any, ...] | None = None   # positional arguments to a command
+    kwargs: typing.Dict[str, typing.Any] | None = None  # type: ignore[assignment]  # kw-arguments to a command
+    cargs: typing.Dict[str, typing.Any] | None = None   # type: ignore[assignment]  # context value
 
 
 class LobbyStrFeedbackResult(pydantic.BaseModel):
