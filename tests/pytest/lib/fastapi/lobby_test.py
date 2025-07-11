@@ -414,7 +414,7 @@ class TestLobbyRegistry:
         assert(command is TestSingleLobbyCommandRegistry.ContextCommand)
         assert(model.args is None)
         assert(model.kwargs is None)
-        assert(model.cargs.context_var1 == 10)  # type: ignore[union-attr]
+        assert(model.cargs.context_var1 == 10)  # type: ignore[attr-defined]
 
     def test_list_commands(self) -> None:
         context_registry = APIRegistry()
@@ -472,6 +472,20 @@ class TestLobbyRegistry:
         assert(set(registry.list_commands('do', 'context_var1', 'context_var2')) == {
             TestSingleLobbyCommandRegistry.MoreContextCommand
         })
+
+    def test_list_contexts(self) -> None:
+        context_registry = APIRegistry()
+        registry = LobbyRegistry(context_registry)
+
+        assert(list(registry.list_contexts()) == [])
+
+        register_context(context_registry)(TestSingleLobbyCommandRegistry.LobbyContext1)
+        assert(list(registry.list_contexts()) == ['context_var1'])
+
+        register_context(context_registry)(TestSingleLobbyCommandRegistry.LobbyContext2)
+        result = list(registry.list_contexts())
+        result.sort()
+        assert(list(registry.list_contexts()) == ['context_var1', 'context_var2'])
 
 
 def test_register_command() -> None:

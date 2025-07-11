@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/log.py
+# pyknic/lib/bellboy/__init__.py
 #
-# Copyright (C) 2024 the pyknic authors and contributors
+# Copyright (C) 2025 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -18,12 +18,3 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
-
-import logging
-
-from pyknic.lib.singleton import create_singleton
-
-
-Logger: logging.Logger = create_singleton(logging.getLogger("pyknic"))  # type: ignore[assignment]  # metaclass
-
-# TODO: check it out -- https://docs.python.org/3/library/logging.config.html

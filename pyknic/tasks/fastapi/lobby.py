@@ -20,20 +20,24 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import importlib
+import json
 import typing
 import secrets
 
 import fastapi
+import fastapi.encoders
+import fastapi.responses
 import fastapi.security
 
 from pyknic.lib.config import Config
-from pyknic.lib.fastapi.models.base import NullableResponseModel
 from pyknic.lib.registry import register_api
 from pyknic.lib.fastapi.apps_registry import __default_fastapi_apps_registry__
-from pyknic.lib.fastapi.models.lobby import LobbyCommandResult
+from pyknic.lib.fastapi.models.lobby import LobbyServerFingerprint
 from pyknic.lib.gettext import GetTextWrapper
 from pyknic.lib.fastapi.base import BaseFastAPIApp
 from pyknic.lib.fastapi.lobby import LobbyCommandError, __default_lobby_commands_registry__
+from pyknic.lib.fastapi.lobby_fingerprint import LobbyFingerprint
+from pyknic.lib.fastapi.headers import FastAPIHeaders
 from pyknic.lib.log import Logger
 
 
@@ -42,7 +46,8 @@ class LobbyApp(BaseFastAPIApp):
     """This web-app executes commands on remote server."""
 
     __default_modules__ = {
-        'pyknic.lib.fastapi.lobby_commands.ping'
+        'pyknic.lib.fastapi.lobby_commands.ping',
+        'pyknic.lib.fastapi.lobby_commands.resources',
     }
 
     def __init__(self, config: Config, translations: GetTextWrapper):
@@ -57,6 +62,9 @@ class LobbyApp(BaseFastAPIApp):
         self.__lobby_registry = __default_lobby_commands_registry__
         self.__translations = translations
 
+        # TODO: make fingerprint survive restarts
+        self.__fingerprint = LobbyFingerprint.generate_fingerprint()
+
     @classmethod
     def create_app(cls, fastapi_app: fastapi.FastAPI, config: Config, translations: GetTextWrapper) -> typing.Any:
         """ The :meth:`.FastAPIAppProto.create_app` method implementation
@@ -68,16 +76,20 @@ class LobbyApp(BaseFastAPIApp):
         app.load_lobby_modules()
 
         fastapi_app.post(
-            cls.main_lobby_path(config),
-            status_code=200,
-            response_model=LobbyCommandResult
+            cls.lobby_main_path(config),
+            status_code=200
         )(app.lobby_command)
 
         fastapi_app.get(
-            cls.fingerprint_lobby_path(config),
+            cls.lobby_fingerprint_path(config),
             status_code=200,
-            response_model=NullableResponseModel  # TODO: update fingerprint response
+            response_model=LobbyServerFingerprint
         )(app.fingerprint)
+
+        fastapi_app.get(
+            cls.lobby_contexts_path(config),
+            status_code=200,
+        )(app.lobby_contexts)
 
         return app
 
@@ -93,9 +105,25 @@ class LobbyApp(BaseFastAPIApp):
             Logger.info(f'Import module "{module_name}" so commands will be loaded')
             importlib.import_module(module_name)
 
-    async def fingerprint(self, request: fastapi.Request) -> NullableResponseModel:
-        # TODO: implement
-        return NullableResponseModel()
+    def __sign_result(self, json_data: str) -> fastapi.Response:
+        """Sign request result.
+
+        :param json_data: json to sign
+        """
+        signature = self.__fingerprint.sign(json_data.encode(), encode_base64=True)
+
+        response_headers = dict()
+        response_headers[FastAPIHeaders.fingerprint.value] = signature.decode('ascii')
+
+        return fastapi.Response(content=json_data, media_type="application/json", headers=response_headers)
+
+    async def lobby_contexts(self, request: fastapi.Request) -> fastapi.Response:
+        await self.login_with_bearer(request)
+        json_result = list(self.__lobby_registry.list_contexts())
+        return self.__sign_result(json.dumps(json_result))
+
+    async def fingerprint(self, request: fastapi.Request) -> LobbyServerFingerprint:
+        return LobbyServerFingerprint(fingerprint=str(self.__fingerprint))
 
     async def login_with_bearer(self, request: fastapi.Request) -> None:
         """Authenticate request with bearer token.
@@ -133,7 +161,7 @@ class LobbyApp(BaseFastAPIApp):
             headers={"WWW-Authenticate": 'Bearer realm="Token Required"'}
         )
 
-    async def lobby_command(self, request: fastapi.Request) -> LobbyCommandResult:
+    async def lobby_command(self, request: fastapi.Request, response: fastapi.Response) -> fastapi.Response:
         """Process command execution request.
 
         :param request: request with command request
@@ -149,19 +177,27 @@ class LobbyApp(BaseFastAPIApp):
             data = await request.json()
             command, args = self.__lobby_registry.deserialize_command(data)
 
-            return command.exec(args)
+            command_result = command.exec(args)
+            json_result = fastapi.encoders.jsonable_encoder(command_result)
+            return self.__sign_result(json.dumps(json_result))
+
         except LobbyCommandError as e:
             raise fastapi.HTTPException(status_code=fastapi.status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     @classmethod
-    def main_lobby_path(cls, config: Config) -> str:
+    def lobby_main_path(cls, config: Config) -> str:
         """Return path for command execution requests."""
         return str(config["pyknic"]["fastapi"]["lobby"]["main_url_path"])
 
     @classmethod
-    def fingerprint_lobby_path(cls, config: Config) -> str:
+    def lobby_fingerprint_path(cls, config: Config) -> str:
         """Return path for fingerprint request."""
         return str(config["pyknic"]["fastapi"]["lobby"]["fingerprint_url_path"])
+
+    @classmethod
+    def lobby_contexts_path(cls, config: Config) -> str:
+        """Return path for fingerprint request."""
+        return str(config["pyknic"]["fastapi"]["lobby"]["contexts_url_path"])
 
     @classmethod
     def secret_token(cls, config: Config) -> typing.Optional[str]:

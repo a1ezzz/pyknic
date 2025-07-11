@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/fastapi/lobby_commands/ping.py
+# pyknic/lib/fastapi/lobby_commands/resources.py
 #
 # Copyright (C) 2025 the pyknic authors and contributors
 # <see AUTHORS file>
@@ -19,21 +19,31 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import threading
+
+
 from pyknic.lib.fastapi.lobby import LobbyCommandDescriptorProto, register_command
-from pyknic.lib.fastapi.models.lobby import LobbyCommand, LobbyCommandResult, LobbyStrFeedbackResult
-from pyknic.version import __version__
+from pyknic.lib.fastapi.models.lobby import LobbyCommand, LobbyCommandResult, LobbyKeyValueFeedbackResult
 
 
 @register_command()
-class PingCommand(LobbyCommandDescriptorProto):
-    """This command helps to check server's sanity."""
+class ResourcesCommand(LobbyCommandDescriptorProto):
+    """Returns minor information about server's used resources."""
 
     @classmethod
     def command_name(cls) -> str:
         """:meth:`.LobbyCommandDescriptorProto.command_name` implementation."""
-        return "ping"
+        return "resources"
 
     @classmethod
     def exec(cls, args: LobbyCommand) -> LobbyCommandResult:
-        """Return pong-response message."""
-        return LobbyStrFeedbackResult(str_result=f"pong... Server's version is {__version__}")
+        """Return information about server's resources."""
+        with open('/proc/self/statm') as mem_usage_fd:  # TODO: validate errors!
+            statm = mem_usage_fd.readline()
+            total, resident, shared = statm.split(' ')[:3]
+
+        pythreads = threading.active_count()
+
+        return LobbyKeyValueFeedbackResult(kv_result={
+            "mem_total": total, "mem_resident": resident, "mem_shared": shared, "py_threads": pythreads
+        })
