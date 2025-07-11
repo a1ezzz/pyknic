@@ -14,6 +14,7 @@ pyknic:
         lobby:
             modules: []
             secret_token:
-            main_url_path: /lobby
-            fingerprint_url_path: /lobby/fingerprint
+            main_url_path: /api/v1/lobby
+            fingerprint_url_path: /api/v1/lobby/fingerprint
+            contexts_url_path: /api/v1/lobby/contexts
             commands: []

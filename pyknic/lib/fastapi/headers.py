@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/log.py
+# pyknic/lib/fastapi/headers.py
 #
-# Copyright (C) 2024 the pyknic authors and contributors
+# Copyright (C) 2025 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -19,11 +19,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import logging
-
-from pyknic.lib.singleton import create_singleton
+import enum
 
 
-Logger: logging.Logger = create_singleton(logging.getLogger("pyknic"))  # type: ignore[assignment]  # metaclass
-
-# TODO: check it out -- https://docs.python.org/3/library/logging.config.html
+@enum.unique
+class FastAPIHeaders(enum.Enum):
+    # List of custom headers
+    fingerprint = "Pyknic-Lobby-Result-Sign"  # is used for result signing

@@ -28,7 +28,7 @@ from abc import ABCMeta, abstractmethod
 import pydantic
 
 from pyknic.lib.registry import APIRegistry, APIRegistryProto, register_api, hash_id_by_tokens
-from pyknic.lib.fastapi.models.lobby import LobbyCommandResult, LobbyCommand, LobbyKeyWordArgs, LobbyContextArg
+from pyknic.lib.fastapi.models.lobby import LobbyCommandResult, LobbyCommand
 from pyknic.lib.verify import verify_value
 
 
@@ -99,14 +99,14 @@ class LobbyCommandMeta(ABCMeta):
         command_name = cls.command_name()
 
         command_args = tuple(cls.args_required())
-        command_args_type = typing.Tuple[*command_args] if command_args else (typing.Tuple[*command_args] | None)
+        command_args_type = typing.Tuple[*command_args] if command_args else (typing.Tuple[()] | None)
         command_args_field = pydantic.Field() if command_args else pydantic.Field(default=None, frozen=True)
 
         command_kwargs = cls.kwargs_required()
         command_kwargs_gen_model = pydantic.create_model(  # type: ignore[call-overload]
             f'{command_name}CommandKWArgs', **command_kwargs
         )
-        command_kwargs_type = command_kwargs_gen_model if command_kwargs else typing.Optional[LobbyKeyWordArgs]
+        command_kwargs_type = command_kwargs_gen_model if command_kwargs else None
         command_kwargs_field = pydantic.Field() if command_kwargs else pydantic.Field(default=None, frozen=True)
 
         command_cargs = tuple(cls.context_required())
@@ -114,7 +114,7 @@ class LobbyCommandMeta(ABCMeta):
         command_cargs_gen_model = pydantic.create_model(  # type: ignore[call-overload]
             f'{command_name}CommandCArgs', **command_cargs_dict
         )
-        command_cargs_type = command_cargs_gen_model if command_cargs else typing.Optional[LobbyContextArg]
+        command_cargs_type = command_cargs_gen_model if command_cargs else None
         command_cargs_field = pydantic.Field() if command_cargs else pydantic.Field(default=None, frozen=True)
 
         class CommandModel(LobbyCommand):
@@ -216,7 +216,7 @@ class LobbyRegistry(APIRegistry):
 
     def __init__(self, context_registry: APIRegistryProto | None = None) -> None:
         APIRegistry.__init__(self)
-        self.__context_registry = context_registry
+        self.__context_registry = context_registry if context_registry else __default_lobby_context_registry__
         self.__command_models: typing.Set[typing.Type[LobbyCommand]] = set()
 
     def register_lobby_command(self, command: typing.Type[LobbyCommandDescriptorProto]) -> None:
@@ -247,6 +247,10 @@ class LobbyRegistry(APIRegistry):
 
         single_command_registry.register_lobby_command(command)
         self.__command_models.add(command_model)
+
+    def list_contexts(self) -> typing.Generator[str, None, None]:
+        """Iterate over available contexts."""
+        yield from self.__context_registry.ids()  # type: ignore[misc]
 
     def list_commands(
         self, command_name: str | None, *contexts: str
