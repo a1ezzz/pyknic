@@ -26,7 +26,7 @@ from inspect import isclass, isfunction, ismethod
 
 
 class Signal:
-    """ A signal that may be sent within wasp_general.api.signals methods
+    """ A signal that may be sent within pyknic.lib.signals methods
     """
 
     __pyknic_signal_name__: typing.Optional[str] = None
