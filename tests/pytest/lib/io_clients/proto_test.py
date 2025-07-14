@@ -50,6 +50,11 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
             None, 'remote_file', 'local_file'
         )
 
+    with pytest.raises(NotImplementedError):
+        await IOClientProto.file_size(  # type: ignore[arg-type]  # it is just a test
+            None, 'remote_file'
+        )
+
     class Client(IOClientProto):
 
         @classmethod
@@ -72,5 +77,6 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
     assert(iscapable(client, IOClientProto.upload_file) is False)
     assert(iscapable(client, IOClientProto.remove_file) is False)
     assert(iscapable(client, IOClientProto.receive_file) is False)
+    assert(iscapable(client, IOClientProto.file_size) is False)
 
     assert(client.directory_sep() == '/')

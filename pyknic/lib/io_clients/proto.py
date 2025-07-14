@@ -80,7 +80,7 @@ class IOClientProto(CapabilitiesHolder):
 		raise NotImplementedError('This method is abstract')
 
 	@capability
-	async def list_directory(self) -> typing.Tuple[str]:
+	async def list_directory(self) -> typing.Tuple[str, ...]:
 		"""List current session directory."""
 		raise NotImplementedError('This method is abstract')
 
@@ -103,12 +103,12 @@ class IOClientProto(CapabilitiesHolder):
 		raise NotImplementedError('This method is abstract')
 
 	@capability
-	async def upload_file(self, file_name: str, file_obj: typing.IO[bytes]) -> None:
+	async def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
 		"""Upload file. File will be uploaded to a current session directory. A name must not contain
 		a directory separator
 
-		:param file_name: target file name
-		:param file_obj: source object to upload
+		:param remote_file_name: target file name
+		:param local_file_obj: source object to upload
 		"""
 		raise NotImplementedError('This method is abstract')
 
@@ -122,10 +122,18 @@ class IOClientProto(CapabilitiesHolder):
 		raise NotImplementedError('This method is abstract')
 
 	@capability
-	async def receive_file(self, remote_file_name: str, local_file_name: str) -> None:
+	async def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
 		"""Fetch/download a file. A remote file name must not contain a directory separator
 
 		:param remote_file_name: file to fetch
-		:param local_file_name: path to a local file where data should be stored
+		:param local_file_obj: a file where data should be stored
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@capability
+	async def file_size(self, remote_file_name: str) -> int:
+		"""Return size of file in bytes.
+
+		:param remote_file_name: file to check
 		"""
 		raise NotImplementedError('This method is abstract')
