@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from pyknic.lib.uri import URI, URIQuery
+import pytest
+
+from pyknic.lib.uri import URI, URIQuery, URIQueryInvalidSingleParameter
+
+
+def test_exceptions() -> None:
+    assert(issubclass(URIQueryInvalidSingleParameter, Exception) is True)
 
 
 class TestURI:
@@ -141,3 +147,18 @@ class TestURIQuery:
         query = URIQuery.parse('foo=&bar=zzz&foo=bar&bar=1')
         parameters_set = set(query.parameters())
         assert(parameters_set == {('foo', ('', 'bar')), ('bar', ('zzz', '1'))})
+
+    def test_single_parameters(self) -> None:
+        query = URIQuery.parse('foo=&bar=zzz&foo=bar&bar=1&xxx=20&f_value=2.1&n_value=')
+
+        with pytest.raises(URIQueryInvalidSingleParameter):
+            query.single_parameter('yyy', int)
+
+        with pytest.raises(URIQueryInvalidSingleParameter):
+            query.single_parameter('foo', int)
+
+        with pytest.raises(URIQueryInvalidSingleParameter):
+            query.single_parameter('n_value', int)
+
+        assert(query.single_parameter('xxx', int) == 20)
+        assert(query.single_parameter('f_value', float) == 2.1)

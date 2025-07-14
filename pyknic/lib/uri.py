@@ -25,6 +25,13 @@ from urllib.parse import urlsplit, parse_qs, urlencode
 from pyknic.lib.property import TypedDescriptor
 
 
+URIQueryParameterType = typing.TypeVar('URIQueryParameterType')
+
+
+class URIQueryInvalidSingleParameter(Exception):
+    pass
+
+
 class URI:
     """Class that represent URI as it is described in RFC 3986.
 
@@ -181,6 +188,27 @@ class URIQuery:
         """ Iterate over items, a pair of component name and component value will be raised
         """
         yield from ((x, tuple(y)) for x, y in self.__query.items())
+
+    def single_parameter(
+        self, name: str, type_adapter: typing.Callable[[str], URIQueryParameterType]
+    ) -> URIQueryParameterType:
+        """Return casted value of a single parameter of this query.
+
+        :param name: parameter name to retrieve
+        :param type_adapter: function to convert strings to a type (for example -- int, float and so on)
+        """
+        if name not in self:
+            raise URIQueryInvalidSingleParameter(f'The {name} parameter is not defined')
+
+        str_multiple_parameters = self[name]
+        if len(str_multiple_parameters) != 1:
+            raise URIQueryInvalidSingleParameter(f'The {name} parameter is set multiple times')
+
+        str_parameter = str_multiple_parameters[0]
+        if str_parameter == '':
+            raise URIQueryInvalidSingleParameter(f'The {name} parameter has null value')
+
+        return type_adapter(str_parameter)
 
     @classmethod
     def parse(cls, query_str: str) -> 'URIQuery':
