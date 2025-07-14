@@ -192,7 +192,7 @@ class URIQuery:
     def single_parameter(
         self, name: str, type_adapter: typing.Callable[[str], URIQueryParameterType]
     ) -> URIQueryParameterType:
-        """Return casted value of a single parameter of this query.
+        """Cast and return value of a single parameter of this query.
 
         :param name: parameter name to retrieve
         :param type_adapter: function to convert strings to a type (for example -- int, float and so on)
