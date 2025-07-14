@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import typing
 from abc import abstractmethod
 
@@ -40,16 +41,16 @@ class IOClientProto(CapabilitiesHolder):
 
 	@classmethod
 	@abstractmethod
-	def create_client(cls, uri: URI):
+	def create_client(cls, uri: URI) -> 'IOClientProto':
 		raise NotImplementedError('This method is abstract')
 
 	@capability
-	async def connect(self):
+	async def connect(self) -> None:
 		"""Connect to a source specified in URI."""
 		raise NotImplementedError('This method is abstract')
 
 	@capability
-	async def disconnect(self):
+	async def disconnect(self) -> None:
 		"""Disconnect from a source."""
 		raise NotImplementedError('This method is abstract')
 
@@ -62,7 +63,7 @@ class IOClientProto(CapabilitiesHolder):
 	def directory_sep(self) -> str:
 		"""Return symbol that is used by this client as a directory separator. If a path starts with that
 		symbol then it treats as an absolute path by default."""
-		return '/'
+		return os.sep
 
 	@capability
 	def current_directory(self) -> str:
@@ -70,7 +71,7 @@ class IOClientProto(CapabilitiesHolder):
 		raise NotImplementedError('This method is abstract')
 
 	@capability
-	async def change_directory(self, path) -> str:
+	async def change_directory(self, path: str) -> str:
 		"""Change current session directory to the specified one. If the path begins with directory separator
 		then it may be treated as an absolute path.
 
@@ -93,7 +94,7 @@ class IOClientProto(CapabilitiesHolder):
 		raise NotImplementedError('This method is abstract')
 
 	@capability
-	async def remove_directory(self, directory_name) -> None:
+	async def remove_directory(self, directory_name: str) -> None:
 		"""Remove directory. A directory is removed from a current session directory. And a name must not
 		contain a directory separator.
 
@@ -102,7 +103,7 @@ class IOClientProto(CapabilitiesHolder):
 		raise NotImplementedError('This method is abstract')
 
 	@capability
-	async def upload_file(self, file_name, file_obj) -> None:
+	async def upload_file(self, file_name: str, file_obj: typing.IO[bytes]) -> None:
 		"""Upload file. File will be uploaded to a current session directory. A name must not contain
 		a directory separator
 
@@ -112,7 +113,7 @@ class IOClientProto(CapabilitiesHolder):
 		raise NotImplementedError('This method is abstract')
 
 	@capability
-	async def remove_file(self, file_name) -> None:
+	async def remove_file(self, file_name: str) -> None:
 		"""Remove file. File will be removed from a current session directory. A name must not contain
 		a directory separator
 
@@ -121,7 +122,7 @@ class IOClientProto(CapabilitiesHolder):
 		raise NotImplementedError('This method is abstract')
 
 	@capability
-	async def receive_file(self, remote_file_name, local_file_name) -> None:
+	async def receive_file(self, remote_file_name: str, local_file_name: str) -> None:
 		"""Fetch/download a file. A remote file name must not contain a directory separator
 
 		:param remote_file_name: file to fetch

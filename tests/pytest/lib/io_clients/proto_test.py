@@ -22,42 +22,44 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
     pytest.raises(NotImplementedError, IOClientProto.current_directory, None)
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.connect(None)
+        await IOClientProto.connect(None)  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.disconnect(None)
+        await IOClientProto.disconnect(None)  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.change_directory(None, '/path/to/dir')
+        await IOClientProto.change_directory(None, '/path/to/dir')  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.list_directory(None)
+        await IOClientProto.list_directory(None)  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.make_directory(None, 'new_dir')
+        await IOClientProto.make_directory(None, 'new_dir')  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.remove_directory(None, 'old_dir')
+        await IOClientProto.remove_directory(None, 'old_dir')  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.upload_file(None, 'file_name', None)
+        await IOClientProto.upload_file(None, 'file_name', None)  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.remove_file(None, 'file_name')
+        await IOClientProto.remove_file(None, 'file_name')  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.receive_file(None, 'remote_file', 'local_file')
+        await IOClientProto.receive_file(  # type: ignore[arg-type]  # it is just a test
+            None, 'remote_file', 'local_file'
+        )
 
     class Client(IOClientProto):
 
         @classmethod
-        def create_client(cls, uri: URI):
+        def create_client(cls, uri: URI) -> 'Client':
             result = cls()
-            result.obj_uri = uri
+            result.obj_uri = uri  # type: ignore[attr-defined]  # it is just a test
             return result
 
-        def uri(self):
-            return self.obj_uri
+        def uri(self) -> URI:
+            return self.obj_uri  # type: ignore[attr-defined, no-any-return]  # it is just a test
 
     client = Client()
     assert(iscapable(client, IOClientProto.connect) is False)
