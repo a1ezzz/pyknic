@@ -107,6 +107,17 @@ class TestURI:
         assert(uri.query == 'path=q')
         assert(uri.fragment is None)
 
+    def test_parse5(self) -> None:
+        uri = URI.parse('/foo/bar')
+        assert(uri.scheme is None)
+        assert(uri.username is None)
+        assert(uri.password is None)
+        assert(uri.hostname is None)
+        assert(uri.port is None)
+        assert(uri.path == 'foo/bar')
+        assert(uri.query is None)
+        assert(uri.fragment is None)
+
 
 class TestURIQuery:
 

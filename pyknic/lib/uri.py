@@ -49,6 +49,7 @@ class URI:
 
     def __init__(
         self,
+        *,
         scheme: typing.Optional[str] = None,
         username: typing.Optional[str] = None,
         password: typing.Optional[str] = None,
