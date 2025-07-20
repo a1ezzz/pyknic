@@ -19,13 +19,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import asyncio
 import threading
 import traceback
 import typing
 
 from pyknic.lib.log import Logger
 from pyknic.lib.capability import iscapable
-from pyknic.lib.signals.proto import Signal
+from pyknic.lib.signals.proto import Signal, SignalCallbackProto, SignalSourceProto
 from pyknic.lib.tasks.proto import TaskProto, TaskResult, TaskStartError
 from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.thread import CriticalResource
@@ -34,6 +35,35 @@ from pyknic.lib.thread import CriticalResource
 class ThreadedTask(TaskProto, CriticalResource):
     """ This class helps to run a task in a separate thread
     """
+
+    class AsyncWaitCallback(SignalCallbackProto):
+        """This callback is used as a feedback for the :meth:`.ThreadedTask.async_wait` method
+        """
+
+        def __init__(self, loop: asyncio.AbstractEventLoop):
+            """Create a new callback
+
+            :param loop: a loop that is running at the moment
+            """
+            self.__loop = loop
+            self.__event = asyncio.Event()
+
+        def __call__(self, signal_source: SignalSourceProto, signal: Signal, signal_value: typing.Any = None) -> None:
+            """Execute the callback
+            """
+            self.__loop.call_soon_threadsafe(self.__event.set)
+
+        async def timeout(self, timeout: typing.Optional[typing.Union[int, float]]) -> None:
+            """Wait (sleep) for specified timeout
+
+            :param timeout: the timeout to wait for
+            """
+            if timeout is not None:
+                await asyncio.sleep(timeout)
+
+        async def wait(self) -> None:
+            """Wait for this callback to complete."""
+            await self.__event.wait()
 
     thread_ready = Signal(TaskProto)  # signal is emitted when a thread is ready to join
     thread_joined = Signal(TaskProto)  # signal is emitted when a thread joined
@@ -139,6 +169,33 @@ class ThreadedTask(TaskProto, CriticalResource):
                     self.__thread.join(timeout=timeout)
 
         self.join()
+
+    async def async_wait(self, timeout: typing.Union[int, float, None] = None) -> None:
+        """Wait for the thread to finish in asyncio-way
+
+        :param timeout: a timeout with which this method should be called. If value is None then this function
+        will wait forever, if value is negative or zero, then this function will poll current state,
+        otherwise -- number of seconds to wait for
+        """
+
+        callback = ThreadedTask.AsyncWaitCallback(asyncio.get_running_loop())
+
+        with self.critical_context():
+            if self.__thread is None:
+                return
+            self.callback(ThreadedTask.thread_ready, callback)
+
+        try:
+            wait_task = asyncio.create_task(callback.wait())
+            asyncio_wait_tasks = [wait_task]
+            if timeout is not None:
+                asyncio_wait_tasks.append(asyncio.create_task(callback.timeout(timeout)))
+            done, pending = await asyncio.wait(asyncio_wait_tasks, return_when=asyncio.FIRST_COMPLETED)
+
+            for p in pending:
+                p.cancel()
+        finally:
+            self.remove_callback(ThreadedTask.thread_ready, callback)
 
     @staticmethod
     def plain_task(
