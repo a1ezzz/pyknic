@@ -253,6 +253,22 @@ class TaskExecutorProto(metaclass=ABCMeta):
         """
         raise NotImplementedError('This method is abstract')
 
+    async def async_wait_task(
+        self,
+        task: TaskProto,
+        timeout: typing.Union[int, float, None] = None
+    ) -> bool:
+        """Wait for a task to complete in async-way
+
+        :param task: a successfully submitted task to wait
+        :param timeout: defines whether this function should be called in a blocking manner (and for how long)
+        If value is None then this function will wait forever, if value is negative or zero, then this function will
+        poll current state, otherwise -- number of seconds to wait for
+
+        :return: return True if the task is completed and return False otherwise
+        """
+        raise NotImplementedError('This method is abstract')
+
     @abstractmethod
     def tasks(self) -> typing.Generator[TaskProto, None, None]:
         """ Return generator that yields currently running tasks

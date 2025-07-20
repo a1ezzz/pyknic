@@ -202,3 +202,15 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
             threaded_task.wait(timeout=timeout)
 
         return threaded_task.join()  # type: ignore[no-any-return]  # mypy and decorator's issue
+
+    async def async_wait_task(self, task: TaskProto, timeout: typing.Union[int, float, None] = None) -> bool:
+        """ The :meth:`.TaskExecutorProto.async_wait_task` implementation
+        """
+
+        with self.critical_context():
+            if task not in self.__running_threads:
+                raise NoSuchTaskError('Unable to find a task')
+            threaded_task = self.__running_threads[task]
+
+        await threaded_task.async_wait(timeout)
+        return threaded_task.join()

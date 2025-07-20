@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
 import pytest
 import typing
 
@@ -13,6 +14,8 @@ from pyknic.lib.tasks.proto import TaskStartError, TaskStopError, NoSuchTaskErro
 from pyknic.lib.tasks.proto import TaskResult, ScheduleRecordProto, SchedulerProto, ScheduledTaskPostponePolicy
 from pyknic.lib.tasks.proto import TaskExecutorProto, ScheduleSourceProto
 
+from fixtures.asyncio import pyknic_async_test
+
 
 def test_exceptions() -> None:
     assert(issubclass(TaskStartError, Exception) is True)
@@ -20,7 +23,8 @@ def test_exceptions() -> None:
     assert(issubclass(NoSuchTaskError, Exception) is True)
 
 
-def test_abstract() -> None:
+@pyknic_async_test
+async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
     pytest.raises(TypeError, TaskProto)
     pytest.raises(NotImplementedError, TaskProto.start, None)
 
@@ -32,10 +36,16 @@ def test_abstract() -> None:
     pytest.raises(NotImplementedError, SchedulerProto.subscribe, None, None)
     pytest.raises(NotImplementedError, SchedulerProto.unsubscribe, None, None)
 
+    pytest.raises(NotImplementedError, ScheduleSourceProto.scheduler_feedback, None, None, None)  # capability test
+
     pytest.raises(TypeError, TaskExecutorProto)
     pytest.raises(NotImplementedError, TaskExecutorProto.submit_task, None, None)
     pytest.raises(NotImplementedError, TaskExecutorProto.complete_task, None, None)
     pytest.raises(NotImplementedError, TaskExecutorProto.wait_task, None, None, None)
+
+    with pytest.raises(NotImplementedError):
+        await TaskExecutorProto.async_wait_task(None, None)
+
     pytest.raises(NotImplementedError, TaskExecutorProto.tasks, None)
 
 

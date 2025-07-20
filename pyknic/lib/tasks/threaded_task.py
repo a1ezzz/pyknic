@@ -192,6 +192,9 @@ class ThreadedTask(TaskProto, CriticalResource):
                 asyncio_wait_tasks.append(asyncio.create_task(callback.timeout(timeout)))
             done, pending = await asyncio.wait(asyncio_wait_tasks, return_when=asyncio.FIRST_COMPLETED)
 
+            if wait_task in done:
+                self.wait()  # force thread to join since callback may be received earlier
+
             for p in pending:
                 p.cancel()
         finally:

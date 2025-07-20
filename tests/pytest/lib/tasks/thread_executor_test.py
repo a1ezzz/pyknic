@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
 import pytest
 import time
 import threading
@@ -11,6 +12,8 @@ if typing.TYPE_CHECKING:
 
 from pyknic.lib.tasks.thread_executor import ThreadExecutor, NoFreeSlotError
 from pyknic.lib.tasks.proto import TaskExecutorProto, NoSuchTaskError, TaskStartError
+
+from fixtures.asyncio import pyknic_async_test
 
 
 def test_exceptions() -> None:
@@ -25,7 +28,8 @@ class TestThreadExecutor:
 
         assert(set(executor.tasks()) == set())
 
-    def test_exceptions(self, sample_tasks: 'SampleTasks') -> None:
+    @pyknic_async_test
+    async def test_exceptions(self, sample_tasks: 'SampleTasks', module_event_loop: asyncio.AbstractEventLoop) -> None:
         executor = ThreadExecutor()
 
         with pytest.raises(NoSuchTaskError):
@@ -33,6 +37,9 @@ class TestThreadExecutor:
 
         with pytest.raises(NoSuchTaskError):
             executor.wait_task(sample_tasks.LongRunningTask(terminate_method=False))
+
+        with pytest.raises(NoSuchTaskError):
+            await executor.async_wait_task(sample_tasks.LongRunningTask(terminate_method=False))
 
     def test_join(self, sample_tasks: 'SampleTasks') -> None:
         task = sample_tasks.LongRunningTask(terminate_method=False)
@@ -76,6 +83,29 @@ class TestThreadExecutor:
         thread.start()
 
         executor.wait_task(task, timeout=100)
+        executor.complete_task(task)
+
+        thread.join()
+
+    @pyknic_async_test
+    async def test_async_awaited_join(
+        self,
+        sample_tasks: 'SampleTasks',
+        module_event_loop: asyncio.AbstractEventLoop
+    ) -> None:
+        task = sample_tasks.LongRunningTask(terminate_method=False)
+        executor = ThreadExecutor()
+        assert (executor.submit_task(task) is True)
+
+        def thread_fn() -> None:
+            nonlocal task  # noqa: F824
+            time.sleep(0.5)
+            task.stop()
+
+        thread = threading.Thread(target=thread_fn)
+        thread.start()
+
+        await executor.async_wait_task(task, timeout=100)
         executor.complete_task(task)
 
         thread.join()
