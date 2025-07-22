@@ -35,7 +35,7 @@ class LocalClient(VirtualDirectoryClient):
     """Local files implementation of :class:`.IOClientProto`."""
 
     @classmethod
-    def create_client(cls, uri: URI) -> 'VirtualDirectoryClient':
+    def create_client(cls, uri: URI) -> 'LocalClient':
         """Basic client creation."""
         client_kwargs = dict()
 

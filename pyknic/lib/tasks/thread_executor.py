@@ -213,4 +213,4 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
             threaded_task = self.__running_threads[task]
 
         await threaded_task.async_wait(timeout)
-        return threaded_task.join()
+        return threaded_task.join()  # type: ignore[no-any-return]

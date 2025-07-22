@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import asyncio
 import threading
 import types
 import typing
@@ -29,6 +30,7 @@ from dataclasses import dataclass
 from pyknic.lib.verify import verify_value
 
 from pyknic.lib.signals.proto import SignalSourceProto, SignalCallbackType, Signal
+from pyknic.lib.thread import CriticalResource
 
 
 class BoundedCallback:
@@ -227,15 +229,17 @@ class CustomizedCallback:
         return custom_callback
 
 
+@dataclass
+class ReceivedSignal:
+    """This dataclass represents a received signal."""
+    source: SignalSourceProto  # signal origin
+    signal: Signal             # emitted signal
+    value: typing.Any          # value of a signal
+
+
 class SignalWaiter:
     """ This class helps to wait for a signal
     """
-
-    @dataclass
-    class ReceivedInfo:
-        source: SignalSourceProto
-        signal: Signal
-        value: typing.Any
 
     def __init__(
         self,
@@ -257,7 +261,7 @@ class SignalWaiter:
         self.__timeout = timeout
         self.__event = event if event else threading.Event()
         self.__matcher = value_matcher
-        self.__received_signal: typing.Optional[SignalWaiter.ReceivedInfo] = None
+        self.__received_signal: typing.Optional[ReceivedSignal] = None
 
         target_source.callback(target_signal, self)
 
@@ -281,12 +285,101 @@ class SignalWaiter:
     def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
         """ A callback that may be subscribed to more signals to come
         """
-        if self.__matcher is None or self.__matcher(value):
-            self.__received_signal = SignalWaiter.ReceivedInfo(source, signal, value)
-            self.__event.set()
+        if not self.__received_signal:
+            if self.__matcher is None or self.__matcher(value):
+                self.__received_signal = ReceivedSignal(source, signal, value)
+                self.__event.set()
 
-    def wait(self, ) -> typing.Optional['SignalWaiter.ReceivedInfo']:
+    def wait(self, ) -> typing.Optional[ReceivedSignal]:
         """ Wait for a signal and return True if signal has been received or False otherwise
         """
         self.__event.wait(self.__timeout)
         return self.__received_signal
+
+
+class AsyncWatchDog(CriticalResource):
+    """ This class helps to wait for a signal in asynchronous way
+    """
+
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        target_source: SignalSourceProto,
+        target_signal: Signal,
+        cr_timeout: typing.Union[int, float, None] = None,
+        value_matcher: typing.Optional[typing.Callable[[typing.Any], bool]] = None,
+    ):
+        """ Create object that will wait for a signal and sign up for it
+
+        :param loop: event loop that will wait for a signal
+        :param target_source: a source that will be subscribed for a signal to come
+        :param target_signal: a signal to await
+        :param cr_timeout: timeout to use as a critical resource synchronization period
+        :param value_matcher: optional callable that checks received signal value. If defined then
+        the event will be set only if this function return True on received signal value
+        """
+        CriticalResource.__init__(self, cr_timeout)
+
+        self.__loop = loop
+        self.__matcher = value_matcher
+
+        self.__received_signal: typing.Optional[ReceivedSignal] = None
+        self.__watchdog_future: typing.Optional[asyncio.Future[ReceivedSignal]] = None
+
+        target_source.callback(target_signal, self)
+
+    def __call__(self, source: SignalSourceProto, signal: Signal, value: typing.Any) -> None:
+        """ A callback that may be subscribed to more signals to come
+        """
+        if not self.__received_signal:
+            if self.__matcher is None or self.__matcher(value):
+
+                with self.critical_context():
+                    if self.__received_signal is None:
+                        self.__received_signal = ReceivedSignal(source, signal, value)
+                        if self.__watchdog_future is not None:
+                            self.__loop.call_soon_threadsafe(
+                                self.__watchdog_future.set_result, self.__received_signal
+                            )
+
+    async def watchdog_future(self) -> asyncio.Future[ReceivedSignal]:
+        """Return future object that will wait for a signal to come."""
+        current_loop = asyncio.get_event_loop()
+        if current_loop is not self.__loop:
+            raise RuntimeError('Watchdog has been created in another loop')
+
+        with self.critical_context():
+            if self.__watchdog_future is None:
+                self.__watchdog_future = asyncio.Future(loop=self.__loop)
+            if not self.__watchdog_future.done() and self.__received_signal is not None:
+                self.__watchdog_future.set_result(self.__received_signal)
+
+        return self.__watchdog_future
+
+    async def wait(
+       self, timeout: typing.Optional[typing.Union[int, float]] = None
+    ) -> asyncio.Future[ReceivedSignal]:
+        """Wait for a signal and return a future-object. This object should be checked whether
+        a signal has been received or timeout has been passed
+
+        :param timeout: timeout with which a result will be awaited. If the timeout is None then wait forever
+        """
+        watchdog = await self.watchdog_future()
+        asyncio_wait_tasks: typing.List[
+            typing.Union[
+                asyncio.Future[ReceivedSignal],
+                asyncio.Task[None]
+            ]
+        ] = [watchdog]
+
+        timeout_task = None
+        if timeout is not None:
+            timeout_task = asyncio.create_task(asyncio.sleep(timeout))
+            asyncio_wait_tasks.append(timeout_task)
+
+        done, pending = await asyncio.wait(asyncio_wait_tasks, return_when=asyncio.FIRST_COMPLETED)
+
+        if timeout_task is not None and timeout_task in pending:
+            timeout_task.cancel()
+
+        return watchdog

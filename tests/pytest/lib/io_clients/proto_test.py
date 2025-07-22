@@ -46,13 +46,13 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
         await IOClientProto.remove_file(None, 'file_name')  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.receive_file(  # type: ignore[arg-type]  # it is just a test
-            None, 'remote_file', 'local_file'
+        await IOClientProto.receive_file(
+            None, 'remote_file', 'local_file'  # type: ignore[arg-type]  # it is just a test
         )
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.file_size(  # type: ignore[arg-type]  # it is just a test
-            None, 'remote_file'
+        await IOClientProto.file_size(
+            None, 'remote_file'  # type: ignore[arg-type]  # it is just a test
         )
 
     class Client(IOClientProto):

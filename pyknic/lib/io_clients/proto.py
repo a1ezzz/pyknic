@@ -38,6 +38,7 @@ class IOClientProto(CapabilitiesHolder):
     """
 
     # TODO: add basic async with usage, that will create, connect and disconnect client at the end
+    # TODO: add signals that will notify about copying progress
 
     @classmethod
     @abstractmethod

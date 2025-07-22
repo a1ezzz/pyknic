@@ -199,15 +199,15 @@ class URIQuery:
         :param type_adapter: function to convert strings to a type (for example -- int, float and so on)
         """
         if name not in self:
-            raise URIQueryInvalidSingleParameter(f'The {name} parameter is not defined')
+            raise URIQueryInvalidSingleParameter(f'The "{name}" parameter is not defined')
 
         str_multiple_parameters = self[name]
         if len(str_multiple_parameters) != 1:
-            raise URIQueryInvalidSingleParameter(f'The {name} parameter is set multiple times')
+            raise URIQueryInvalidSingleParameter(f'The "{name}" parameter is set multiple times')
 
         str_parameter = str_multiple_parameters[0]
         if str_parameter == '':
-            raise URIQueryInvalidSingleParameter(f'The {name} parameter has null value')
+            raise URIQueryInvalidSingleParameter(f'The "{name}" parameter has null value')
 
         return type_adapter(str_parameter)
 
