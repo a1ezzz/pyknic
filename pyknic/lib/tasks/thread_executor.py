@@ -42,6 +42,7 @@ class NoFreeSlotError(Exception):
 class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
     """ The :class:`.TaskExecutorProto` class implementation, that executes tasks in dedicated threads
     """
+    # TODO: do not start thread every time but reuse them
 
     task_completed = Signal(TaskProto)  # this signal is emitted when a task is about to complete
 
