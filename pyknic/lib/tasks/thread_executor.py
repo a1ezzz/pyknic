@@ -52,7 +52,7 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
         def __init__(
             self,
             executor: 'ThreadExecutor',
-            submit_fn: typing.Callable[[TaskProto], ThreadedTask],
+            submit_fn: typing.Callable[[TaskProto, bool], ThreadedTask],
             release_fn: typing.Callable[[], None]
         ):
             """ Prepare a context
@@ -82,15 +82,16 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
             if not self.__task_submitted:
                 self.__release_fn()
 
-        def submit_task(self, task: TaskProto) -> ThreadedTask:
+        def submit_task(self, task: TaskProto, start_task: bool = True) -> ThreadedTask:
             """ Try to submit a task
 
             :param task: a task to start
+            :param start_task: whether to start a task immediately
             """
             if self.__task_submitted:
                 raise TaskStartError('This context is used already')
 
-            result = self.__submit_fn(task)
+            result = self.__submit_fn(task, start_task)
             self.__task_submitted = True
             return result
 
@@ -119,7 +120,7 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
 
         self.__signal_resender = SignalResender(self, target_signal=ThreadExecutor.task_completed)
 
-    def __submit_task(self, task: TaskProto) -> ThreadedTask:
+    def __submit_task(self, task: TaskProto, start_task: bool = True) -> ThreadedTask:
         """ Try to start a task
 
         :param task: a task to start
@@ -133,7 +134,8 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
             self.__running_threads[task] = result
 
         result.callback(ThreadedTask.thread_ready, self.__signal_resender)
-        result.start()
+        if start_task:
+            result.start()
         return result
 
     def __release_slot(self) -> None:
@@ -203,14 +205,10 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
 
         return threaded_task.join()  # type: ignore[no-any-return]  # mypy and decorator's issue
 
-    async def async_wait_task(self, task: TaskProto, timeout: typing.Union[int, float, None] = None) -> bool:
-        """ The :meth:`.TaskExecutorProto.async_wait_task` implementation
+    async def start_async(self, task: TaskProto) -> None:
+        """ The :meth:`.TaskExecutorProto.start_async` implementation
         """
 
-        with self.critical_context():
-            if task not in self.__running_threads:
-                raise NoSuchTaskError('Unable to find a task')
-            threaded_task = self.__running_threads[task]
-
-        await threaded_task.async_wait(timeout)
-        return threaded_task.join()  # type: ignore[no-any-return]
+        with self.executor_context() as c:
+            threaded_task = c.submit_task(task, start_task=False)
+            await threaded_task.start_async()

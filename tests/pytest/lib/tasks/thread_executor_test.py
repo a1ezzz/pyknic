@@ -38,9 +38,6 @@ class TestThreadExecutor:
         with pytest.raises(NoSuchTaskError):
             executor.wait_task(sample_tasks.LongRunningTask(terminate_method=False))
 
-        with pytest.raises(NoSuchTaskError):
-            await executor.async_wait_task(sample_tasks.LongRunningTask(terminate_method=False))
-
     def test_join(self, sample_tasks: 'SampleTasks') -> None:
         task = sample_tasks.LongRunningTask(terminate_method=False)
         executor = ThreadExecutor()
@@ -95,7 +92,6 @@ class TestThreadExecutor:
     ) -> None:
         task = sample_tasks.LongRunningTask(terminate_method=False)
         executor = ThreadExecutor()
-        assert (executor.submit_task(task) is True)
 
         def thread_fn() -> None:
             nonlocal task  # noqa: F824
@@ -105,7 +101,7 @@ class TestThreadExecutor:
         thread = threading.Thread(target=thread_fn)
         thread.start()
 
-        await executor.async_wait_task(task, timeout=100)
+        await executor.start_async(task)
         executor.complete_task(task)
 
         thread.join()

@@ -44,7 +44,7 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
     pytest.raises(NotImplementedError, TaskExecutorProto.wait_task, None, None, None)
 
     with pytest.raises(NotImplementedError):
-        await TaskExecutorProto.async_wait_task(None, None)  # type: ignore[arg-type]  # it is just a test
+        await TaskExecutorProto.start_async(None, None)  # type: ignore[arg-type]  # it is just a test
 
     pytest.raises(NotImplementedError, TaskExecutorProto.tasks, None)
 

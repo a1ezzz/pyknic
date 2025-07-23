@@ -142,23 +142,15 @@ class ThreadedTask(TaskProto, CriticalResource):
 
         self.join()
 
-    async def async_wait(self, timeout: typing.Union[int, float, None] = None) -> None:
-        """Wait for the thread to finish in asyncio-way
-
-        :param timeout: a timeout with which this method should be called. If value is None then this function
-        will wait forever, if value is negative or zero, then this function will poll current state,
-        otherwise -- number of seconds to wait for
+    async def start_async(self) -> None:
+        """Start the thread and wait to finish in asyncio-way
         """
 
-        with self.critical_context():
-            if self.__thread is None:
-                return
-
-            watchdog = AsyncWatchDog(asyncio.get_event_loop(), self, ThreadedTask.thread_ready)
-
-        watchdog_future = await watchdog.wait(timeout=timeout)
-        if watchdog_future.done():
-            self.wait()  # force thread to join since callback may be received earlier
+        watchdog = AsyncWatchDog(asyncio.get_event_loop(), self, ThreadedTask.thread_ready)
+        self.start()
+        await watchdog.wait()
+        self.wait()  # force thread to join since callback may be received earlier
+        self.join()
 
     @staticmethod
     def plain_task(

@@ -43,29 +43,9 @@ class TestThreadTask:
 
     @pytest.mark.parametrize("repeats", range(100))
     @pyknic_async_test
-    async def test_async_wait(self, repeats: int, module_event_loop: asyncio.AbstractEventLoop) -> None:
+    async def test_start_async(self, repeats: int, module_event_loop: asyncio.AbstractEventLoop) -> None:
         event = threading.Event()
         task = ThreadedTask.plain_task(functools.partial(sample_function, event))
-        task.start()
-
-        await task.async_wait(-1)
-        assert(task.join() is False)
-        event.set()
-        await task.async_wait()
-        assert(task.join() is True)
-
-    @pyknic_async_test
-    async def test_async_wait_wo_thread(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
-        event = threading.Event()
-        task = ThreadedTask.plain_task(functools.partial(sample_function, event))
-        await task.async_wait()  # there is no awaiting since there is no running thread
-
-    @pyknic_async_test
-    async def test_async_wait_w_timeout(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
-        # note: test that Threaded_task.async_wait is async-io really
-        event = threading.Event()
-        task = ThreadedTask.plain_task(functools.partial(sample_function, event))
-        task.start()
 
         test_result = 0
 
@@ -76,16 +56,18 @@ class TestThreadTask:
                 await asyncio.sleep(0)
 
         async_test_task = asyncio.create_task(async_fn())
-        wait_task = asyncio.create_task(task.async_wait(1000))
+        async_start_task = asyncio.create_task(task.start_async())
+        done, pending = await asyncio.wait((async_test_task, async_start_task), return_when=asyncio.FIRST_COMPLETED)
 
-        done, pending = await asyncio.wait((async_test_task, wait_task), return_when=asyncio.FIRST_COMPLETED)
-        assert(wait_task in pending)
+        assert(async_test_task in done)
+        assert(async_start_task in pending)
+
         assert(test_result == 10)
-        wait_task.cancel()
-
+        assert(task.join() is False)
         event.set()
-        task.wait()
-        task.join()
+
+        await async_start_task
+        assert(task.join() is True)
 
     def test_join(self) -> None:
         start_event = threading.Event()
