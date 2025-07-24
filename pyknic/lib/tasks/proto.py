@@ -253,7 +253,7 @@ class TaskExecutorProto(metaclass=ABCMeta):
         """
         raise NotImplementedError('This method is abstract')
 
-    async def start_async(self, task: TaskProto) -> bool:
+    async def start_async(self, task: TaskProto) -> None:
         """Start a task and wait for a task to complete in async-way
 
         :param task: a task to start and wait

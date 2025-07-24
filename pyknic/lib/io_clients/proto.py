@@ -19,7 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import typing
 from abc import abstractmethod
 
@@ -59,12 +58,6 @@ class IOClientProto(CapabilitiesHolder):
     def uri(self) -> URI:
         """Return URI with which this client was created."""
         raise NotImplementedError('This method is abstract')
-
-    # noinspection PyMethodMayBeStatic
-    def directory_sep(self) -> str:
-        """Return symbol that is used by this client as a directory separator. If a path starts with that
-        symbol then it treats as an absolute path by default."""
-        return os.sep
 
     @capability
     def current_directory(self) -> str:

@@ -20,7 +20,6 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
-import os
 import pathlib
 import typing
 
@@ -64,19 +63,20 @@ class LocalClient(VirtualDirectoryClient):
         self.__block_size = block_size if block_size is not None else 4096
 
         if uri.path is not None:
-            self.__change_directory(os.sep + uri.path)
+            self.__change_directory(uri.path, False)
 
     def current_directory(self) -> str:
         """The :meth:`.IOClientProto.current_directory` method implementation."""
         return self.session_path()
 
-    def __change_directory(self, path: str) -> str:
+    def __change_directory(self, path: str, absolute_path: bool = True) -> str:
         """Change current session directory to the specified one
 
         :param path: new session directory
         """
-        path = self.session_path(pathlib.Path(path))
-        if not pathlib.Path(path).is_dir():
+        self.session_path(pathlib.PosixPath(path), absolute_path=absolute_path)
+        path = self.session_path()  # forces absolute path
+        if not pathlib.PosixPath(path).is_dir():
             raise NotADirectoryError(f'No such directory: {path}')
         return path
 
@@ -86,17 +86,17 @@ class LocalClient(VirtualDirectoryClient):
 
     async def list_directory(self) -> typing.Tuple[str, ...]:
         """The :meth:`.IOClientProto.list_directory` method implementation."""
-        path = pathlib.Path(self.session_path())
+        path = pathlib.PosixPath(self.session_path())
         return tuple(x.name for x in path.iterdir())
 
     async def make_directory(self, directory_name: str) -> None:
         """The :meth:`.IOClientProto.make_directory` method implementation."""
-        path = pathlib.Path(self.session_path()) / directory_name
+        path = pathlib.PosixPath(self.session_path()) / directory_name
         path.mkdir(exist_ok=False, parents=False)
 
     async def remove_directory(self, directory_name: str) -> None:
         """The :meth:`.IOClientProto.remove_directory` method implementation."""
-        path = pathlib.Path(self.session_path()) / directory_name
+        path = pathlib.PosixPath(self.session_path()) / directory_name
         path.rmdir()
 
     async def __copy(self, from_fo: typing.IO[bytes], to_fo: typing.IO[bytes]) -> None:
@@ -125,7 +125,7 @@ class LocalClient(VirtualDirectoryClient):
 
     async def remove_file(self, file_name: str) -> None:
         """The :meth:`.IOClientProto.remove_file` method implementation."""
-        path = pathlib.Path(self.session_path()) / file_name
+        path = pathlib.PosixPath(self.session_path()) / file_name
         path.unlink()
 
     async def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
@@ -136,5 +136,5 @@ class LocalClient(VirtualDirectoryClient):
 
     async def file_size(self, remote_file_name: str) -> int:
         """The :meth:`.IOClientProto.file_size` method implementation."""
-        path = pathlib.Path(self.session_path()) / remote_file_name
+        path = pathlib.PosixPath(self.session_path()) / remote_file_name
         return path.stat().st_size

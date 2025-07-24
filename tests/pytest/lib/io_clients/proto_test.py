@@ -78,5 +78,3 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
     assert(iscapable(client, IOClientProto.remove_file) is False)
     assert(iscapable(client, IOClientProto.receive_file) is False)
     assert(iscapable(client, IOClientProto.file_size) is False)
-
-    assert(client.directory_sep() == '/')
