@@ -21,6 +21,7 @@
 
 import io
 import functools
+import os
 import pathlib
 import typing
 
@@ -84,7 +85,7 @@ class _S3ClientSyncImplementation:
     @verify_value(object_path=lambda x: x.is_absolute())
     def __list_directory(self, object_path: pathlib.PosixPath):
         # NOTE: list_objects returns all objects with full paths
-        path = path_to_str(object_path.relative_to('/'))
+        path = path_to_str(object_path, relative_path=True)
         if path:
             path += '/'
 
@@ -92,7 +93,7 @@ class _S3ClientSyncImplementation:
 
     @verify_value(object_path=lambda x: x.is_absolute())
     def __get_entry(self, object_path: pathlib.PosixPath, dir_suffix: bool = False):
-        object_path = path_to_str(object_path.relative_to('/'))
+        object_path = path_to_str(object_path, relative_path=True)
         if not object_path:
             return None
 
@@ -131,7 +132,7 @@ class _S3ClientSyncImplementation:
                 raise FileExistsError(f'Object {path_to_str(new_dir_path)} already exists')
 
         self.__client.put_object(
-            self.__bucket_name, path_to_str(new_dir_path.relative_to('/')) + '/', io.BytesIO(b''), 0
+            self.__bucket_name, path_to_str(new_dir_path, relative_path=True) + '/', io.BytesIO(b''), 0
         )
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
@@ -143,10 +144,10 @@ class _S3ClientSyncImplementation:
         if entry is None:
             raise FileNotFoundError(f'There is no such directory {path_to_str(rm_dir_path)}')
 
-        errors = self.__client.remove_object(self.__bucket_name, path_to_str(rm_dir_path.relative_to('/')) + '/')
+        errors = self.__client.remove_object(self.__bucket_name, path_to_str(rm_dir_path, relative_path=True) + '/')
 
     def list_directory(self) -> typing.Tuple[str, ...]:
-        current_path_str = path_to_str(self.__vd_client.session_path().relative_to('/'))
+        current_path_str = path_to_str(self.__vd_client.session_path(), relative_path=True)
         if current_path_str == '.':
             current_path_str = ''
 
@@ -165,6 +166,60 @@ class _S3ClientSyncImplementation:
                     yield next_item.rstrip('/')
 
         return tuple(list_generator())
+
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
+        local_file_obj.seek(0)
+        data_length = local_file_obj.seek(0, os.SEEK_END)
+        local_file_obj.seek(0)
+
+        # TODO: check that there is a file already!
+
+        new_file_path = self.__vd_client.entry_path(remote_file_name)
+        self.__client.put_object(
+            self.__bucket_name, path_to_str(new_file_path, relative_path=True), local_file_obj, data_length
+        )
+
+    @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def remove_file(self, file_name: str) -> None:
+        rm_file_path = self.__vd_client.entry_path(file_name)
+
+        # TODO: check that "directory_name" is a FILE! NOT A DIRECTORY!
+        entry = self.__get_entry(rm_file_path)
+        if entry is None:
+            raise FileNotFoundError(f'There is no such file {path_to_str(rm_file_path)}')
+
+        errors = self.__client.remove_object(self.__bucket_name, path_to_str(rm_file_path, relative_path=True))
+
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
+        local_file_obj.seek(0)
+
+        file_path = self.__vd_client.entry_path(remote_file_name)
+
+        # TODO: check that we will download a file!
+
+        http_request = self.__client.get_object(
+            self.__bucket_name, path_to_str(file_path, relative_path=True)
+        )
+
+        data = http_request.read(1024)  # TODO: customizable batch size!
+        while data != b'':
+            local_file_obj.write(data)
+            data = http_request.read(1024)
+
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def file_size(self, remote_file_name: str) -> int:
+
+        file_path = self.__vd_client.entry_path(remote_file_name)
+
+        # TODO: check that file_path is a file
+
+        result = self.__client.stat_object(
+            self.__bucket_name, path_to_str(file_path, relative_path=True)
+        )
+
+        return result.size
 
 
 class S3Client(VirtualDirectoryClient):
@@ -185,10 +240,10 @@ class S3Client(VirtualDirectoryClient):
         self._wrap_capability(self.__i12n, 'list_directory')
         self._wrap_capability(self.__i12n, 'make_directory')
         self._wrap_capability(self.__i12n, 'remove_directory')
-        self._wrap_capability(self.__i12n, 'upload_file')  # TODO: implement!
-        self._wrap_capability(self.__i12n, 'remove_file')  # TODO: implement!
-        self._wrap_capability(self.__i12n, 'receive_file')  # TODO: implement!
-        self._wrap_capability(self.__i12n, 'file_size')  # TODO: implement!
+        self._wrap_capability(self.__i12n, 'upload_file')
+        self._wrap_capability(self.__i12n, 'remove_file')
+        self._wrap_capability(self.__i12n, 'receive_file')
+        self._wrap_capability(self.__i12n, 'file_size')
 
     def _wrap_capability(self, implementation, method_name):
         # TODO: to some basic class implementation?!

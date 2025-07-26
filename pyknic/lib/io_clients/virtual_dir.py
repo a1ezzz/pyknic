@@ -28,12 +28,12 @@ from pyknic.lib.uri import URI
 from pyknic.lib.io_clients.proto import IOClientProto
 
 
-def path_to_str(path: pathlib.PosixPath) -> str:
+@verify_value(path=lambda x: x.is_absolute())
+def path_to_str(path: pathlib.PosixPath, relative_path: bool = False) -> str:
     # TODO: test it and document!
-    if path.is_absolute():
+    if not relative_path:
         return os.path.abspath(path)  # TODO: Check whether it will work on Windows?!
 
-    path = pathlib.PosixPath('/') / path  # The '/' makes a path abstract
     return os.path.abspath(path).lstrip('/')
 
 
