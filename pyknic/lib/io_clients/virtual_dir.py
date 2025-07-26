@@ -19,12 +19,22 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import typing
+import os.path
 import pathlib
+import typing
 
 from pyknic.lib.verify import verify_value
 from pyknic.lib.uri import URI
 from pyknic.lib.io_clients.proto import IOClientProto
+
+
+def path_to_str(path: pathlib.PosixPath) -> str:
+    # TODO: test it and document!
+    if path.is_absolute():
+        return os.path.abspath(path)  # TODO: Check whether it will work on Windows?!
+
+    path = pathlib.PosixPath('/') / path  # The '/' makes a path abstract
+    return os.path.abspath(path).lstrip('/')
 
 
 class VirtualDirectoryClient(IOClientProto):
