@@ -181,7 +181,8 @@ class TestChainedTasksSource:
         source_thread.wait()
         source_thread.join()
 
-    def test_dependent_start(self, source_helper: SourceTestHelper) -> None:
+    @pytest.mark.parametrize("repeats", range(100))
+    def test_dependent_start(self, source_helper: SourceTestHelper, repeats: int) -> None:
         source = ChainedTasksSource(registry=source_helper.api_registry)
         source_thread = ThreadedTask(source)
         source_thread.start()

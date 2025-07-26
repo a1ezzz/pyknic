@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from pyknic.lib.capability import iscapable
-from pyknic.lib.tasks.proto import ScheduleRecordProto, TaskProto, ScheduledTaskPostponePolicy
+from pyknic.lib.tasks.proto import ScheduleRecordProto, TaskProto, ScheduledTaskPostponePolicy, NoSuchTaskError
 from pyknic.lib.tasks.scheduler.queue import SchedulerQueue
 from pyknic.lib.signals.proto import SignalSourceProto, Signal
 from pyknic.lib.signals.extra import BoundedCallback, SignalResender, CallbacksHolder
@@ -239,8 +239,12 @@ class SchedulerExecutor(SignalSource):
         has_tasks = self.__proxy.exec(self.__has_tasks, blocking=True)
         while has_tasks:
             for task in self.__thread_executor.tasks():
-                if not self.__thread_executor.wait_task(task, timeout=task_timeout):
-                    raise TimeoutError('Unable to wait for a task in a time')
+                try:
+                    if not self.__thread_executor.wait_task(task, timeout=task_timeout):
+                        raise TimeoutError('Unable to wait for a task in a time')
+                except NoSuchTaskError:
+                    # there may be a slight race condition between thread_executor.tasks() and wait_task calls
+                    pass
 
             self.__proxy.exec(self.__run_postponed_tasks, blocking=True)
             has_tasks = self.__proxy.exec(self.__has_tasks, blocking=True)

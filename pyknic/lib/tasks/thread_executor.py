@@ -132,11 +132,13 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
         with self.critical_context():
             if task in self.__running_threads:
                 raise TaskStartError('A task has been submitted already')
+
+            result.callback(ThreadedTask.thread_ready, self.__signal_resender)
+            if start_task:
+                result.start()
+
             self.__running_threads[task] = result
 
-        result.callback(ThreadedTask.thread_ready, self.__signal_resender)
-        if start_task:
-            result.start()
         return result
 
     def __release_slot(self) -> None:
