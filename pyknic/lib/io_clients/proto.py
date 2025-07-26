@@ -19,11 +19,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import pathlib
 import typing
 from abc import abstractmethod
 
 from pyknic.lib.capability import CapabilitiesHolder, capability
 from pyknic.lib.uri import URI
+
+from pyknic.lib.verify import verify_value
 
 
 class ClientConnectionError(Exception):
@@ -79,6 +82,7 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
+    @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def make_directory(self, directory_name: str) -> None:
         """Create directory. A directory is created in a current session directory. And a name must not
         contain a directory separator.
@@ -88,6 +92,7 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
+    @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def remove_directory(self, directory_name: str) -> None:
         """Remove directory. A directory is removed from a current session directory. And a name must not
         contain a directory separator.
@@ -97,6 +102,7 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         """Upload file. File will be uploaded to a current session directory. A name must not contain
         a directory separator
@@ -107,6 +113,7 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
+    @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def remove_file(self, file_name: str) -> None:
         """Remove file. File will be removed from a current session directory. A name must not contain
         a directory separator
@@ -116,6 +123,7 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         """Fetch/download a file. A remote file name must not contain a directory separator
 
@@ -125,6 +133,7 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def file_size(self, remote_file_name: str) -> int:
         """Return size of file in bytes.
 

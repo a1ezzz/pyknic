@@ -63,37 +63,39 @@ class LocalClient(VirtualDirectoryClient):
         self.__block_size = block_size if block_size is not None else 4096
 
         if uri.path is not None:
-            self.__change_directory(uri.path, False)
+            self.__change_directory(pathlib.PosixPath(uri.path))
 
     def current_directory(self) -> str:
         """The :meth:`.IOClientProto.current_directory` method implementation."""
-        return self.session_path()
+        return str(self.session_path())
 
-    def __change_directory(self, path: str, absolute_path: bool = True) -> str:
+    def __change_directory(self, path: pathlib.PosixPath) -> pathlib.PosixPath:
         """Change current session directory to the specified one
 
         :param path: new session directory
         """
-        self.session_path(pathlib.PosixPath(path), absolute_path=absolute_path)
-        path = self.session_path()  # forces absolute path
+        if not path.is_absolute():
+            path = self.session_path() / path
+
         if not pathlib.PosixPath(path).is_dir():
-            raise NotADirectoryError(f'No such directory: {path}')
-        return path
+            raise NotADirectoryError(f'No such directory: {str(path)}')
+        return self.session_path(pathlib.PosixPath(path))
 
     async def change_directory(self, path: str) -> str:
         """The :meth:`.IOClientProto.change_directory` method implementation."""
-        return self.__change_directory(path)
+        return str(self.__change_directory(pathlib.PosixPath(path)))
 
     async def list_directory(self) -> typing.Tuple[str, ...]:
         """The :meth:`.IOClientProto.list_directory` method implementation."""
-        path = pathlib.PosixPath(self.session_path())
-        return tuple(x.name for x in path.iterdir())
+        return tuple(x.name for x in self.session_path().iterdir())
 
+    @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def make_directory(self, directory_name: str) -> None:
         """The :meth:`.IOClientProto.make_directory` method implementation."""
         path = pathlib.PosixPath(self.session_path()) / directory_name
         path.mkdir(exist_ok=False, parents=False)
 
+    @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def remove_directory(self, directory_name: str) -> None:
         """The :meth:`.IOClientProto.remove_directory` method implementation."""
         path = pathlib.PosixPath(self.session_path()) / directory_name
@@ -117,24 +119,27 @@ class LocalClient(VirtualDirectoryClient):
             await asyncio.sleep(0)  # aio-loop should work too
             next_block = from_fo.read(self.__block_size)
 
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         """The :meth:`.IOClientProto.upload_file` method implementation."""
-        path = self.file_path(remote_file_name)
-        with open(path, mode='wb') as f_remote:
+        path = self.entry_path(remote_file_name)
+        with open(str(path), mode='wb') as f_remote:
             await self.__copy(local_file_obj, f_remote)
 
+    @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def remove_file(self, file_name: str) -> None:
         """The :meth:`.IOClientProto.remove_file` method implementation."""
-        path = pathlib.PosixPath(self.session_path()) / file_name
+        path = self.entry_path(file_name)
         path.unlink()
 
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         """The :meth:`.IOClientProto.receive_file` method implementation."""
-        path = self.file_path(remote_file_name)
+        path = str(self.entry_path(remote_file_name))
         with open(path, mode='rb') as f_remote:
             await self.__copy(f_remote, local_file_obj)
 
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def file_size(self, remote_file_name: str) -> int:
         """The :meth:`.IOClientProto.file_size` method implementation."""
-        path = pathlib.PosixPath(self.session_path()) / remote_file_name
-        return path.stat().st_size
+        return self.entry_path(remote_file_name).stat().st_size

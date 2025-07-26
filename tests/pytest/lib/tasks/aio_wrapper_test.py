@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
-import io
 import pytest
 import threading
 import typing
@@ -22,13 +21,14 @@ class TestAsyncWrapper:
 
         blocking_event = threading.Event()
         blocking_fn_result = object()
-        def blocking_fn():
-            nonlocal blocking_event, blocking_fn_result
+
+        def blocking_fn() -> object:
+            nonlocal blocking_event, blocking_fn_result  # noqa: F824
             blocking_event.wait()
             return blocking_fn_result
 
-        async def waiter_fn():
-            nonlocal blocking_event
+        async def waiter_fn() -> None:
+            nonlocal blocking_event  # noqa: F824
             await asyncio.sleep(0.5)
             blocking_event.set()
 
