@@ -68,33 +68,20 @@ class VirtualDirectoryClient(IOClientProto):
 
         return self.session_path()
 
-    def __to_str(self, path: pathlib.PosixPath, absolute_path: bool = True) -> str:
-        """Convert a path to a string.
-
-        :param path: a path to convert
-        """
-        result = str(path)
-        return result if absolute_path else result.lstrip('/')
-
-    def session_path(self, path: typing.Optional[pathlib.PosixPath] = None, absolute_path: bool = True) -> str:
+    @verify_value(path=lambda x: x is None or x.is_absolute())
+    def session_path(self, path: typing.Optional[pathlib.PosixPath] = None) -> pathlib.PosixPath:
         """Set and/or get current session path.
-        :param path: If defined then this path will be used as a current session path.
+        :param path: If defined then this path will be used as a current session path
         """
         if path is not None:
-            if absolute_path and not path.is_absolute():
-                raise ValueError(f'Invalid path -- {path}. It must be an absolute path.')
-            if not absolute_path:
-                if path.is_absolute():
-                    raise ValueError(f'Invalid path -- {path}. It must not be an absolute path.')
-                path = pathlib.PosixPath('/') / path
-
             self.__session_path = path
 
-        return self.__to_str(self.__session_path, absolute_path)
+        return self.__session_path
 
-    def file_path(self, file: str) -> str:
+    @verify_value(entry=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def entry_path(self, entry: str) -> pathlib.PosixPath:
         """Return path of a file that is stored inside a current session path.
 
-        :param file: file name
+        :param entry: inner file/directory name
         """
-        return self.__to_str(self.__session_path / file.lstrip('/'))
+        return self.__session_path / entry
