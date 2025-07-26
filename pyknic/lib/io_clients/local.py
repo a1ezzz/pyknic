@@ -36,31 +36,27 @@ class LocalClient(VirtualDirectoryClient):
     @classmethod
     def create_client(cls, uri: URI) -> 'LocalClient':
         """Basic client creation."""
-        client_kwargs = dict()
+        return cls(uri)  # type: ignore[no-any-return]
+
+    def __init__(self, uri: URI) -> None:
+        """Create a new client
+
+        :param uri: URI with which this client should be created. If uri has the "path" attribute, then this path
+        will be used as a start point
+        """
+
+        VirtualDirectoryClient.__init__(self, uri)
+
+        self.__block_size = 4096
 
         if uri.query:
             query = URIQuery.parse(uri.query)
 
             if 'block_size' in query:
-                client_kwargs['block_size'] = query.single_parameter('block_size', int)
-
-        return cls(uri, **client_kwargs)  # type: ignore[no-any-return]
-
-    @verify_value(block_size=lambda x: x is None or x >= 4096)  # min block size is 4K
-    def __init__(
-        self,
-        uri: URI,
-        block_size: typing.Optional[int] = None,
-    ) -> None:
-        """Create a new client
-
-        :param uri: URI with which this client should be created. If uri has the "path" attribute, then this path
-        will be used as a start point
-        :param block_size: number of bytes to copy at a time
-        """
-
-        VirtualDirectoryClient.__init__(self, uri)
-        self.__block_size = block_size if block_size is not None else 4096
+                block_size = query.single_parameter('block_size', int)
+                if block_size < 4096:
+                    raise ValueError(f'Block size must be greater than {4096} bytes, got {block_size}')
+                self.__block_size = block_size
 
         if uri.path is not None:
             self.__change_directory(pathlib.PosixPath(uri.path))

@@ -38,8 +38,6 @@ from pyknic.lib.tasks.aio_wrapper import AsyncWrapper
 
 class _S3ClientSyncImplementation:
 
-    # TODO: check result of .__client methods calls!
-
     @verify_value(uri=lambda x: x.hostname is not None)
     @verify_value(uri=lambda x: x.query is not None)
     def __init__(self, uri: URI, vd_client: VirtualDirectoryClient):
@@ -47,9 +45,16 @@ class _S3ClientSyncImplementation:
         self.__uri = uri
         self.__vd_client = vd_client
         self.__client = None
+        self.__block_size = 4096
 
         self.__uri_query = URIQuery.parse(self.__uri.query)
         self.__bucket_name = self.__uri_query.single_parameter('bucket_name', str)
+
+        if 'block_size' in self.__uri_query:
+            block_size = self.__uri_query.single_parameter('block_size', int)
+            if block_size < 4096:
+                raise ValueError(f'Block size must be greater than {4096} bytes, got {block_size}')
+            self.__block_size = block_size
 
     def connect(self):
 
@@ -69,41 +74,37 @@ class _S3ClientSyncImplementation:
             secret_key=self.__uri_query.single_parameter('secret_key', str),
         )
 
-        available_buckets = self.__client.list_buckets()
-        if self.__bucket_name not in available_buckets:
-            raise ClientConnectionError(
-                f'There is no such bucket "{self.__bucket_name}", buckets that are available:'
-            )
+        try:
+            available_buckets = self.__client.list_buckets()
+            if self.__bucket_name not in available_buckets:
+                raise ClientConnectionError(
+                    f'There is no such bucket "{self.__bucket_name}", buckets that are available:'
+                )
+        except minio.error.S3Error as e:
+            raise ClientConnectionError('Connection error') from e
 
         if self.__uri.path is not None:
             self.change_directory(self.__uri.path)
 
     def disconnect(self) -> None:
-        # TODO: check if there is ".close" method
+        # TODO: check if there is ".close" method or any others things that will close urllib3 connections
         self.__client = None
 
     @verify_value(object_path=lambda x: x.is_absolute())
-    def __list_directory(self, object_path: pathlib.PosixPath):
-        # NOTE: list_objects returns all objects with full paths
-        path = path_to_str(object_path, relative_path=True)
-        if path:
-            path += '/'
-
-        return self.__client.list_objects(self.__bucket_name, prefix=path)
-
-    @verify_value(object_path=lambda x: x.is_absolute())
-    def __get_entry(self, object_path: pathlib.PosixPath, dir_suffix: bool = False):
-        object_path = path_to_str(object_path, relative_path=True)
+    def __has_entry(self, object_path: pathlib.PosixPath, directory_entry: bool = True) -> bool:
+        object_path_str = path_to_str(object_path, relative_path=True)
         if not object_path:
-            return None
-
-        if dir_suffix:
-            object_path += '/'
+            return False
 
         try:
-            return self.__client.get_object(self.__bucket_name, object_path)
+            if directory_entry:
+                object_path_str += '/'
+            self.__client.stat_object(self.__bucket_name, object_path_str)
+            return True
         except minio.error.S3Error:
             pass
+
+        return False
 
     def change_directory(self, path: str) -> str:
         if path in ('.', ''):
@@ -115,9 +116,7 @@ class _S3ClientSyncImplementation:
             posix_path = posix_path.resolve(strict=False)
 
         if path_to_str(posix_path) != '/':
-            # TODO: check that "posix_path" is a directory! NOT A FILE!
-            entry = self.__get_entry(posix_path, True)
-            if entry is None:
+            if not self.__has_entry(posix_path, True):
                 raise NotADirectoryError(f'There is no such directory: {path}')
 
         return path_to_str(self.__vd_client.session_path(posix_path))
@@ -125,11 +124,9 @@ class _S3ClientSyncImplementation:
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def make_directory(self, directory_name: str) -> None:
         new_dir_path = self.__vd_client.entry_path(directory_name)
-        invalid_names = (directory_name, directory_name + '/')
 
-        for entry in (x.object_name for x in self.__list_directory(self.__vd_client.session_path())):
-            if entry in invalid_names:
-                raise FileExistsError(f'Object {path_to_str(new_dir_path)} already exists')
+        if self.__has_entry(new_dir_path, False) or self.__has_entry(new_dir_path, True):
+            raise FileExistsError(f'Object {path_to_str(new_dir_path)} already exists')
 
         self.__client.put_object(
             self.__bucket_name, path_to_str(new_dir_path, relative_path=True) + '/', io.BytesIO(b''), 0
@@ -139,12 +136,10 @@ class _S3ClientSyncImplementation:
     def remove_directory(self, directory_name: str) -> None:
         rm_dir_path = self.__vd_client.entry_path(directory_name)
 
-        # TODO: check that "directory_name" is a directory! NOT A FILE!
-        entry = self.__get_entry(rm_dir_path, True)
-        if entry is None:
+        if not self.__has_entry(rm_dir_path, True):
             raise FileNotFoundError(f'There is no such directory {path_to_str(rm_dir_path)}')
 
-        errors = self.__client.remove_object(self.__bucket_name, path_to_str(rm_dir_path, relative_path=True) + '/')
+        self.__client.remove_object(self.__bucket_name, path_to_str(rm_dir_path, relative_path=True) + '/')
 
     def list_directory(self) -> typing.Tuple[str, ...]:
         current_path_str = path_to_str(self.__vd_client.session_path(), relative_path=True)
@@ -155,8 +150,11 @@ class _S3ClientSyncImplementation:
             return x.object_name[len(current_path_str):].rstrip('/').lstrip('/')
 
         def list_generator():
+            path = path_to_str(self.__vd_client.session_path(), relative_path=True)
+            if path:
+                path += '/'
+            all_entries = self.__client.list_objects(self.__bucket_name, prefix=path)
 
-            all_entries = self.__list_directory(self.__vd_client.session_path())
             relative_names_entries = map(map_items, all_entries)
             filtered_entries = filter(lambda y: y != '', relative_names_entries)
 
@@ -173,9 +171,11 @@ class _S3ClientSyncImplementation:
         data_length = local_file_obj.seek(0, os.SEEK_END)
         local_file_obj.seek(0)
 
-        # TODO: check that there is a file already!
-
         new_file_path = self.__vd_client.entry_path(remote_file_name)
+
+        if self.__has_entry(new_file_path, False) or self.__has_entry(new_file_path, True):
+            raise FileExistsError(f'Object {path_to_str(new_file_path)} already exists')
+
         self.__client.put_object(
             self.__bucket_name, path_to_str(new_file_path, relative_path=True), local_file_obj, data_length
         )
@@ -184,12 +184,11 @@ class _S3ClientSyncImplementation:
     def remove_file(self, file_name: str) -> None:
         rm_file_path = self.__vd_client.entry_path(file_name)
 
-        # TODO: check that "directory_name" is a FILE! NOT A DIRECTORY!
-        entry = self.__get_entry(rm_file_path)
+        entry = self.__has_entry(rm_file_path, False)
         if entry is None:
             raise FileNotFoundError(f'There is no such file {path_to_str(rm_file_path)}')
 
-        errors = self.__client.remove_object(self.__bucket_name, path_to_str(rm_file_path, relative_path=True))
+        self.__client.remove_object(self.__bucket_name, path_to_str(rm_file_path, relative_path=True))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
@@ -197,23 +196,25 @@ class _S3ClientSyncImplementation:
 
         file_path = self.__vd_client.entry_path(remote_file_name)
 
-        # TODO: check that we will download a file!
+        if not self.__has_entry(file_path, False):
+            raise FileNotFoundError(f'There is no such file {path_to_str(file_path)}')
 
         http_request = self.__client.get_object(
             self.__bucket_name, path_to_str(file_path, relative_path=True)
         )
 
-        data = http_request.read(1024)  # TODO: customizable batch size!
+        data = http_request.read(self.__block_size)
         while data != b'':
             local_file_obj.write(data)
-            data = http_request.read(1024)
+            data = http_request.read(self.__block_size)
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def file_size(self, remote_file_name: str) -> int:
 
         file_path = self.__vd_client.entry_path(remote_file_name)
 
-        # TODO: check that file_path is a file
+        if not self.__has_entry(file_path, False):
+            raise FileNotFoundError(f'There is no such file {path_to_str(file_path)}')
 
         result = self.__client.stat_object(
             self.__bucket_name, path_to_str(file_path, relative_path=True)
