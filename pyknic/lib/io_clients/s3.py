@@ -26,6 +26,7 @@ import pathlib
 import typing
 
 import minio
+import minio.datatypes
 
 from pyknic.lib.uri import URI, URIQuery
 from pyknic.lib.io_clients.proto import ClientConnectionError, IOClientProto, DirectoryNotEmptyError
@@ -44,8 +45,11 @@ class _S3ClientSyncImplementation:
 
         self.__uri = uri
         self.__vd_client = vd_client
-        self.__client = None
+        self.__client: typing.Optional[minio.Minio] = None
         self.__block_size = 4096
+
+        if self.__uri.query is None:
+            raise ValueError('Query parameters for S3 Client must be provided')
 
         self.__uri_query = URIQuery.parse(self.__uri.query)
         self.__bucket_name = self.__uri_query.single_parameter('bucket_name', str)
@@ -56,7 +60,7 @@ class _S3ClientSyncImplementation:
                 raise ValueError(f'Block size must be greater than {4096} bytes, got {block_size}')
             self.__block_size = block_size
 
-    def connect(self):
+    def connect(self) -> None:
 
         connection_uri = URI(
             username=self.__uri.username,
@@ -102,6 +106,8 @@ class _S3ClientSyncImplementation:
 
     @verify_value(object_path=lambda x: x.is_absolute())
     def __has_entry(self, object_path: pathlib.PosixPath, directory_entry: bool = True) -> bool:
+        assert(self.__client is not None)
+
         object_path_str = path_to_str(object_path, relative_path=True)
         if not object_path:
             return False
@@ -133,6 +139,8 @@ class _S3ClientSyncImplementation:
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def make_directory(self, directory_name: str) -> None:
+        assert(self.__client is not None)
+
         new_dir_path = self.__vd_client.entry_path(directory_name)
 
         if self.__has_entry(new_dir_path, False) or self.__has_entry(new_dir_path, True):
@@ -144,6 +152,8 @@ class _S3ClientSyncImplementation:
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def remove_directory(self, directory_name: str) -> None:
+        assert(self.__client is not None)
+
         rm_dir_path = self.__vd_client.entry_path(directory_name)
 
         if not self.__has_entry(rm_dir_path, True):
@@ -155,15 +165,17 @@ class _S3ClientSyncImplementation:
         self.__client.remove_object(self.__bucket_name, path_to_str(rm_dir_path, relative_path=True) + '/')
 
     @verify_value(object_path=lambda x: x.is_absolute())
-    def __list_generator(self, path: pathlib.PosixPath):
-        request_path_str = path_to_str(path, relative_path=True)
+    def __list_generator(self, list_path: pathlib.PosixPath) -> typing.Generator[str, None, None]:
+        assert(self.__client is not None)
+
+        request_path_str = path_to_str(list_path, relative_path=True)
         if request_path_str == '.':
             request_path_str = ''
 
-        def map_items(x):
-            return x.object_name[len(request_path_str):].rstrip('/').lstrip('/')
+        def map_items(m: minio.datatypes.Object) -> str:
+            return m.object_name[len(request_path_str):].rstrip('/').lstrip('/')  # type: ignore[index]  # mypy issue
 
-        path = path_to_str(path, relative_path=True)
+        path = path_to_str(list_path, relative_path=True)
         if path:
             path += '/'
 
@@ -182,6 +194,8 @@ class _S3ClientSyncImplementation:
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
+        assert(self.__client is not None)
+
         local_file_obj.seek(0)
         data_length = local_file_obj.seek(0, os.SEEK_END)
         local_file_obj.seek(0)
@@ -192,11 +206,16 @@ class _S3ClientSyncImplementation:
             raise FileExistsError(f'Object {path_to_str(new_file_path)} already exists')
 
         self.__client.put_object(
-            self.__bucket_name, path_to_str(new_file_path, relative_path=True), local_file_obj, data_length
+            self.__bucket_name,
+            path_to_str(new_file_path, relative_path=True),
+            local_file_obj,  # type: ignore[arg-type]  # mypy issue
+            data_length
         )
 
     @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def remove_file(self, file_name: str) -> None:
+        assert(self.__client is not None)
+
         rm_file_path = self.__vd_client.entry_path(file_name)
 
         entry = self.__has_entry(rm_file_path, False)
@@ -207,8 +226,9 @@ class _S3ClientSyncImplementation:
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
-        local_file_obj.seek(0)
+        assert(self.__client is not None)
 
+        local_file_obj.seek(0)
         file_path = self.__vd_client.entry_path(remote_file_name)
 
         if not self.__has_entry(file_path, False):
@@ -225,16 +245,15 @@ class _S3ClientSyncImplementation:
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def file_size(self, remote_file_name: str) -> int:
+        assert(self.__client is not None)
 
         file_path = self.__vd_client.entry_path(remote_file_name)
 
         if not self.__has_entry(file_path, False):
             raise FileNotFoundError(f'There is no such file {path_to_str(file_path)}')
 
-        result = self.__client.stat_object(
-            self.__bucket_name, path_to_str(file_path, relative_path=True)
-        )
-
+        result = self.__client.stat_object(self.__bucket_name, path_to_str(file_path, relative_path=True))
+        assert(result.size is not None)
         return result.size
 
 
@@ -261,10 +280,10 @@ class S3Client(VirtualDirectoryClient):
         self._wrap_capability(self.__i12n, 'receive_file')
         self._wrap_capability(self.__i12n, 'file_size')
 
-    def _wrap_capability(self, implementation, method_name):
+    def _wrap_capability(self, implementation: object, method_name: str) -> None:
         # TODO: to some basic class implementation?!
 
-        async def wrapper_fn(*args, **kwargs) -> typing.Any:
+        async def wrapper_fn(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
             method_fn = getattr(implementation, method_name)
             caller = await AsyncWrapper.create(functools.partial(method_fn, *args, **kwargs))
             return await caller()

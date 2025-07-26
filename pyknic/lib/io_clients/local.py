@@ -33,11 +33,6 @@ from pyknic.lib.verify import verify_value
 class LocalClient(VirtualDirectoryClient):
     """Local files implementation of :class:`.IOClientProto`."""
 
-    @classmethod
-    def create_client(cls, uri: URI) -> 'LocalClient':
-        """Basic client creation."""
-        return cls(uri)  # type: ignore[no-any-return]
-
     def __init__(self, uri: URI) -> None:
         """Create a new client
 

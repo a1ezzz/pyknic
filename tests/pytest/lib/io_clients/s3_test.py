@@ -118,7 +118,7 @@ class TestS3Client:
         assert(test_dir not in await client.list_directory())
 
     @pyknic_async_test
-    async def test_file(self, module_event_loop: asyncio.AbstractEventLoop):
+    async def test_file(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
         client = S3Client(URI.parse(os.environ[S3ConnectionEnvVar]))
         await client.connect()
 
@@ -145,7 +145,7 @@ class TestS3Client:
         await client.remove_directory(test_dir)
 
     @pyknic_async_test
-    async def test_invalid_remove_dir(self, module_event_loop: asyncio.AbstractEventLoop):
+    async def test_invalid_remove_dir(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
         client = S3Client(URI.parse(os.environ[S3ConnectionEnvVar]))
         await client.connect()
 

@@ -40,7 +40,7 @@ class TestAsyncWrapper:
     @pyknic_async_test
     async def test_exception(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
 
-        def blocking_fn():
+        def blocking_fn() -> None:
             raise ValueError('!')
 
         caller = await AsyncWrapper.create(blocking_fn)

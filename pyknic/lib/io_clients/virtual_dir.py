@@ -68,7 +68,7 @@ class VirtualDirectoryClient(IOClientProto):
         """Create URI this client was constructed with."""
         return self.__uri
 
-    def join_path(self, *path: str) -> str:
+    def join_path(self, *path: str) -> pathlib.PosixPath:
         """Append current path with entries (directories) and return current path.
 
         :param path: path items to join

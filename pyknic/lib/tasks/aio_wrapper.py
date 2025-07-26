@@ -51,7 +51,7 @@ class AsyncWrapper:
         self.__watchdog = AsyncWatchDog(loop, self.__task, TaskProto.task_completed)
         self.__executor = thread_executor
 
-    async def __call__(self):
+    async def __call__(self) -> typing.Any:
         """Execute a task in asynchronous way."""
 
         if self.__executor is not None:
