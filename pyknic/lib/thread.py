@@ -90,7 +90,9 @@ def critical_section_dynamic_lock(
 
             raise CriticalSectionError('Unable to lock a critical section')
 
-        return decorator.decorator(second_level_decorator)(decorated_function)
+        return decorator.decorator(  # type: ignore[no-any-return, no-untyped-call]
+            second_level_decorator
+        )(decorated_function)
     return first_level_decorator
 
 

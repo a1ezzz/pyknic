@@ -319,7 +319,7 @@ class Config(_ConfigStorage):
             self.__merge(init_value)
 
         if file_obj is not None:
-            yaml_data = yaml.safe_load(file_obj)
+            yaml_data = yaml.safe_load(file_obj)  # type: ignore[no-untyped-call]
             if property_name is not None:
                 yaml_data = {property_name: yaml_data[property_name]}
 
