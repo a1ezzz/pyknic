@@ -34,6 +34,11 @@ class ClientConnectionError(Exception):
     pass
 
 
+class DirectoryNotEmptyError(Exception):
+    """An exception is raised when there is a request to delete a directory which has inner files."""
+    pass
+
+
 class IOClientProto(CapabilitiesHolder):
     """ Base class for network clients. This class implements :class:`.WSchemeHandler` to handle connections
     encoded as URI and :class:`.WCapabilitiesHolder` to use capabilities as different client requests

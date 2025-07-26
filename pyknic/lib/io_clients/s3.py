@@ -28,7 +28,7 @@ import typing
 import minio
 
 from pyknic.lib.uri import URI, URIQuery
-from pyknic.lib.io_clients.proto import ClientConnectionError, IOClientProto
+from pyknic.lib.io_clients.proto import ClientConnectionError, IOClientProto, DirectoryNotEmptyError
 from pyknic.lib.io_clients.virtual_dir import VirtualDirectoryClient, path_to_str
 from pyknic.lib.verify import verify_value
 from pyknic.lib.tasks.aio_wrapper import AsyncWrapper
@@ -91,6 +91,16 @@ class _S3ClientSyncImplementation:
         self.__client = None
 
     @verify_value(object_path=lambda x: x.is_absolute())
+    def __has_inner_objects(self, object_path: pathlib.PosixPath) -> bool:
+        try:
+            next(self.__list_generator(object_path))
+            return True
+        except StopIteration:
+            pass
+
+        return False
+
+    @verify_value(object_path=lambda x: x.is_absolute())
     def __has_entry(self, object_path: pathlib.PosixPath, directory_entry: bool = True) -> bool:
         object_path_str = path_to_str(object_path, relative_path=True)
         if not object_path:
@@ -139,31 +149,36 @@ class _S3ClientSyncImplementation:
         if not self.__has_entry(rm_dir_path, True):
             raise FileNotFoundError(f'There is no such directory {path_to_str(rm_dir_path)}')
 
+        if self.__has_inner_objects(rm_dir_path):
+            raise DirectoryNotEmptyError(f'There is inner object(s) inside a directory {rm_dir_path}')
+
         self.__client.remove_object(self.__bucket_name, path_to_str(rm_dir_path, relative_path=True) + '/')
 
-    def list_directory(self) -> typing.Tuple[str, ...]:
-        current_path_str = path_to_str(self.__vd_client.session_path(), relative_path=True)
-        if current_path_str == '.':
-            current_path_str = ''
+    @verify_value(object_path=lambda x: x.is_absolute())
+    def __list_generator(self, path: pathlib.PosixPath):
+        request_path_str = path_to_str(path, relative_path=True)
+        if request_path_str == '.':
+            request_path_str = ''
 
         def map_items(x):
-            return x.object_name[len(current_path_str):].rstrip('/').lstrip('/')
+            return x.object_name[len(request_path_str):].rstrip('/').lstrip('/')
 
-        def list_generator():
-            path = path_to_str(self.__vd_client.session_path(), relative_path=True)
-            if path:
-                path += '/'
-            all_entries = self.__client.list_objects(self.__bucket_name, prefix=path)
+        path = path_to_str(path, relative_path=True)
+        if path:
+            path += '/'
 
-            relative_names_entries = map(map_items, all_entries)
-            filtered_entries = filter(lambda y: y != '', relative_names_entries)
+        all_entries = self.__client.list_objects(self.__bucket_name, prefix=path)
 
-            for x in filtered_entries:
-                next_item = pathlib.PosixPath(x).parts[-1].rstrip('/')
-                if next_item != current_path_str:
-                    yield next_item.rstrip('/')
+        relative_names_entries = map(map_items, all_entries)
+        filtered_entries = filter(lambda y: y != '', relative_names_entries)
 
-        return tuple(list_generator())
+        for x in filtered_entries:
+            next_item = pathlib.PosixPath(x).parts[-1].rstrip('/')
+            if next_item != request_path_str:
+                yield next_item.rstrip('/')
+
+    def list_directory(self) -> typing.Tuple[str, ...]:
+        return tuple(self.__list_generator(self.__vd_client.session_path()))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
