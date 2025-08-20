@@ -19,6 +19,7 @@ from fixtures.asyncio import pyknic_async_test
 S3ConnectionEnvVar = "S3_TEST_URI"
 
 
+# TODO: make it to run on concourse!
 @pytest.mark.skipif(
     S3ConnectionEnvVar not in os.environ or os.environ[S3ConnectionEnvVar] == "",
     reason=f"Setup S3 connection URL with {S3ConnectionEnvVar} env var",
