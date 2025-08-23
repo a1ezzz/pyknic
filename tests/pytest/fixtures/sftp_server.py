@@ -36,12 +36,12 @@ class SSHServer(paramiko.server.ServerInterface):
     def check_channel_pty_request(
         self,
         channel: paramiko.Channel,
-        term: str,
+        term: bytes,
         width: int,
         height: int,
         pixelwidth: int,
         pixelheight: int,
-        modes: str
+        modes: bytes
     ) -> bool:
         return True
 
@@ -54,7 +54,7 @@ class SFTPFileHandler(paramiko.sftp_handle.SFTPHandle):
 
     @log_exceptions
     def __init__(self, real_path: pathlib.Path, flags: int, force_open: bool = True):
-        paramiko.sftp_handle.SFTPHandle.__init__(self, flags)  # type: ignore[no-untyped-call]
+        paramiko.sftp_handle.SFTPHandle.__init__(self, flags)
         self.__real_path = real_path
         self.__flags = flags
         self.__file_int = 0
@@ -83,9 +83,9 @@ class SFTPFileHandler(paramiko.sftp_handle.SFTPHandle):
 
     @log_exceptions
     def stat(self) -> paramiko.SFTPAttributes:
-        attr = paramiko.SFTPAttributes.from_stat(self.__real_path.stat())  # type: ignore[no-untyped-call]
+        attr = paramiko.SFTPAttributes.from_stat(self.__real_path.stat())
         attr.filename = self.__real_path.parts[-1]
-        return attr  # type: ignore[no-any-return]
+        return attr
 
     @log_exceptions
     def write(self, offset: int, data: bytes) -> int:
@@ -103,11 +103,11 @@ class SFTPHandler(paramiko.SFTPServerInterface):
 
     @log_exceptions
     def __init__(self, server_obj: SSHServer, base_directory: str, *args: typing.Any, **kwargs: typing.Any) -> None:
-        paramiko.SFTPServerInterface.__init__(self, server_obj, *args, **kwargs)  # type: ignore[no-untyped-call]
+        paramiko.SFTPServerInterface.__init__(self, server_obj, *args, **kwargs)
         self.__base_directory = pathlib.Path(base_directory)
 
     def __real_path(self, path: str) -> pathlib.Path:
-        canon_path = pathlib.Path(self.canonicalize(path)).relative_to('/')  # type: ignore[no-untyped-call]
+        canon_path = pathlib.Path(self.canonicalize(path)).relative_to('/')
         return self.__base_directory / canon_path
 
     @log_exceptions
@@ -115,7 +115,7 @@ class SFTPHandler(paramiko.SFTPServerInterface):
         try:
             return [SFTPFileHandler(x, 0, force_open=False).stat() for x in self.__real_path(path).iterdir()]
         except OSError as e:
-            return paramiko.SFTPServer.convert_errno(e.errno)  # type: ignore[no-untyped-call, no-any-return]
+            return paramiko.SFTPServer.convert_errno(e.errno)  # type: ignore[arg-type]
 
     @log_exceptions
     def lstat(self, path: str) -> typing.Union[paramiko.sftp_handle.SFTPHandle, int]:
@@ -133,7 +133,7 @@ class SFTPHandler(paramiko.SFTPServerInterface):
             self.__real_path(path).mkdir()
             return paramiko.sftp.SFTP_OK
         except OSError as e:
-            return paramiko.SFTPServer.convert_errno(e.errno)  # type: ignore[no-untyped-call, no-any-return]
+            return paramiko.SFTPServer.convert_errno(e.errno)  # type: ignore[arg-type]
 
     @log_exceptions
     def rmdir(self, path: str) -> int:
@@ -170,15 +170,15 @@ class SFTPTransportTask(TaskProto, CriticalResource):
     def start(self) -> None:
 
         with self.critical_context():
-            self.__transport = paramiko.Transport(self.received_socket)  # type: ignore[no-untyped-call]
-            self.__transport.add_server_key(self.server_key)  # type: ignore[no-untyped-call]
-            self.__transport.set_subsystem_handler(  # type: ignore[no-untyped-call]
+            self.__transport = paramiko.Transport(self.received_socket)
+            self.__transport.add_server_key(self.server_key)
+            self.__transport.set_subsystem_handler(
                 'sftp', paramiko.SFTPServer, SFTPHandler, self.base_dir
             )
 
-            self.__transport.start_server(server=self.server)  # type: ignore[no-untyped-call]
+            self.__transport.start_server(server=self.server)
 
-            chan: typing.Optional[paramiko.channel.Channel] = self.__transport.accept()  # type: ignore[no-untyped-call]
+            chan: typing.Optional[paramiko.channel.Channel] = self.__transport.accept()
             if not chan:
                 raise RuntimeError("Failed to create SFTP channel")
 
@@ -189,7 +189,7 @@ class SFTPTransportTask(TaskProto, CriticalResource):
     def stop(self) -> None:
         with self.critical_context():
             if self.__transport:
-                self.__transport.close()  # type: ignore[no-untyped-call]
+                self.__transport.close()
 
 
 class SFTPServerTask(TaskProto, CriticalResource):
@@ -221,7 +221,7 @@ class SFTPServerTask(TaskProto, CriticalResource):
         self.raw_socket.listen()
 
         self.paramiko_server = SSHServer()
-        self.paramiko_server_key = paramiko.RSAKey.generate(bits=1024)  # type: ignore[no-untyped-call]
+        self.paramiko_server_key = paramiko.RSAKey.generate(bits=1024)
 
         self.init_event.set()
 

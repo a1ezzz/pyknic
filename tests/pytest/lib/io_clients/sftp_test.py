@@ -67,9 +67,7 @@ class TestS3Client:
         uri = URI.parse(self.client_uri)
         uri.password = None
 
-        pk = paramiko.RSAKey.generate(  # type: ignore[no-untyped-call]
-            1024
-        )  # no need to be secure
+        pk = paramiko.RSAKey.generate(1024)  # no need to be secure
         pk_file = tmp_path / 'user.key'
         pk.write_private_key_file(str(pk_file))
 

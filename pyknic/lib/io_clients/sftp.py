@@ -72,24 +72,24 @@ class _SFTPSyncImplementation:
         """Synchronous implementation of the `.IOClientProto.connect` method
         """
 
+        assert(self.__uri.hostname is not None)
+
         try:
-            self.__ssh_client = paramiko.SSHClient()  # type: ignore[no-untyped-call]
+            self.__ssh_client = paramiko.SSHClient()
 
             if self.__host_key_auto_add:
-                self.__ssh_client.set_missing_host_key_policy(  # type: ignore[no-untyped-call]
-                    paramiko.AutoAddPolicy()
-                )
+                self.__ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-            self.__ssh_client.connect(  # type: ignore[no-untyped-call]
+            self.__ssh_client.connect(
                 hostname=self.__uri.hostname,
-                port=self.__uri.port,
+                port=(self.__uri.port if self.__uri.port is not None else 22),
                 username=self.__uri.username,
                 password=self.__uri.password,
                 key_filename=self.__private_key_file,
                 allow_agent=self.__ssh_agent
             )
 
-            self.__sftp_client = self.__ssh_client.open_sftp()  # type: ignore[no-untyped-call]
+            self.__sftp_client = self.__ssh_client.open_sftp()
 
             if self.__uri.path is not None:
                 self.change_directory(self.__uri.path)
@@ -101,11 +101,11 @@ class _SFTPSyncImplementation:
         """Synchronous implementation of the `.IOClientProto.disconnect` method
         """
         if self.__sftp_client:
-            self.__sftp_client.close()  # type: ignore[no-untyped-call]
+            self.__sftp_client.close()
             self.__sftp_client = None
 
         if self.__ssh_client:
-            self.__ssh_client.close()  # type: ignore[no-untyped-call]
+            self.__ssh_client.close()
             self.__ssh_client = None
 
     def change_directory(self, path: str) -> str:
@@ -121,9 +121,9 @@ class _SFTPSyncImplementation:
             posix_path = self.__vd_client.session_path() / posix_path
 
         try:
-            self.__sftp_client.chdir(path_to_str(posix_path))  # type: ignore[no-untyped-call]
+            self.__sftp_client.chdir(path_to_str(posix_path))
         finally:
-            self.__sftp_client.chdir('/')  # type: ignore[no-untyped-call]
+            self.__sftp_client.chdir('/')
 
         normalized_path = pathlib.PosixPath(path_to_str(posix_path))
         return path_to_str(self.__vd_client.session_path(normalized_path))
@@ -134,7 +134,7 @@ class _SFTPSyncImplementation:
         """
         assert(self.__sftp_client is not None)
         new_dir_path = self.__vd_client.entry_path(directory_name)
-        self.__sftp_client.mkdir(str(new_dir_path))  # type: ignore[no-untyped-call]
+        self.__sftp_client.mkdir(str(new_dir_path))
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def remove_directory(self, directory_name: str) -> None:
@@ -142,7 +142,7 @@ class _SFTPSyncImplementation:
         """
         assert(self.__sftp_client is not None)
         rm_dir_path = self.__vd_client.entry_path(directory_name)
-        self.__sftp_client.rmdir(str(rm_dir_path))  # type: ignore[no-untyped-call]
+        self.__sftp_client.rmdir(str(rm_dir_path))
 
     def list_directory(self) -> typing.Tuple[str, ...]:
         """Synchronous implementation of the `.IOClientProto.list_directory` method
@@ -150,7 +150,7 @@ class _SFTPSyncImplementation:
         assert(self.__sftp_client is not None)
 
         dir_to_list = path_to_str(self.__vd_client.session_path())
-        return tuple(self.__sftp_client.listdir(dir_to_list))  # type: ignore[no-untyped-call]
+        return tuple(self.__sftp_client.listdir(dir_to_list))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
@@ -163,9 +163,7 @@ class _SFTPSyncImplementation:
         local_file_obj.seek(0)
 
         new_file_path = self.__vd_client.entry_path(remote_file_name)
-        self.__sftp_client.putfo(  # type: ignore[no-untyped-call]
-            local_file_obj, str(new_file_path), file_size=data_length
-        )
+        self.__sftp_client.putfo(local_file_obj, str(new_file_path), file_size=data_length)
 
     @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def remove_file(self, file_name: str) -> None:
@@ -173,7 +171,7 @@ class _SFTPSyncImplementation:
         """
         assert(self.__sftp_client is not None)
         rm_file_path = self.__vd_client.entry_path(file_name)
-        self.__sftp_client.remove(str(rm_file_path))  # type: ignore[no-untyped-call]
+        self.__sftp_client.remove(str(rm_file_path))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
@@ -185,7 +183,7 @@ class _SFTPSyncImplementation:
         local_file_obj.truncate()
         file_path = self.__vd_client.entry_path(remote_file_name)
 
-        self.__sftp_client.getfo(str(file_path), local_file_obj)  # type: ignore[no-untyped-call]
+        self.__sftp_client.getfo(str(file_path), local_file_obj)
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def file_size(self, remote_file_name: str) -> int:
@@ -194,8 +192,12 @@ class _SFTPSyncImplementation:
         assert(self.__sftp_client is not None)
 
         file_path = self.__vd_client.entry_path(remote_file_name)
-        stat = self.__sftp_client.stat(str(file_path))  # type: ignore[no-untyped-call]
-        return stat.st_size  # type: ignore[no-any-return]
+        stat = self.__sftp_client.stat(str(file_path))
+
+        if stat.st_size is not None:
+            return stat.st_size
+
+        raise IOError('File size not available')
 
 
 @register_api(__default_io_clients_registry__, "sftp")
