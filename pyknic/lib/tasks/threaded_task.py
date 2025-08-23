@@ -19,12 +19,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import asyncio
 import threading
 import traceback
 import typing
 
 from pyknic.lib.log import Logger
 from pyknic.lib.capability import iscapable
+from pyknic.lib.signals.extra import AsyncWatchDog
 from pyknic.lib.signals.proto import Signal
 from pyknic.lib.tasks.proto import TaskProto, TaskResult, TaskStartError
 from pyknic.lib.tasks.plain_task import PlainTask
@@ -140,6 +142,16 @@ class ThreadedTask(TaskProto, CriticalResource):
 
         self.join()
 
+    async def start_async(self) -> None:
+        """Start the thread and wait to finish in asyncio-way
+        """
+
+        watchdog = AsyncWatchDog(asyncio.get_event_loop(), self, ThreadedTask.thread_ready)
+        self.start()
+        await watchdog.wait()
+        self.wait()  # force thread to join since callback may be received earlier
+        self.join()
+
     @staticmethod
     def plain_task(
         fn: typing.Callable[[], typing.Any], cr_timeout: typing.Union[int, float, None] = None
@@ -151,6 +163,6 @@ class ThreadedTask(TaskProto, CriticalResource):
     def __del__(self) -> None:
         """ Finalize this object and check that thread was joined
         """
-        # TODO: create a test for this (straightforward implementation didn't work)
+        # TODO: create a test for this (straightforward test implementation didn't work)
         if self.__thread:
             raise RuntimeError(f"A thread wasn't awaited (the task -- {self.__task_id()})")

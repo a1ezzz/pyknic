@@ -100,4 +100,4 @@ def pyknic_async_test(decorated_coroutine: typing.Callable[..., typing.Any]) -> 
 
         return loop.loop.run_until_complete(asynced_fn())
 
-    return decorator(ordinary_fn)(decorated_coroutine)
+    return decorator(ordinary_fn)(decorated_coroutine)  # type: ignore[no-any-return, no-untyped-call]

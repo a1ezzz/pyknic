@@ -253,6 +253,13 @@ class TaskExecutorProto(metaclass=ABCMeta):
         """
         raise NotImplementedError('This method is abstract')
 
+    async def start_async(self, task: TaskProto) -> None:
+        """Start a task and wait for a task to complete in async-way
+
+        :param task: a task to start and wait
+        """
+        raise NotImplementedError('This method is abstract')
+
     @abstractmethod
     def tasks(self) -> typing.Generator[TaskProto, None, None]:
         """ Return generator that yields currently running tasks

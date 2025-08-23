@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
 import gc
 import pytest
 import typing
@@ -11,7 +12,9 @@ if typing.TYPE_CHECKING:
 from pyknic.lib.signals.proto import SignalSourceProto, Signal, SignalCallbackType
 from pyknic.lib.signals.source import SignalSource
 from pyknic.lib.signals.extra import BoundedCallback, CallbackWrapper, SignalResender, CallbacksHolder
-from pyknic.lib.signals.extra import CustomizedCallback, SignalWaiter
+from pyknic.lib.signals.extra import CustomizedCallback, SignalWaiter, AsyncWatchDog, ReceivedSignal
+
+from fixtures.asyncio import pyknic_async_test
 
 
 class TestBoundedCallback:
@@ -345,7 +348,7 @@ class TestSignalWaiter:
         assert(waiter.wait() is None)
 
         source.emit(Source.signal, 5)
-        assert(waiter.wait() == SignalWaiter.ReceivedInfo(source, Source.signal, 5))
+        assert(waiter.wait() == ReceivedSignal(source, Source.signal, 5))
 
     def test_context(self) -> None:
 
@@ -381,3 +384,75 @@ class TestSignalWaiter:
             with SignalWaiter(source1, Source.signal1, timeout=0.1) as w:
                 source2.callback(Source.signal2, w)
                 source1.emit(Source.signal2)  # will fail
+
+
+class TestAsyncWatchDog:
+
+    @pyknic_async_test
+    async def test(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
+
+        class Source(SignalSource):
+            signal1 = Signal(int)
+
+        source1 = Source()
+
+        async def emit_signal() -> None:
+            await asyncio.sleep(0.1)
+            source1.emit(Source.signal1, 10)
+
+        watchdog = AsyncWatchDog(asyncio.get_event_loop(), source1, Source.signal1)
+
+        watchdog_future, _ = await asyncio.gather(watchdog.wait(10), emit_signal())
+        assert(watchdog_future.done() is True)
+        assert(isinstance(watchdog_future.result(), ReceivedSignal) is True)
+        assert(watchdog_future.result().source is source1)
+        assert(watchdog_future.result().signal is Source.signal1)
+        assert(watchdog_future.result().value == 10)
+
+        # test that second trigger doesn't change result
+        source1.emit(Source.signal1, 20)
+        assert((await watchdog.watchdog_future()).result().value == 10)
+
+    @pyknic_async_test
+    async def test_wait_wo_result(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
+
+        class Source(SignalSource):
+            signal1 = Signal(int)
+
+        source1 = Source()
+        watchdog = AsyncWatchDog(asyncio.get_event_loop(), source1, Source.signal1)
+        watchdog_future = await watchdog.wait(0.5)
+        assert(watchdog_future.done() is False)
+        watchdog_future = await watchdog.wait(0.5)
+        assert(watchdog_future.done() is False)
+
+    @pyknic_async_test
+    async def test_wait_before_watchdog(
+        self, module_event_loop: asyncio.AbstractEventLoop
+    ) -> None:
+
+        class Source(SignalSource):
+            signal1 = Signal(int)
+
+        source1 = Source()
+        watchdog = AsyncWatchDog(asyncio.get_event_loop(), source1, Source.signal1)
+        source1.emit(Source.signal1, 10)
+
+        watchdog_future = await watchdog.wait()
+        assert(watchdog_future.done() is True)
+        assert(watchdog_future.result().source is source1)
+        assert(watchdog_future.result().signal is Source.signal1)
+        assert(watchdog_future.result().value == 10)
+
+    def test_exception(self) -> None:
+        class Source(SignalSource):
+            signal1 = Signal(int)
+
+        source1 = Source()
+
+        loop1 = asyncio.new_event_loop()
+        loop2 = asyncio.new_event_loop()
+
+        watchdog = AsyncWatchDog(loop1, source1, Source.signal1)
+        with pytest.raises(RuntimeError):
+            loop2.run_until_complete(watchdog.watchdog_future())

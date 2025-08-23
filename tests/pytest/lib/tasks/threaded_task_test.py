@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
 import functools
 import pytest
 import threading
@@ -13,6 +14,8 @@ if typing.TYPE_CHECKING:
 from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.tasks.proto import TaskProto, TaskResult, TaskStartError
 from pyknic.lib.tasks.threaded_task import ThreadedTask
+
+from fixtures.asyncio import pyknic_async_test
 
 
 def sample_function(event: threading.Event, start_event: typing.Optional[threading.Event] = None) -> threading.Event:
@@ -37,6 +40,34 @@ class TestThreadTask:
         task.start()
         event.set()
         task.wait(100)
+
+    @pytest.mark.parametrize("repeats", range(100))
+    @pyknic_async_test
+    async def test_start_async(self, repeats: int, module_event_loop: asyncio.AbstractEventLoop) -> None:
+        event = threading.Event()
+        task = ThreadedTask.plain_task(functools.partial(sample_function, event))
+
+        test_result = 0
+
+        async def async_fn() -> None:
+            nonlocal test_result
+            for i in range(10):
+                test_result += 1
+                await asyncio.sleep(0)
+
+        async_test_task = asyncio.create_task(async_fn())
+        async_start_task = asyncio.create_task(task.start_async())
+        done, pending = await asyncio.wait((async_test_task, async_start_task), return_when=asyncio.FIRST_COMPLETED)
+
+        assert(async_test_task in done)
+        assert(async_start_task in pending)
+
+        assert(test_result == 10)
+        assert(task.join() is False)
+        event.set()
+
+        await async_start_task
+        assert(task.join() is True)
 
     def test_join(self) -> None:
         start_event = threading.Event()

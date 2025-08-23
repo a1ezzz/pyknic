@@ -106,7 +106,9 @@ class AsyncFastAPIFixture(BaseAsyncFixture):
 
                 return original_function(*args, **kwargs)
 
-            return decorator.decorator(second_level_decorator)(decorated_function)
+            return decorator.decorator(  # type: ignore[no-any-return, no-untyped-call]
+                second_level_decorator
+            )(decorated_function)
         return first_level_decorator
 
 

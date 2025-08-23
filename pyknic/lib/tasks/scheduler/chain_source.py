@@ -36,7 +36,7 @@ from pyknic.lib.datalog.datalog import Datalog
 from pyknic.lib.registry import APIRegistryProto, APIRegistry
 from pyknic.lib.signals.proto import SignalSourceProto, Signal
 from pyknic.lib.signals.proxy import QueueProxy, QueueCallbackException
-from pyknic.lib.signals.extra import SignalWaiter, BoundedCallback
+from pyknic.lib.signals.extra import SignalWaiter, BoundedCallback, ReceivedSignal
 from pyknic.lib.tasks.proto import ScheduleSourceProto, TaskProto, TaskResult, ScheduledTaskPostponePolicy
 from pyknic.lib.tasks.proto import ScheduleRecordProto
 from pyknic.lib.tasks.proto import SchedulerFeedback, SchedulerProto
@@ -268,7 +268,7 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
         for i in execution_row:
             self.__exec(i)
 
-    def __wait_response(self, record: ScheduleRecordProto) -> typing.Optional[SignalWaiter.ReceivedInfo]:
+    def __wait_response(self, record: ScheduleRecordProto) -> typing.Optional[ReceivedSignal]:
         """ Start a record and wait for execution result. Result is a signal that has been received for a started
         task. It is one of:
           - SchedulerProto.scheduled_task_started

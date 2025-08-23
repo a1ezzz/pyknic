@@ -32,7 +32,7 @@ class TestCapabilitiesHolderMeta:
         def decorator_fn(f: typing.Any, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
             return f(*args, **kwargs)
 
-        return decorator(decorator_fn)(f)
+        return decorator(decorator_fn)(f)  # type: ignore[no-any-return, no-untyped-call]
 
     def test(self) -> None:
 

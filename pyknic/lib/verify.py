@@ -248,7 +248,7 @@ class Verifier:
                 self._kwargs_checks_test(original_function, kwargs_checks, kwargs, arg_specs)
 
                 return original_function(*args, **kwargs)
-            return decorator(second_level_decorator)(decorated_function)
+            return decorator(second_level_decorator)(decorated_function)  # type: ignore[no-any-return, no-untyped-call]
         return first_level_decorator
 
     def help_info(

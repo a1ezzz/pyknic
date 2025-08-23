@@ -42,6 +42,7 @@ class NoFreeSlotError(Exception):
 class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
     """ The :class:`.TaskExecutorProto` class implementation, that executes tasks in dedicated threads
     """
+    # TODO: do not start thread every time but reuse them
 
     task_completed = Signal(TaskProto)  # this signal is emitted when a task is about to complete
 
@@ -52,7 +53,7 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
         def __init__(
             self,
             executor: 'ThreadExecutor',
-            submit_fn: typing.Callable[[TaskProto], ThreadedTask],
+            submit_fn: typing.Callable[[TaskProto, bool], ThreadedTask],
             release_fn: typing.Callable[[], None]
         ):
             """ Prepare a context
@@ -82,15 +83,16 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
             if not self.__task_submitted:
                 self.__release_fn()
 
-        def submit_task(self, task: TaskProto) -> ThreadedTask:
+        def submit_task(self, task: TaskProto, start_task: bool = True) -> ThreadedTask:
             """ Try to submit a task
 
             :param task: a task to start
+            :param start_task: whether to start a task immediately
             """
             if self.__task_submitted:
                 raise TaskStartError('This context is used already')
 
-            result = self.__submit_fn(task)
+            result = self.__submit_fn(task, start_task)
             self.__task_submitted = True
             return result
 
@@ -119,7 +121,7 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
 
         self.__signal_resender = SignalResender(self, target_signal=ThreadExecutor.task_completed)
 
-    def __submit_task(self, task: TaskProto) -> ThreadedTask:
+    def __submit_task(self, task: TaskProto, start_task: bool = True) -> ThreadedTask:
         """ Try to start a task
 
         :param task: a task to start
@@ -130,10 +132,13 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
         with self.critical_context():
             if task in self.__running_threads:
                 raise TaskStartError('A task has been submitted already')
+
+            result.callback(ThreadedTask.thread_ready, self.__signal_resender)
+            if start_task:
+                result.start()
+
             self.__running_threads[task] = result
 
-        result.callback(ThreadedTask.thread_ready, self.__signal_resender)
-        result.start()
         return result
 
     def __release_slot(self) -> None:
@@ -202,3 +207,11 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
             threaded_task.wait(timeout=timeout)
 
         return threaded_task.join()  # type: ignore[no-any-return]  # mypy and decorator's issue
+
+    async def start_async(self, task: TaskProto) -> None:
+        """ The :meth:`.TaskExecutorProto.start_async` implementation
+        """
+
+        with self.executor_context() as c:
+            threaded_task = c.submit_task(task, start_task=False)
+            await threaded_task.start_async()
