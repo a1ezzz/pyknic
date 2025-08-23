@@ -27,9 +27,11 @@ import typing
 import minio
 import minio.datatypes
 
+from pyknic.lib.registry import register_api
 from pyknic.lib.uri import URI, URIQuery
 from pyknic.lib.io_clients.proto import DirectoryNotEmptyError
 from pyknic.lib.io_clients.virtual_dir import VirtualDirectoryClient, path_to_str
+from pyknic.lib.io_clients.collection import __default_io_clients_registry__
 from pyknic.lib.verify import verify_value
 
 # TODO: register client with registry!
@@ -67,7 +69,7 @@ class _S3ClientSyncImplementation:
             port=self.__uri.port,
         )
 
-        secure = self.__uri.scheme != 'http'
+        secure = self.__uri.scheme != 's3'
 
         self.__client = minio.Minio(
             str(connection_uri),
@@ -257,6 +259,8 @@ class _S3ClientSyncImplementation:
         return result.size
 
 
+@register_api(__default_io_clients_registry__, "s3s")
+@register_api(__default_io_clients_registry__, "s3")
 class S3Client(VirtualDirectoryClient):
 
     def __init__(self, uri: URI) -> None:

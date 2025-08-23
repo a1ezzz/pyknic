@@ -25,11 +25,11 @@ import typing
 
 import paramiko
 
+from pyknic.lib.registry import register_api
 from pyknic.lib.uri import URI, URIQuery
 from pyknic.lib.io_clients.virtual_dir import VirtualDirectoryClient, path_to_str
+from pyknic.lib.io_clients.collection import __default_io_clients_registry__
 from pyknic.lib.verify import verify_value
-
-# TODO: register client with registry!
 
 
 class _SFTPSyncImplementation:
@@ -198,6 +198,7 @@ class _SFTPSyncImplementation:
         return stat.st_size  # type: ignore[no-any-return]
 
 
+@register_api(__default_io_clients_registry__, "sftp")
 class SFTPClient(VirtualDirectoryClient):
     """This is an asynced SFTP client.
     """

@@ -23,13 +23,14 @@ import asyncio
 import pathlib
 import typing
 
+from pyknic.lib.registry import register_api
 from pyknic.lib.uri import URI, URIQuery
 from pyknic.lib.io_clients.virtual_dir import VirtualDirectoryClient
+from pyknic.lib.io_clients.collection import __default_io_clients_registry__
 from pyknic.lib.verify import verify_value
 
-# TODO: register client with registry!
 
-
+@register_api(__default_io_clients_registry__, "file")
 class LocalClient(VirtualDirectoryClient):
     """Local files implementation of :class:`.IOClientProto`."""
 
