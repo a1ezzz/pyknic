@@ -24,6 +24,9 @@ class SSHServer(paramiko.server.ServerInterface):
     def check_auth_password(self, username: str, password: str) -> int:
         return paramiko.common.AUTH_SUCCESSFUL
 
+    def check_auth_publickey(self, username: str, key: paramiko.pkey.PKey) -> int:
+        return paramiko.common.AUTH_SUCCESSFUL
+
     def check_channel_request(self, kind: str, chanid: int) -> int:
         return paramiko.common.OPEN_SUCCEEDED
 
@@ -126,17 +129,20 @@ class SFTPHandler(paramiko.SFTPServerInterface):
 
     @log_exceptions
     def mkdir(self, path: str, attr: paramiko.SFTPAttributes) -> int:
-        raise NotImplementedError('To Be Implemented')
-        return paramiko.sftp.SFTP_OK
+        try:
+            self.__real_path(path).mkdir()
+            return paramiko.sftp.SFTP_OK
+        except OSError as e:
+            return paramiko.SFTPServer.convert_errno(e.errno)  # type: ignore[no-untyped-call, no-any-return]
 
     @log_exceptions
     def rmdir(self, path: str) -> int:
-        raise NotImplementedError('To Be Implemented')
+        self.__real_path(path).rmdir()
         return paramiko.sftp.SFTP_OK
 
     @log_exceptions
     def remove(self, path: str) -> int:
-        raise NotImplementedError('To Be Implemented')
+        self.__real_path(path).unlink()
         return paramiko.sftp.SFTP_OK
 
     @log_exceptions
@@ -144,7 +150,7 @@ class SFTPHandler(paramiko.SFTPServerInterface):
         return SFTPFileHandler(self.__real_path(path), flags)
 
 
-class SFTPTransportTask(TaskProto):
+class SFTPTransportTask(TaskProto, CriticalResource):
     """A task for a thread to work with raw sockets
     """
 
@@ -153,25 +159,37 @@ class SFTPTransportTask(TaskProto):
         self, received_socket: socket.socket, server: SSHServer, server_key: paramiko.RSAKey, base_dir: str
     ) -> None:
         TaskProto.__init__(self)
+        CriticalResource.__init__(self)
         self.received_socket = received_socket
         self.server = server
         self.server_key = server_key
         self.base_dir = base_dir
+        self.__transport: typing.Optional[paramiko.Transport] = None
 
     @log_exceptions
     def start(self) -> None:
-        transport = paramiko.Transport(self.received_socket)  # type: ignore[no-untyped-call]
-        transport.add_server_key(self.server_key)  # type: ignore[no-untyped-call]
-        transport.set_subsystem_handler(  # type: ignore[no-untyped-call]
-            'sftp', paramiko.SFTPServer, SFTPHandler, self.base_dir
-        )
-        transport.start_server(server=self.server)  # type: ignore[no-untyped-call]
 
-        chan: typing.Optional[paramiko.channel.Channel] = transport.accept()  # type: ignore[no-untyped-call]
-        if not chan:
-            raise RuntimeError("Failed to create SFTP channel")
+        with self.critical_context():
+            self.__transport = paramiko.Transport(self.received_socket)  # type: ignore[no-untyped-call]
+            self.__transport.add_server_key(self.server_key)  # type: ignore[no-untyped-call]
+            self.__transport.set_subsystem_handler(  # type: ignore[no-untyped-call]
+                'sftp', paramiko.SFTPServer, SFTPHandler, self.base_dir
+            )
 
-        transport.join()
+            self.__transport.start_server(server=self.server)  # type: ignore[no-untyped-call]
+
+            chan: typing.Optional[paramiko.channel.Channel] = self.__transport.accept()  # type: ignore[no-untyped-call]
+            if not chan:
+                raise RuntimeError("Failed to create SFTP channel")
+
+        self.__transport.join()
+        self.__transport = None
+
+    @log_exceptions
+    def stop(self) -> None:
+        with self.critical_context():
+            if self.__transport:
+                self.__transport.close()  # type: ignore[no-untyped-call]
 
 
 class SFTPServerTask(TaskProto, CriticalResource):
@@ -231,16 +249,18 @@ class SFTPServerTask(TaskProto, CriticalResource):
         self.stop_request.set()
         with self.critical_context():
             for t in self.client_connections:
+                t.stop()
                 self.executor.wait_task(t)
-            self.client_connections.clear()
+        self.client_connections.clear()
 
         self.raw_socket.shutdown(socket.SHUT_RDWR)
 
 
+sftp_fixture: typing.TypeAlias = typing.Tuple[ThreadExecutor, SFTPServerTask]
+
+
 @pytest.fixture
-def sftp_server(
-    request: pytest.FixtureRequest
-) -> typing.Generator[typing.Tuple[ThreadExecutor, SFTPServerTask], None, None]:
+def sftp_server(request: pytest.FixtureRequest) -> typing.Generator[sftp_fixture, None, None]:
 
     ssh_port = request.param if hasattr(request, 'param') else 22
 
