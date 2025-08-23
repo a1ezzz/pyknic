@@ -20,7 +20,6 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import io
-import functools
 import os
 import pathlib
 import typing
@@ -29,10 +28,9 @@ import minio
 import minio.datatypes
 
 from pyknic.lib.uri import URI, URIQuery
-from pyknic.lib.io_clients.proto import ClientConnectionError, IOClientProto, DirectoryNotEmptyError
+from pyknic.lib.io_clients.proto import DirectoryNotEmptyError
 from pyknic.lib.io_clients.virtual_dir import VirtualDirectoryClient, path_to_str
 from pyknic.lib.verify import verify_value
-from pyknic.lib.tasks.aio_wrapper import AsyncWrapper
 
 # TODO: register client with registry!
 
@@ -81,11 +79,11 @@ class _S3ClientSyncImplementation:
         try:
             available_buckets = self.__client.list_buckets()
             if self.__bucket_name not in available_buckets:
-                raise ClientConnectionError(
+                raise ConnectionError(
                     f'There is no such bucket "{self.__bucket_name}", buckets that are available:'
                 )
         except minio.error.S3Error as e:
-            raise ClientConnectionError('Connection error') from e
+            raise ConnectionError('Connection error') from e
 
         if self.__uri.path is not None:
             self.change_directory(self.__uri.path)
@@ -129,7 +127,8 @@ class _S3ClientSyncImplementation:
         posix_path = pathlib.PosixPath(path)
         if not posix_path.is_absolute():
             posix_path = self.__vd_client.session_path() / posix_path
-            posix_path = posix_path.resolve(strict=False)
+
+        posix_path = pathlib.PosixPath(path_to_str(posix_path))
 
         if path_to_str(posix_path) != '/':
             if not self.__has_entry(posix_path, True):
@@ -229,6 +228,7 @@ class _S3ClientSyncImplementation:
         assert(self.__client is not None)
 
         local_file_obj.seek(0)
+        local_file_obj.truncate()
         file_path = self.__vd_client.entry_path(remote_file_name)
 
         if not self.__has_entry(file_path, False):
@@ -279,16 +279,6 @@ class S3Client(VirtualDirectoryClient):
         self._wrap_capability(self.__i12n, 'remove_file')
         self._wrap_capability(self.__i12n, 'receive_file')
         self._wrap_capability(self.__i12n, 'file_size')
-
-    def _wrap_capability(self, implementation: object, method_name: str) -> None:
-        # TODO: to some basic class implementation?!
-
-        async def wrapper_fn(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
-            method_fn = getattr(implementation, method_name)
-            caller = await AsyncWrapper.create(functools.partial(method_fn, *args, **kwargs))
-            return await caller()
-
-        self.append_capability(getattr(IOClientProto, method_name), wrapper_fn)
 
     def current_directory(self) -> str:
         """The :meth:`.IOClientProto.current_directory` method implementation."""

@@ -207,6 +207,8 @@ class URIQuery:
 
         str_parameter = str_multiple_parameters[0]
         if str_parameter == '':
+            if type_adapter is bool:
+                return True  # type: ignore[return-value]
             raise URIQueryInvalidSingleParameter(f'The "{name}" parameter has null value')
 
         return type_adapter(str_parameter)

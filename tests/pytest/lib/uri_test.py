@@ -173,3 +173,10 @@ class TestURIQuery:
 
         assert(query.single_parameter('xxx', int) == 20)
         assert(query.single_parameter('f_value', float) == 2.1)
+
+        query = URIQuery.parse('bval1=&bval2=false&bval3=0&bval4=true&bval5=2.1')  # everything is True
+        assert(query.single_parameter('bval1', bool) is True)
+        assert(query.single_parameter('bval2', bool) is True)
+        assert(query.single_parameter('bval3', bool) is True)
+        assert(query.single_parameter('bval4', bool) is True)
+        assert(query.single_parameter('bval5', bool) is True)

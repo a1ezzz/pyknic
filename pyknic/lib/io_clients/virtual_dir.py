@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import functools
 import os.path
 import pathlib
 import typing
@@ -26,6 +27,7 @@ import typing
 from pyknic.lib.verify import verify_value
 from pyknic.lib.uri import URI
 from pyknic.lib.io_clients.proto import IOClientProto
+from pyknic.lib.tasks.aio_wrapper import AsyncWrapper
 
 
 @verify_value(path=lambda x: x.is_absolute())
@@ -95,3 +97,11 @@ class VirtualDirectoryClient(IOClientProto):
         :param entry: inner file/directory name
         """
         return self.__session_path / entry
+
+    def _wrap_capability(self, implementation: object, method_name: str) -> None:
+        async def wrapper_fn(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+            method_fn = getattr(implementation, method_name)
+            caller = await AsyncWrapper.create(functools.partial(method_fn, *args, **kwargs))
+            return await caller()
+
+        self.append_capability(getattr(IOClientProto, method_name), wrapper_fn)

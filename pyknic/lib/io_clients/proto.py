@@ -29,11 +29,6 @@ from pyknic.lib.uri import URI
 from pyknic.lib.verify import verify_value
 
 
-class ClientConnectionError(Exception):
-    """An exception is raised when connection attempt is failed."""
-    pass
-
-
 class DirectoryNotEmptyError(Exception):
     """An exception is raised when there is a request to delete a directory which has inner files."""
     pass

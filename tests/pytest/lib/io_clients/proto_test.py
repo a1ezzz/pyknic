@@ -4,14 +4,10 @@ import asyncio
 import pytest
 
 from pyknic.lib.uri import URI
-from pyknic.lib.io_clients.proto import ClientConnectionError, IOClientProto
+from pyknic.lib.io_clients.proto import IOClientProto
 from pyknic.lib.capability import iscapable
 
 from fixtures.asyncio import pyknic_async_test
-
-
-def test_exceptions() -> None:
-    assert(issubclass(ClientConnectionError, Exception) is True)
 
 
 @pyknic_async_test
