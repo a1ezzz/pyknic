@@ -27,7 +27,7 @@ import typing
 from pyknic.lib.verify import verify_value
 from pyknic.lib.uri import URI
 from pyknic.lib.io_clients.proto import IOClientProto
-from pyknic.lib.tasks.aio_wrapper import AsyncWrapper
+from pyknic.lib.aio_wrapper import AsyncWrapper
 
 
 @verify_value(path=lambda x: x.is_absolute())
