@@ -19,7 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import asyncio
 import pathlib
 import typing
 
@@ -28,6 +27,7 @@ from pyknic.lib.uri import URI, URIQuery
 from pyknic.lib.io_clients.virtual_dir import VirtualDirectoryClient
 from pyknic.lib.io_clients.collection import __default_io_clients_registry__
 from pyknic.lib.verify import verify_value
+from pyknic.lib.aio_wrapper import IOThrottler
 
 
 @register_api(__default_io_clients_registry__, "file")
@@ -103,13 +103,7 @@ class LocalClient(VirtualDirectoryClient):
         to_fo.truncate(0)
         to_fo.seek(0)
 
-        next_block = from_fo.read(self.__block_size)
-
-        while next_block:
-            await asyncio.sleep(0)  # aio-loop should work too
-            to_fo.write(next_block)
-            await asyncio.sleep(0)  # aio-loop should work too
-            next_block = from_fo.read(self.__block_size)
+        await IOThrottler.async_copier(from_fo, to_fo, block_size=self.__block_size)
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:

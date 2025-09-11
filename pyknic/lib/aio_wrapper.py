@@ -20,7 +20,6 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
-import io
 import time
 import typing
 
@@ -138,10 +137,11 @@ class IOThrottler:
         return (should_be - elapsed) if should_be > elapsed else 0
 
     @staticmethod
-    async def async_reader(
-        io_obj: io.IOBase, *, block_size: typing.Optional[int] = None, throttling: typing.Optional[int] = None
-    ) -> typing.AsyncGenerator[bytes, None]:
-        """Read IO-object with throttling
+    def __reader(
+        io_obj: typing.IO[bytes], *, block_size: typing.Optional[int] = None, throttling: typing.Optional[int] = None
+    ) -> typing.Generator[typing.Tuple[bytes, float], None, None]:
+        """A basic reader implementation that reads file-object in blocking mode, and yields pauses (along with data)
+        that should be made in order to respect throttling settings
 
         :param io_obj: IO-object to read
         :param block_size: number of bytes to read on each blocking read request
@@ -158,20 +158,44 @@ class IOThrottler:
 
         while next_block:
             throttler += len(next_block)
-            yield next_block
-            await asyncio.sleep(throttler.pause())
+            yield next_block, throttler.pause()
             next_block = io_obj.read(block_size)
 
     @staticmethod
-    async def async_copier(
-        source_io_obj: io.IOBase,
-        destination_io_obj: io.IOBase,
+    def reader(
+        io_obj: typing.IO[bytes], *, block_size: typing.Optional[int] = None, throttling: typing.Optional[int] = None
+    ) -> typing.Generator[bytes, None, None]:
+        """A blocking variant of :meth:`IOThrottler.__reader` method. It sleeps in blocking mode in order to
+        respect throttling settings. It is useful for running in a dedicated thread
+        """
+
+        for block, pause in IOThrottler.__reader(io_obj, block_size=block_size, throttling=throttling):
+            yield block
+            time.sleep(pause)
+
+    @staticmethod
+    async def async_reader(
+        io_obj: typing.IO[bytes], *, block_size: typing.Optional[int] = None, throttling: typing.Optional[int] = None
+    ) -> typing.AsyncGenerator[bytes, None]:
+        """An asyncio variant of :meth:`IOThrottler.__reader` method. It sleeps in asyncio mode in order to
+        respect throttling settings.
+        """
+
+        for block, pause in IOThrottler.__reader(io_obj, block_size=block_size, throttling=throttling):
+            yield block
+            await asyncio.sleep(pause)
+
+    @staticmethod
+    def __copier(
+        source_io_obj: typing.IO[bytes],
+        destination_io_obj: typing.IO[bytes],
         *,
         block_size: typing.Optional[int] = None,
         read_throttling: typing.Optional[int] = None,
         write_throttling: typing.Optional[int] = None
-    ) -> None:
-        """Copy data from one IO-object to other with throttling
+    ) -> typing.Generator[float, None, None]:
+        """A basic data copier implementation that copies data from one IO-object to other one. It yields pauses that
+        should be made in order to respect throttling settings
 
         :param source_io_obj: IO-object to read
         :param destination_io_obj: IO-object to write to
@@ -179,10 +203,56 @@ class IOThrottler:
         :param read_throttling: (optional) number of bytes per seconds this reader should read at
         :param write_throttling: (optional) number of bytes per seconds this writer should write at
         """
+
         write_throttler = IOThrottler(write_throttling)
         write_throttler.start()
 
-        async for data in IOThrottler.async_reader(source_io_obj, block_size=block_size, throttling=read_throttling):
-            destination_io_obj.write(data)
-            write_throttler += len(data)
-            await asyncio.sleep(write_throttler.pause())
+        for block, pause in IOThrottler.__reader(source_io_obj, block_size=block_size, throttling=read_throttling):
+            yield pause
+
+            destination_io_obj.write(block)
+            write_throttler += len(block)
+            yield write_throttler.pause()
+
+    @staticmethod
+    def copier(
+        source_io_obj: typing.IO[bytes],
+        destination_io_obj: typing.IO[bytes],
+        *,
+        block_size: typing.Optional[int] = None,
+        read_throttling: typing.Optional[int] = None,
+        write_throttling: typing.Optional[int] = None
+    ) -> None:
+        """A blocking variant of :meth:`IOThrottler.__copier` method. It sleeps in blocking mode in order to
+        respect throttling settings. It is useful for running in a dedicated thread
+        """
+
+        for pause in IOThrottler.__copier(
+            source_io_obj,
+            destination_io_obj,
+            block_size=block_size,
+            read_throttling=read_throttling,
+            write_throttling=write_throttling
+        ):
+            time.sleep(pause)
+
+    @staticmethod
+    async def async_copier(
+        source_io_obj: typing.IO[bytes],
+        destination_io_obj: typing.IO[bytes],
+        *,
+        block_size: typing.Optional[int] = None,
+        read_throttling: typing.Optional[int] = None,
+        write_throttling: typing.Optional[int] = None
+    ) -> None:
+        """An asyncio variant of :meth:`IOThrottler.__copier` method. It sleeps in asyncio mode in order to
+        respect throttling settings.
+        """
+        for pause in IOThrottler.__copier(
+            source_io_obj,
+            destination_io_obj,
+            block_size=block_size,
+            read_throttling=read_throttling,
+            write_throttling=write_throttling
+        ):
+            await asyncio.sleep(pause)

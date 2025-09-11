@@ -126,3 +126,19 @@ class TestIOThrottler:
         th.start()
         with pytest.raises(RuntimeError):
             th.start()
+
+    def test_reader(self) -> None:
+        bytes_io = io.BytesIO(b'!' * 1024)
+        result = []
+
+        for data in IOThrottler.reader(bytes_io, block_size=500):
+            result.append(data)
+
+        assert(result == [b'!' * 500, b'!' * 500, b'!' * 24])
+
+    def test_copier(self) -> None:
+        source_io = io.BytesIO(b'!' * 1024)
+        dest_io = io.BytesIO()
+
+        IOThrottler.copier(source_io, dest_io)
+        assert(dest_io.getvalue() == b'!' * 1024)
