@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
 import io
 import pathlib
 import pytest
@@ -8,10 +9,13 @@ import tarfile
 
 from pyknic.lib.tar_archiver import TarArchiver
 
+from fixtures.asyncio import pyknic_async_test
+
 
 class TestTarArchiver:
 
-    def test_append_io(self, tmp_path: pathlib.Path) -> None:
+    @pyknic_async_test
+    async def test_append_io(self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path) -> None:
         test_data = b'Test data'
         test_io = io.BytesIO(test_data)
         archiver = TarArchiver()
@@ -19,9 +23,9 @@ class TestTarArchiver:
         tar_archive_file = tmp_path / "archive.tar"
 
         with tar_archive_file.open('wb') as f:
-            with archiver.create(f) as ar:  # type: ignore[arg-type]  # the 'wb' flags return correct type
-                ar.append_io(test_io, 'sample1')
-                ar.append_io(test_io, 'sample2')
+            async with archiver.create(f) as ar:  # type: ignore[arg-type]  # the 'wb' flags return correct type
+                await ar.append_io(test_io, 'sample1')
+                await ar.append_io(test_io, 'sample2')
 
         with tarfile.open(tar_archive_file) as tar:
             inner_names = list(tar.getnames())
@@ -44,7 +48,8 @@ class TestTarArchiver:
             assert((tmp_path / 'sample1').open('rb').read() == test_data)
             assert((tmp_path / 'sample2').open('rb').read() == test_data)
 
-    def test_sizes(self, tmp_path: pathlib.Path) -> None:
+    @pyknic_async_test
+    async def test_sizes(self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path) -> None:
         test_data = b'Test data'
         test_io = io.BytesIO(test_data)
         archiver = TarArchiver()
@@ -52,9 +57,9 @@ class TestTarArchiver:
         pyknic_tar_file = tmp_path / "pyknic-archive.tar"
 
         with pyknic_tar_file.open('wb') as f:
-            with archiver.create(f) as ar:  # type: ignore[arg-type]  # the 'wb' flags return correct type
-                ar.append_io(test_io, 'sample1')
-                ar.append_io(test_io, 'sample2')
+            async with archiver.create(f) as ar:  # type: ignore[arg-type]  # the 'wb' flags return correct type
+                await ar.append_io(test_io, 'sample1')
+                await ar.append_io(test_io, 'sample2')
 
         tar_tar_file = tmp_path / "tar-tar.tar"
 
@@ -70,7 +75,8 @@ class TestTarArchiver:
 
         assert(pyknic_tar_file.stat().st_size == tar_tar_file.stat().st_size)
 
-    def test_exception(self, tmp_path: pathlib.Path) -> None:
+    @pyknic_async_test
+    async def test_exception(self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path) -> None:
         test_io = io.BytesIO(b'Test data')
         archiver = TarArchiver()
 
@@ -78,13 +84,14 @@ class TestTarArchiver:
 
         with pytest.raises(ValueError):
             with pyknic_tar_file.open('wb') as f:
-                with archiver.create(f) as ar:  # type: ignore[arg-type]  # the 'wb' flags return correct type
-                    ar.append_io(test_io, 'sample1')
+                async with archiver.create(f) as ar:  # type: ignore[arg-type]  # the 'wb' flags return correct type
+                    await ar.append_io(test_io, 'sample1')
                     raise ValueError('!')
 
         assert(pyknic_tar_file.stat().st_size == 0)  # a file was truncated
 
-    def test_append_file(self, tmp_path: pathlib.Path) -> None:
+    @pyknic_async_test
+    async def test_append_file(self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path) -> None:
         test_data = b'Test data'
         archiver = TarArchiver()
 
@@ -97,9 +104,9 @@ class TestTarArchiver:
             f.write(test_data)
 
         with pyknic_tar_file.open('wb') as f:
-            with archiver.create(f) as ar:  # type: ignore[arg-type]  # the 'wb' flags return correct type
-                ar.append_file(tmp_path / "sample1")
-                ar.append_file(tmp_path / "sample2")
+            async with archiver.create(f) as ar:  # type: ignore[arg-type]  # the 'wb' flags return correct type
+                await ar.append_file(tmp_path / "sample1")
+                await ar.append_file(tmp_path / "sample2")
 
         with tarfile.open(pyknic_tar_file) as tar:
             inner_names = list(tar.getnames())

@@ -82,7 +82,7 @@ class TestIOThrottler:
         source_io = io.BytesIO(b'!' * 1024)
         dest_io = io.BytesIO()
 
-        await IOThrottler.async_copier(source_io, dest_io)
+        assert(await IOThrottler.async_copier(source_io, dest_io) == 1024)
         assert(dest_io.getvalue() == b'!' * 1024)
 
     @pyknic_async_test
@@ -91,7 +91,7 @@ class TestIOThrottler:
         dest_io = io.BytesIO()
 
         start_time = time.monotonic()
-        await IOThrottler.async_copier(source_io, dest_io, block_size=250, read_throttling=200)
+        assert(await IOThrottler.async_copier(source_io, dest_io, block_size=250, read_throttling=200) == 1000)
         finish_time = time.monotonic()
 
         assert((finish_time - start_time) > 3)  # (1000 / 200) - 1 = 4, but! (1000 / 250) - 1 = 3!
@@ -102,7 +102,7 @@ class TestIOThrottler:
         dest_io = io.BytesIO()
 
         start_time = time.monotonic()
-        await IOThrottler.async_copier(source_io, dest_io, block_size=50, write_throttling=200)
+        assert(await IOThrottler.async_copier(source_io, dest_io, block_size=50, write_throttling=200) == 1000)
         finish_time = time.monotonic()
 
         assert((finish_time - start_time) > 4)  # (1000 / 200) - 1 = 4
@@ -113,7 +113,9 @@ class TestIOThrottler:
         dest_io = io.BytesIO()
 
         start_time = time.monotonic()
-        await IOThrottler.async_copier(source_io, dest_io, block_size=50, write_throttling=200, read_throttling=10000)
+        assert(await IOThrottler.async_copier(
+            source_io, dest_io, block_size=50, write_throttling=200, read_throttling=10000
+        ) == 1000)
         finish_time = time.monotonic()
 
         assert((finish_time - start_time) > 4)  # (1000 / 200) - 1 = 4
@@ -140,5 +142,97 @@ class TestIOThrottler:
         source_io = io.BytesIO(b'!' * 1024)
         dest_io = io.BytesIO()
 
-        IOThrottler.copier(source_io, dest_io)
+        assert(IOThrottler.copier(source_io, dest_io) == 1024)
         assert(dest_io.getvalue() == b'!' * 1024)
+
+    def test_writer(self) -> None:
+
+        def source() -> typing.Generator[bytes, None, None]:
+            for _ in range(10):
+                yield b'b' * 100
+
+        bytes_io = io.BytesIO()
+        assert(IOThrottler.writer(source(), bytes_io) == 1000)
+        assert(bytes_io.getvalue() == b'b' * 1000)
+
+    @pyknic_async_test
+    async def test_async_writer(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
+
+        def source() -> typing.Generator[bytes, None, None]:
+            for _ in range(10):
+                yield b'b' * 100
+
+        bytes_io = io.BytesIO()
+        assert(await IOThrottler.async_writer(source(), bytes_io) == 1000)
+        assert(bytes_io.getvalue() == b'b' * 1000)
+
+    @pyknic_async_test
+    async def test_async_writer_throttling(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
+
+        def source() -> typing.Generator[bytes, None, None]:
+            for _ in range(10):
+                yield b'b' * 100
+
+        bytes_io = io.BytesIO()
+
+        start_time = time.monotonic()
+        assert(await IOThrottler.async_writer(source(), bytes_io, block_size=250, throttling=200) == 1000)
+        finish_time = time.monotonic()
+
+        assert((finish_time - start_time) > 3)  # (1000 / 200) - 1 = 4, but! (1000 / 250) - 1 = 3!
+
+    @pyknic_async_test
+    async def test_async_reader_size_limit(
+        self, module_event_loop: asyncio.AbstractEventLoop
+    ) -> None:
+        bytes_io = io.BytesIO(b'!' * 1024)
+        result = []
+
+        async for data in IOThrottler.async_reader(bytes_io, block_size=500, read_size=600):
+            result.append(data)
+
+        assert(result == [b'!' * 500, b'!' * 100])
+
+    @pyknic_async_test
+    async def test_async_reader_size_limit_exception(
+        self, module_event_loop: asyncio.AbstractEventLoop
+    ) -> None:
+        bytes_io = io.BytesIO(b'!' * 100)
+
+        with pytest.raises(ValueError):
+            async for _ in IOThrottler.async_reader(bytes_io, block_size=50, read_size=200):
+                pass
+
+    def test_copier_size_limit(self) -> None:
+        source_io = io.BytesIO(b'!' * 1024)
+        dest_io = io.BytesIO()
+
+        IOThrottler.copier(source_io, dest_io, copy_size=700)
+        assert(dest_io.getvalue() == b'!' * 700)
+
+    def test_copier_size_limit_exception(self) -> None:
+        source_io = io.BytesIO(b'!' * 100)
+        dest_io = io.BytesIO()
+
+        with pytest.raises(ValueError):
+            IOThrottler.copier(source_io, dest_io, copy_size=700)
+
+    def test_writer_size_limit(self) -> None:
+
+        def source() -> typing.Generator[bytes, None, None]:
+            for _ in range(10):
+                yield b'b' * 100
+
+        bytes_io = io.BytesIO()
+        IOThrottler.writer(source(), bytes_io, write_size=521)
+        assert (bytes_io.getvalue() == b'b' * 521)
+
+    def test_writer_size_limit_exception(self) -> None:
+
+        def source() -> typing.Generator[bytes, None, None]:
+            for _ in range(10):
+                yield b'b' * 100
+
+        bytes_io = io.BytesIO()
+        with pytest.raises(ValueError):
+            IOThrottler.writer(source(), bytes_io, write_size=2000)
