@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/io_clients/s3.py
+# pyknic/lib/io/clients/s3.py
 #
 # Copyright (C) 2025 the pyknic authors and contributors
 # <see AUTHORS file>
@@ -29,9 +29,9 @@ import minio.datatypes
 
 from pyknic.lib.registry import register_api
 from pyknic.lib.uri import URI, URIQuery
-from pyknic.lib.io_clients.proto import DirectoryNotEmptyError
-from pyknic.lib.io_clients.virtual_dir import VirtualDirectoryClient, path_to_str
-from pyknic.lib.io_clients.collection import __default_io_clients_registry__
+from pyknic.lib.io.clients.proto import DirectoryNotEmptyError
+from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient, path_to_str
+from pyknic.lib.io.clients.collection import __default_io_clients_registry__
 from pyknic.lib.verify import verify_value
 
 # TODO: register client with registry!

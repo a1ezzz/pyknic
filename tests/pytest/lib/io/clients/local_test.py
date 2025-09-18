@@ -8,10 +8,10 @@ import pytest
 
 from pyknic.lib.uri import URI
 
-from pyknic.lib.io_clients.virtual_dir import VirtualDirectoryClient
-from pyknic.lib.io_clients.local import LocalClient
+from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
+from pyknic.lib.io.clients.local import LocalClient
 from pyknic.lib.capability import iscapable
-from pyknic.lib.io_clients.proto import IOClientProto
+from pyknic.lib.io.clients.proto import IOClientProto
 
 from fixtures.asyncio import pyknic_async_test
 

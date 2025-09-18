@@ -8,7 +8,7 @@ import pytest
 import threading
 import typing
 
-from pyknic.lib.aio_wrapper import AsyncWrapper, IOThrottler
+from pyknic.lib.io.aio_wrapper import AsyncWrapper, IOThrottler
 
 from fixtures.asyncio import pyknic_async_test
 from pyknic.lib.tasks.thread_executor import ThreadExecutor

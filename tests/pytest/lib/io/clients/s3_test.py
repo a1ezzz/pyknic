@@ -10,8 +10,8 @@ import pytest
 
 from pyknic.lib.uri import URI
 from pyknic.lib.capability import iscapable
-from pyknic.lib.io_clients.proto import IOClientProto, DirectoryNotEmptyError
-from pyknic.lib.io_clients.s3 import S3Client
+from pyknic.lib.io.clients.proto import IOClientProto, DirectoryNotEmptyError
+from pyknic.lib.io.clients.s3 import S3Client
 
 from fixtures.asyncio import pyknic_async_test
 

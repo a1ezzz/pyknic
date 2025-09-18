@@ -3,7 +3,7 @@
 import asyncio
 import pytest
 
-from pyknic.lib.io_clients.collection import __default_io_clients_registry__, IOVirtualClient
+from pyknic.lib.io.clients.collection import __default_io_clients_registry__, IOVirtualClient
 from pyknic.lib.uri import URI
 
 from fixtures.asyncio import pyknic_async_test

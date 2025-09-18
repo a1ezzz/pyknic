@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/io_clients/virtual_dir.py
+# pyknic/lib/io/clients/virtual_dir.py
 #
 # Copyright (C) 2017-2025 the pyknic authors and contributors
 # <see AUTHORS file>
@@ -24,10 +24,10 @@ import typing
 
 from pyknic.lib.registry import register_api
 from pyknic.lib.uri import URI, URIQuery
-from pyknic.lib.io_clients.virtual_dir import VirtualDirectoryClient
-from pyknic.lib.io_clients.collection import __default_io_clients_registry__
+from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
+from pyknic.lib.io.clients.collection import __default_io_clients_registry__
 from pyknic.lib.verify import verify_value
-from pyknic.lib.aio_wrapper import IOThrottler
+from pyknic.lib.io.aio_wrapper import IOThrottler
 
 
 @register_api(__default_io_clients_registry__, "file")

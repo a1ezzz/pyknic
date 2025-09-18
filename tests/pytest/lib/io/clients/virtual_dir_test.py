@@ -4,7 +4,7 @@ import os
 import pathlib
 
 from pyknic.lib.uri import URI
-from pyknic.lib.io_clients.virtual_dir import VirtualDirectoryClient
+from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
 
 
 class TestVirtualDirectoryClient:

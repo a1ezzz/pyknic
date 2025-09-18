@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/io_clients/virtual_dir.py
+# pyknic/lib/io/clients/virtual_dir.py
 #
 # Copyright (C) 2018-2025 the pyknic authors and contributors
 # <see AUTHORS file>
@@ -26,8 +26,8 @@ import typing
 
 from pyknic.lib.verify import verify_value
 from pyknic.lib.uri import URI
-from pyknic.lib.io_clients.proto import IOClientProto
-from pyknic.lib.aio_wrapper import AsyncWrapper
+from pyknic.lib.io.clients.proto import IOClientProto
+from pyknic.lib.io.aio_wrapper import AsyncWrapper
 
 
 @verify_value(path=lambda x: x.is_absolute())

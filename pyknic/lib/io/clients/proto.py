@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/io_clients/proto.py
+# pyknic/lib/io/clients/proto.py
 #
 # Copyright (C) 2017-2025 the pyknic authors and contributors
 # <see AUTHORS file>

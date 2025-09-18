@@ -9,8 +9,8 @@ import paramiko
 import pytest
 
 from pyknic.lib.capability import iscapable
-from pyknic.lib.io_clients.proto import IOClientProto
-from pyknic.lib.io_clients.sftp import SFTPClient
+from pyknic.lib.io.clients.proto import IOClientProto
+from pyknic.lib.io.clients.sftp import SFTPClient
 from pyknic.lib.uri import URI, URIQuery
 
 from fixtures.asyncio import pyknic_async_test

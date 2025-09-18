@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/aio_wrapper.py
+# pyknic/lib/io/aio_wrapper.py
 #
 # Copyright (C) 2025 the pyknic authors and contributors
 # <see AUTHORS file>

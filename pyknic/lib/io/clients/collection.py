@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/io_clients/collection.py
+# pyknic/lib/io/clients/collection.py
 #
 # Copyright (C) 2017-2025 the pyknic authors and contributors
 # <see AUTHORS file>
@@ -23,7 +23,7 @@ import typing
 
 from pyknic.lib.capability import iscapable
 from pyknic.lib.registry import APIRegistry
-from pyknic.lib.io_clients.proto import IOClientProto
+from pyknic.lib.io.clients.proto import IOClientProto
 from pyknic.lib.verify import verify_value
 from pyknic.lib.uri import URI
 

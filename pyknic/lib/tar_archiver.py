@@ -30,7 +30,7 @@ import types
 import typing
 
 from pyknic.lib.verify import verify_value
-from pyknic.lib.aio_wrapper import IOThrottler
+from pyknic.lib.io.aio_wrapper import IOThrottler
 
 
 class _TarArchiverContext:
