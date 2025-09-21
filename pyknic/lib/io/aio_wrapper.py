@@ -29,6 +29,7 @@ from pyknic.lib.tasks.thread_executor import ThreadExecutor
 from pyknic.lib.tasks.threaded_task import ThreadedTask
 from pyknic.lib.signals.extra import AsyncWatchDog
 from pyknic.lib.verify import verify_value
+from pyknic.lib.io import __default_block_size__
 
 
 class AsyncWrapper:
@@ -92,8 +93,6 @@ class IOThrottler:
     """ This class helps to pause for limiting IO requests
     """
 
-    __default_block_size__ = 4096  # usual number of a block size in common FS
-
     @verify_value(throttling=lambda x: x is None or x > 0)
     def __init__(self, throttling: typing.Optional[typing.Union[int, float]] = None):
         """ Create a new throttler
@@ -156,7 +155,7 @@ class IOThrottler:
         """
 
         if block_size is None:
-            block_size = IOThrottler.__default_block_size__
+            block_size = __default_block_size__
 
         if read_size is None:
             read_size = -1
@@ -236,7 +235,7 @@ class IOThrottler:
             nonlocal block_size
 
             if block_size is None:
-                block_size = IOThrottler.__default_block_size__
+                block_size = __default_block_size__
 
             start_pos = 0
             data_left = len(generated_data)
