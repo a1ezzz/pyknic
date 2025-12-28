@@ -20,6 +20,8 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+import functools
+import inspect
 import time
 import typing
 
@@ -29,7 +31,7 @@ from pyknic.lib.tasks.thread_executor import ThreadExecutor
 from pyknic.lib.tasks.threaded_task import ThreadedTask
 from pyknic.lib.signals.extra import AsyncWatchDog
 from pyknic.lib.verify import verify_value
-from pyknic.lib.io import __default_block_size__, IOProcessorFunc, IOAsyncProcessorFunc
+from pyknic.lib.io import __default_block_size__, IOGenerator, IOAsyncGenerator, IOProcessor, IOAsyncProcessor
 
 
 class AsyncWrapper:
@@ -143,7 +145,7 @@ class IOThrottler:
         *,
         read_size: typing.Optional[int] = None,
         block_size: typing.Optional[int] = None
-    ) -> IOProcessorFunc:
+    ) -> IOGenerator:
         """A basic reader implementation that reads file-object in blocking mode, and yields chunks of data. A pause
         should be made after every chunk in order to respect throttling settings. The pause duration may be found
         with the :meth:`.IOThrottler.pause` method.
@@ -184,7 +186,7 @@ class IOThrottler:
         read_size: typing.Optional[int] = None,
         block_size: typing.Optional[int] = None,
         throttling: typing.Optional[int] = None
-    ) -> IOProcessorFunc:
+    ) -> IOGenerator:
         """A blocking variant of :meth:`IOThrottler.reader` method. It sleeps in blocking mode in order to
         respect throttling settings. It is useful for running in a dedicated thread
         """
@@ -201,7 +203,7 @@ class IOThrottler:
         read_size: typing.Optional[int] = None,
         block_size: typing.Optional[int] = None,
         throttling: typing.Optional[int] = None
-    ) -> IOAsyncProcessorFunc:
+    ) -> IOAsyncGenerator:
         """An asyncio variant of :meth:`IOThrottler.reader` method. It sleeps in asyncio mode in order to
         respect throttling settings.
         """
@@ -218,7 +220,7 @@ class IOThrottler:
         *,
         write_size: typing.Optional[int] = None,
         block_size: typing.Optional[int] = None
-    ) -> IOProcessorFunc:
+    ) -> IOGenerator:
         """A basic writer implementation that writes file-object in blocking mode, and yields chunks of data that
         has been written. A pause should be made after every chunk in order to respect throttling settings.
         The pause duration may be found with the :meth:`.IOThrottler.pause` method.
@@ -232,7 +234,7 @@ class IOThrottler:
         :param block_size: a maximum number of bytes to write on each blocking write request
         """
 
-        def data_splitter(generated_data: bytes) -> IOProcessorFunc:
+        def data_splitter(generated_data: bytes) -> IOGenerator:
             nonlocal block_size
 
             if block_size is None:
@@ -278,7 +280,7 @@ class IOThrottler:
         write_size: typing.Optional[int] = None,
         block_size: typing.Optional[int] = None,
         throttling: typing.Optional[int] = None
-    ) -> IOProcessorFunc:
+    ) -> IOGenerator:
         """A blocking variant of :meth:`IOThrottler.writer` method. It sleeps in blocking mode in order to
         respect throttling settings. It is useful for running in a dedicated thread
         """
@@ -296,7 +298,7 @@ class IOThrottler:
         write_size: typing.Optional[int] = None,
         block_size: typing.Optional[int] = None,
         throttling: typing.Optional[int] = None
-    ) -> IOAsyncProcessorFunc:
+    ) -> IOAsyncGenerator:
         """An asyncio variant of :meth:`IOThrottler.__writer` method. It sleeps in asyncio mode in order to
         respect throttling settings
         """
@@ -313,7 +315,7 @@ class IOThrottler:
         *,
         copy_size: typing.Optional[int] = None,
         block_size: typing.Optional[int] = None
-    ) -> IOProcessorFunc:
+    ) -> IOGenerator:
         """A basic data copier implementation that copies data from one IO-object to other one. A pause should be made
         after every chunk in order to respect throttling settings. The pause duration may be found with
         the :meth:`.IOThrottler.pause` method. This method yields successfully copied chunks.
@@ -344,7 +346,7 @@ class IOThrottler:
         copy_size: typing.Optional[int] = None,
         block_size: typing.Optional[int] = None,
         throttling: typing.Optional[int] = None
-    ) -> IOProcessorFunc:
+    ) -> IOGenerator:
         """A blocking variant of :meth:`IOThrottler.copier` method. It sleeps in blocking mode in order to
         respect throttling settings. It is useful for running in a dedicated thread
         """
@@ -363,7 +365,7 @@ class IOThrottler:
         copy_size: typing.Optional[int] = None,
         block_size: typing.Optional[int] = None,
         throttling: typing.Optional[int] = None
-    ) -> IOAsyncProcessorFunc:
+    ) -> IOAsyncGenerator:
         """An asyncio variant of :meth:`IOThrottler.copier` method. It sleeps in asyncio mode in order to
         respect throttling settings.
         """
@@ -373,3 +375,79 @@ class IOThrottler:
         for block in throttler.copier(source_io_obj, destination_io_obj, copy_size=copy_size, block_size=block_size):
             yield block
             await asyncio.sleep(throttler.pause())
+
+
+def cg(source: IOGenerator) -> int:
+    """Run over an IO generator and complete it.
+
+    :param source: a generator that yields chunks of data.
+
+    :returns: a total number of bytes
+    """
+    return sum((len(x) for x in source))
+
+
+async def as_ag(source: IOGenerator) -> IOAsyncGenerator:
+    """Convert general generator to an async one
+
+    :param source: generator to convert
+    """
+    for i in source:
+        yield i
+
+
+async def cag(source: typing.Union[IOGenerator, IOAsyncGenerator]) -> int:
+    """Run over an "IO processor" and complete it.
+
+    :param source: "IO processor" that yields chunks of data.
+
+    :returns: a total number of bytes
+    """
+    result = 0
+
+    async for data in (source if inspect.isasyncgen(source) else as_ag(source)):
+        result += len(data)
+    return result
+
+
+def chain_sync_processor(source: IOGenerator, *processors: IOProcessor) -> IOGenerator:
+    """This function runs chunks from source (general generator) through the processors and yields result.
+
+    :param source: ordinary generator that yields chunks of data to process.
+    :param processors: processors to run
+    """
+
+    def dummy_processor(s: IOGenerator) -> IOGenerator:
+        # this is just to make sure that there is one processor at least
+        for i in s:
+            yield i
+
+    chain = functools.partial(dummy_processor, source)
+    for processor in processors:
+        chain = functools.partial(processor, chain())
+
+    for chunk in chain():
+        yield chunk
+
+
+async def chain_async_processor(
+    source: typing.Union[IOGenerator, IOAsyncGenerator], *processors: IOAsyncProcessor
+) -> IOAsyncGenerator:
+    """This function runs chunks from source (general generator or async generator) through the processors
+    and yields result.
+
+    :param source: generator (ordinary or async one) that yields chunks of data to process.
+    :param processors: processors to run
+    """
+
+    async def dummy_processor(s: typing.Union[IOGenerator, IOAsyncGenerator]) -> IOAsyncGenerator:
+        # this is just to make sure that there is one processor at least
+        async for i in (s if inspect.isasyncgen(source) else as_ag(s)):
+            yield i
+
+    chain = functools.partial(dummy_processor, source)
+    for processor in processors:
+        chain = functools.partial(processor, chain())
+
+    async for chunk in chain():
+        yield chunk

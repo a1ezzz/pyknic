@@ -25,6 +25,7 @@ from abc import ABCMeta, abstractmethod
 
 from cryptography.hazmat.primitives import hashes as c10y_hashes
 
+from pyknic.lib.io import IOGenerator
 from pyknic.lib.registry import APIRegistry, register_api
 
 __default_io_hashers_registry__ = APIRegistry()
@@ -34,7 +35,7 @@ class HasherProto(metaclass=ABCMeta):
     """This is a base class for all generalized hashers."""
 
     @abstractmethod
-    def update(self, source: typing.Generator[bytes, None, None]) -> typing.Generator[bytes, None, None]:
+    def update(self, source: IOGenerator) -> IOGenerator:
         """Update digest and yield all the received data.
 
         :param source: a data to update digest
@@ -73,7 +74,7 @@ class CryptographyHasherAdapter(HasherProto):
         hash_args = self._hasher_args()
         return c10y_hashes.Hash(hash_algo(*hash_args))
 
-    def update(self, source: typing.Generator[bytes, None, None]) -> typing.Generator[bytes, None, None]:
+    def update(self, source: IOGenerator) -> IOGenerator:
         """The :meth:`.HasherProto.update` method implementation."""
         self.__hasher = self.__create_hasher()
 

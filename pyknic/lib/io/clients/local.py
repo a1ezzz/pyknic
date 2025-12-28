@@ -27,7 +27,7 @@ from pyknic.lib.uri import URI, URIQuery
 from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
 from pyknic.lib.io.clients.collection import __default_io_clients_registry__
 from pyknic.lib.verify import verify_value
-from pyknic.lib.io.aio_wrapper import IOThrottler
+from pyknic.lib.io.aio_wrapper import IOThrottler, cag
 
 
 @register_api(__default_io_clients_registry__, "file")
@@ -103,7 +103,7 @@ class LocalClient(VirtualDirectoryClient):
         to_fo.truncate(0)
         to_fo.seek(0)
 
-        await IOThrottler.async_copier(from_fo, to_fo, block_size=self.__block_size)
+        await cag(IOThrottler().async_copier(from_fo, to_fo, block_size=self.__block_size))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     async def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:

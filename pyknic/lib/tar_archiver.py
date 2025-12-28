@@ -30,7 +30,7 @@ import types
 import typing
 
 from pyknic.lib.verify import verify_value
-from pyknic.lib.io.aio_wrapper import IOThrottler
+from pyknic.lib.io.aio_wrapper import IOThrottler, cag
 
 
 class _TarArchiverContext:
@@ -121,9 +121,9 @@ class _TarArchiverContext:
         """
         tar_header = tar_info.tobuf()
 
-        header_size = await IOThrottler.async_writer(
-            (x for x in (tar_header, )), self.__archive, block_size=self.__block_size
-        )
+        header_size = await cag(IOThrottler.async_writer(
+            (x for x in (tar_header,)), self.__archive, block_size=self.__block_size
+        ))
 
         self.__total_bytes += header_size
         return header_size
@@ -138,9 +138,9 @@ class _TarArchiverContext:
         """
         source.seek(0)
 
-        file_bytes = await IOThrottler.async_copier(
+        file_bytes = await cag(IOThrottler.async_copier(
             source, self.__archive, block_size=self.__block_size, copy_size=respect_size
-        )
+        ))
 
         self.__total_bytes += file_bytes
 
@@ -158,9 +158,10 @@ class _TarArchiverContext:
         :param file_bytes: size of written file
         """
         padding = self.__padding(header_size + file_bytes, tarfile.BLOCKSIZE)
-        self.__total_bytes += await IOThrottler.async_writer(
-            (x for x in (padding, )), self.__archive, block_size=self.__block_size
-        )
+
+        self.__total_bytes += await cag(IOThrottler.async_writer(
+            (x for x in (padding,)), self.__archive, block_size=self.__block_size
+        ))
 
     async def __patch_file_size(
         self, file_start_pos: int, tar_info: tarfile.TarInfo, header_size: int, file_size: int
@@ -178,9 +179,9 @@ class _TarArchiverContext:
         assert(len(tar_header) == header_size)  # check that we didn't change a header size
 
         self.__archive.seek(file_start_pos, os.SEEK_SET)
-        await IOThrottler.async_writer(
-            (x for x in (tar_header, )), self.__archive, block_size=self.__block_size
-        )
+
+        await cag(IOThrottler.async_writer((x for x in (tar_header,)), self.__archive, block_size=self.__block_size))
+
         self.__archive.seek(end_pos, os.SEEK_SET)
 
     async def append_file(self, source: typing.Union[str, pathlib.Path]) -> None:
@@ -227,7 +228,8 @@ class _TarArchiverContext:
         exc_tb: typing.Optional[types.TracebackType]
     ) -> None:
         if exc_type is None:
-            await IOThrottler.async_writer((x for x in (self.__fin_padding(),)), self.__archive)
+            await cag(IOThrottler.async_writer((x for x in (self.__fin_padding(),)), self.__archive))
+
         elif self.__truncate_on_error:
             self.__archive.seek(0, os.SEEK_SET)
             self.__archive.truncate()
