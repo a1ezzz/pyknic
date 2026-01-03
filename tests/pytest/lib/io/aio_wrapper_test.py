@@ -9,6 +9,7 @@ import pytest
 import threading
 import typing
 
+from pyknic.lib.io import IOGenerator, IOAsyncGenerator
 from pyknic.lib.io.aio_wrapper import AsyncWrapper, IOThrottler, cg, cag, as_ag, chain_sync_processor
 from pyknic.lib.io.aio_wrapper import chain_async_processor
 
@@ -108,7 +109,7 @@ class TestIOThrottler:
             th.start()
 
     @pytest.mark.parametrize("reader_method", [IOThrottler().reader, IOThrottler.sync_reader])
-    def test_reader(self, reader_method) -> None:
+    def test_reader(self, reader_method: typing.Callable[..., typing.Any]) -> None:
         bytes_io = io.BytesIO(b'!' * 1024)
         result = []
 
@@ -118,7 +119,7 @@ class TestIOThrottler:
         assert(result == [b'!' * 500, b'!' * 500, b'!' * 24])
 
     @pytest.mark.parametrize("copier_method", [IOThrottler().copier, IOThrottler.sync_copier])
-    def test_copier(self, copier_method) -> None:
+    def test_copier(self, copier_method: typing.Callable[..., typing.Any]) -> None:
         source_io = io.BytesIO(b'!' * 1024)
         dest_io = io.BytesIO()
 
@@ -126,7 +127,7 @@ class TestIOThrottler:
         assert(dest_io.getvalue() == b'!' * 1024)
 
     @pytest.mark.parametrize("writer_method", [IOThrottler().writer, IOThrottler.sync_writer])
-    def test_writer(self, writer_method) -> None:
+    def test_writer(self, writer_method: typing.Callable[..., typing.Any]) -> None:
 
         def source() -> typing.Generator[bytes, None, None]:
             for _ in range(10):
@@ -183,7 +184,7 @@ class TestIOThrottler:
             await cag(IOThrottler.async_reader(bytes_io, block_size=50, read_size=200))
 
     @pytest.mark.parametrize("copier_method", [IOThrottler().copier, IOThrottler.sync_copier])
-    def test_copier_size_limit(self, copier_method) -> None:
+    def test_copier_size_limit(self, copier_method: typing.Callable[..., typing.Any]) -> None:
         source_io = io.BytesIO(b'!' * 1024)
         dest_io = io.BytesIO()
 
@@ -191,7 +192,7 @@ class TestIOThrottler:
         assert(dest_io.getvalue() == b'!' * 700)
 
     @pytest.mark.parametrize("copier_method", [IOThrottler().copier, IOThrottler.sync_copier])
-    def test_copier_size_limit_exception(self, copier_method) -> None:
+    def test_copier_size_limit_exception(self, copier_method: typing.Callable[..., typing.Any]) -> None:
         source_io = io.BytesIO(b'!' * 100)
         dest_io = io.BytesIO()
 
@@ -199,7 +200,7 @@ class TestIOThrottler:
             cg(copier_method(source_io, dest_io, copy_size=700))
 
     @pytest.mark.parametrize("writer_method", [IOThrottler().writer, IOThrottler.sync_writer])
-    def test_writer_size_limit(self, writer_method) -> None:
+    def test_writer_size_limit(self, writer_method: typing.Callable[..., typing.Any]) -> None:
 
         def source() -> typing.Generator[bytes, None, None]:
             for _ in range(10):
@@ -210,7 +211,7 @@ class TestIOThrottler:
         assert(bytes_io.getvalue() == b'b' * 521)
 
     @pytest.mark.parametrize("writer_method", [IOThrottler().writer, IOThrottler.sync_writer])
-    def test_writer_size_limit_exception(self, writer_method) -> None:
+    def test_writer_size_limit_exception(self, writer_method: typing.Callable[..., typing.Any]) -> None:
 
         def source() -> typing.Generator[bytes, None, None]:
             for _ in range(10):
@@ -220,7 +221,7 @@ class TestIOThrottler:
         with pytest.raises(ValueError):
             cg(writer_method(source(), bytes_io, write_size=2000))
 
-    def test_custom_throttling(self):
+    def test_custom_throttling(self) -> None:
         throttling = IOThrottler(1)
 
         throttling.start()
@@ -243,7 +244,7 @@ def test_cp() -> None:
     ]
 )
 @pyknic_async_test
-async def test_cap(gen_obj) -> None:
+async def test_cap(gen_obj: IOGenerator) -> None:
     assert(await cag(gen_obj) == 100)
 
 
@@ -262,52 +263,52 @@ async def test_as_ap() -> None:
     assert(list(gen_gen2) == result)
 
 
-def test_chain_sync_processor():
+def test_chain_sync_processor() -> None:
 
     input_data = [b'a'] * 10
 
-    def processor1(s):
+    def processor1(s: IOGenerator) -> IOGenerator:
         for i in s:
             yield i + b'b'
 
-    def processor2(s):
+    def processor2(s: IOGenerator) -> IOGenerator:
         for i in s:
             yield i + b'c'
 
-    result = list(chain_sync_processor(input_data))
+    result = list(chain_sync_processor(input_data))  # type: ignore[arg-type]
     assert(result == ([b'a'] * 10))
 
-    result = list(chain_sync_processor(input_data, processor1))
+    result = list(chain_sync_processor(input_data, processor1))  # type: ignore[arg-type]
     assert(result == ([b'ab'] * 10))
 
-    result = list(chain_sync_processor(input_data, processor1, processor2))
+    result = list(chain_sync_processor(input_data, processor1, processor2))  # type: ignore[arg-type]
     assert(result == ([b'abc'] * 10))
 
 
 @pyknic_async_test
-async def test_chain_async_processor(module_event_loop: asyncio.AbstractEventLoop):
+async def test_chain_async_processor(module_event_loop: asyncio.AbstractEventLoop) -> None:
 
     input_data = [b'a'] * 10
 
-    async def processor1(s):
+    async def processor1(s: IOAsyncGenerator) -> IOAsyncGenerator:
         async for i in s:
             yield i + b'b'
 
-    async def processor2(s):
+    async def processor2(s: IOAsyncGenerator) -> IOAsyncGenerator:
         async for i in s:
             yield i + b'c'
 
     result = []
-    async for i in chain_async_processor(input_data):
+    async for i in chain_async_processor(input_data):  # type: ignore[arg-type]
         result.append(i)
     assert(result == ([b'a'] * 10))
 
     result = []
-    async for i in chain_async_processor(input_data, processor1):
+    async for i in chain_async_processor(input_data, processor1):  # type: ignore[arg-type]
         result.append(i)
     assert(result == ([b'ab'] * 10))
 
     result = []
-    async for i in chain_async_processor(input_data, processor1, processor2):
+    async for i in chain_async_processor(input_data, processor1, processor2):  # type: ignore[arg-type]
         result.append(i)
     assert(result == ([b'abc'] * 10))

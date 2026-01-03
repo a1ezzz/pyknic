@@ -138,7 +138,6 @@ class IOThrottler:
         return (should_be - elapsed) if should_be > elapsed else 0
 
     @verify_value(read_size=lambda x: x is None or x > 0, block_size=lambda x: x is None or x > 0)
-    @verify_value(throttling=lambda x: x is None or x > 0)
     def reader(
         self,
         io_obj: typing.IO[bytes],
@@ -213,6 +212,7 @@ class IOThrottler:
             yield block
             await asyncio.sleep(throttler.pause())
 
+    @verify_value(write_size=lambda x: x is None or x > 0, block_size=lambda x: x is None or x > 0)
     def writer(
         self,
         source: typing.Generator[bytes, None, None],
@@ -308,6 +308,7 @@ class IOThrottler:
             yield written_chunk
             await asyncio.sleep(throttler.pause())
 
+    @verify_value(copy_size=lambda x: x is None or x > 0, block_size=lambda x: x is None or x > 0)
     def copier(
         self,
         source_io_obj: typing.IO[bytes],
@@ -405,7 +406,7 @@ async def cag(source: typing.Union[IOGenerator, IOAsyncGenerator]) -> int:
     """
     result = 0
 
-    async for data in (source if inspect.isasyncgen(source) else as_ag(source)):
+    async for data in (source if inspect.isasyncgen(source) else as_ag(source)):  # type: ignore[arg-type]
         result += len(data)
     return result
 
@@ -442,7 +443,7 @@ async def chain_async_processor(
 
     async def dummy_processor(s: typing.Union[IOGenerator, IOAsyncGenerator]) -> IOAsyncGenerator:
         # this is just to make sure that there is one processor at least
-        async for i in (s if inspect.isasyncgen(source) else as_ag(s)):
+        async for i in (s if inspect.isasyncgen(source) else as_ag(s)):  # type: ignore[arg-type, union-attr]
             yield i
 
     chain = functools.partial(dummy_processor, source)
