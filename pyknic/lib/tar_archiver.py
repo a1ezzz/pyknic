@@ -30,13 +30,13 @@ import types
 import typing
 
 from pyknic.lib.verify import verify_value
+from pyknic.lib.io import IOGenerator
 from pyknic.lib.io.aio_wrapper import IOThrottler, cag
 
 
 class _TarArchiverContext:
     """This context relates to a new archive creation
     """
-    # TODO: throttling?
 
     @verify_value(block_size=lambda x: x is None or x > 0)
     def __init__(
@@ -52,11 +52,17 @@ class _TarArchiverContext:
         self.__truncate_on_error = truncate_on_error
 
         self.__total_bytes = 0
-        self.__context_inited = False  # TODO: to prevent calls to append_* methods before __aenter__ is called
+        self.__context_inited = False
+
+    async def open(self) -> None:
+        """Initialize context. This method is called automatically with the "async with" call
+        """
+        self.__context_inited = True
 
     async def __aenter__(self) -> '_TarArchiverContext':
         """Enter this context
         """
+        await self.open()
         return self
 
     def __custom_tar_info(
@@ -189,10 +195,13 @@ class _TarArchiverContext:
 
         :param source: a path to a file to archive
         """
+        if not self.__context_inited:
+            raise RuntimeError('Context is not initialized')
+
         header_size = await self.__append_header(self.__tar_info_by_file(source))
 
         with open(source, 'rb') as f:
-            # TODO: consider checking that file modification time hasn't be changed!
+            # TODO: consider checking that file modification time hasn't changed!
             file_bytes = await self.__append_data(f)
 
         await self.__append_file_padding(header_size, file_bytes)
@@ -210,6 +219,9 @@ class _TarArchiverContext:
         :param tar_kwargs: extra args to pass to the `:meth:.__custom_tar_info` method
         which is used for tar header creation
         """
+        if not self.__context_inited:
+            raise RuntimeError('Context is not initialized')
+
         start_pos = self.__archive.tell()
 
         tar_info = self.__custom_tar_info(filename, **tar_kwargs)  # type: ignore[arg-type]
@@ -218,8 +230,41 @@ class _TarArchiverContext:
         await self.__append_file_padding(header_size, file_bytes)
         await self.__patch_file_size(start_pos, tar_info, header_size, file_bytes)
 
+    async def append_generator(
+        self,
+        source: IOGenerator,
+        filename: str,
+        **tar_kwargs: typing.Optional[typing.Union[str, int]]
+    ) -> None:
+        """Append data from generator to an archive
+
+        :param source: a data to archive
+        :param filename: name of an inner file
+        """
+        if not self.__context_inited:
+            raise RuntimeError('Context is not initialized')
+
+        start_pos = self.__archive.tell()
+
+        tar_info = self.__custom_tar_info(filename, **tar_kwargs)  # type: ignore[arg-type]
+        header_size = await self.__append_header(tar_info)
+
+        file_bytes = await cag(IOThrottler.async_writer(
+            source, self.__archive, block_size=self.__block_size
+        ))
+        self.__total_bytes += file_bytes
+
+        await self.__append_file_padding(header_size, file_bytes)
+        await self.__patch_file_size(start_pos, tar_info, header_size, file_bytes)
+
     def __fin_padding(self) -> bytes:
         return self.__padding(self.__total_bytes, tarfile.RECORDSIZE)
+
+    async def close(self) -> None:
+        """Close this context and finalize file. Is used in conjunction with the :meth:`._TarArchiveContext.open` method
+        Is called automatically when the context is closed.
+        """
+        await cag(IOThrottler.async_writer((x for x in (self.__fin_padding(),)), self.__archive))
 
     async def __aexit__(
         self,
@@ -227,8 +272,10 @@ class _TarArchiverContext:
         exc_val: typing.Optional[BaseException],
         exc_tb: typing.Optional[types.TracebackType]
     ) -> None:
+        """Close this context and finalize file.
+        """
         if exc_type is None:
-            await cag(IOThrottler.async_writer((x for x in (self.__fin_padding(),)), self.__archive))
+            await self.close()
 
         elif self.__truncate_on_error:
             self.__archive.seek(0, os.SEEK_SET)
@@ -239,10 +286,17 @@ class TarArchiver:
     """Wrapper for basic tar functions
     """
 
-    def create(self, destination: io.BufferedRandom) -> _TarArchiverContext:
-        """Return a new tar archiver context
+    def create(self, destination: io.BufferedRandom, truncate_on_error: bool = True) -> _TarArchiverContext:
+        """Return a new tar archiver context. It should be used with the "async with" call
         """
-        return _TarArchiverContext(destination)
+        return _TarArchiverContext(destination, truncate_on_error=truncate_on_error)
+
+    async def open_context(self, destination: io.BufferedRandom, truncate_on_error: bool = True) -> _TarArchiverContext:
+        """Return a new tar archiver context that require manual closing procedure. It works without "async with" call
+        """
+        tar_context = _TarArchiverContext(destination, truncate_on_error=truncate_on_error)
+        await tar_context.open()
+        return tar_context
 
     async def extract_io(self, source: io.BufferedRandom, filename: str, destination: io.BufferedRandom) -> None:
         """Extract data from an archive
@@ -259,5 +313,5 @@ class TarArchiver:
             file_size = tar_info.size
             source.seek(start_pos + tar_info.offset_data, os.SEEK_SET)
 
-            await IOThrottler.async_copier(source, destination, copy_size=file_size)
+            await cag(IOThrottler.async_copier(source, destination, copy_size=file_size))
             source.seek(start_pos, os.SEEK_SET)
