@@ -25,6 +25,7 @@ from pyknic.lib.io import IOGenerator
 from pyknic.lib.crypto.proto import BlockPaddingProto
 from pyknic.lib.verify import verify_value
 from pyknic.lib.crypto.random import random_int
+from pyknic.lib.io.aligner import Aligner
 
 
 class SimplePadding(BlockPaddingProto):
@@ -85,25 +86,25 @@ class SimplePadding(BlockPaddingProto):
         if self.__processed_bytes != 0:
             raise RuntimeError('The "pad" or the "undo_pad" method has already been called')
 
-        data_processed = 0
-        data_cache = b''
-        for i in data:
-            data_processed += len(i)
-            data_cache += i
-            if len(data_cache) > block_size:
-                yield data_cache[:-block_size]
-                data_cache = data_cache[-block_size:]
+        aligner = Aligner(block_size, strict_mode=True)
 
-        if len(data_cache) != block_size:
-            raise RuntimeError('Not enough data (chunk is too small). It seams that this data was not padded')
+        prev_block, next_block = None, None
+        for aligner_block in aligner.iterate_data(data):
+            if prev_block is not None:
+                yield prev_block
 
-        if (data_processed % block_size) != 0:
-            raise RuntimeError('Not enough data (data was not aligned). It seams that this data was not padded')
+            prev_block, next_block = next_block, aligner_block
 
-        if self.__always_pad and not data_cache.endswith(self.padding_symbol()):
+        if prev_block is not None:
+            yield prev_block
+
+        if next_block is None:
+            raise RuntimeError('There is no data. It seams that this data was not padded')
+
+        if self.__always_pad and not next_block.endswith(self.padding_symbol()):
             raise RuntimeError('Invalid last symbol. It seams that this data was not padded')
 
-        yield data_cache.rstrip(self.padding_symbol())
+        yield next_block.rstrip(self.padding_symbol())
 
 
 class ZeroPadding(SimplePadding):
@@ -206,27 +207,23 @@ class PKCS7Padding(BlockPaddingProto):
         if self.__processed_bytes != 0:
             raise RuntimeError('The "pad" or the "undo_pad" method has already been called')
 
-        data_processed = 0
-        data_cache = b''
-        for i in data:
-            data_processed += len(i)
-            data_cache += i
-            if len(data_cache) > block_size:
-                yield data_cache[:-block_size]
-                data_cache = data_cache[-block_size:]
+        aligner = Aligner(block_size, strict_mode=True)
 
-        if len(data_cache) != block_size:
-            raise RuntimeError(
-                'Not enough data (chunk is too small). It seams that this data was not padded with PKCS7'
-            )
+        prev_block, next_block = None, None
+        for aligner_block in aligner.iterate_data(data):
+            if prev_block is not None:
+                yield prev_block
 
-        if (data_processed % block_size) != 0:
-            raise RuntimeError(
-                'Not enough data (data was not aligned). It seams that this data was not padded with PKCS7'
-            )
+            prev_block, next_block = next_block, aligner_block
 
-        padded = data_cache[-1]
+        if prev_block is not None:
+            yield prev_block
+
+        if next_block is None:
+            raise RuntimeError('There is no data. It seams that this data was not padded')
+
+        padded = next_block[-1]
         if padded == 0 or padded > block_size:
             raise RuntimeError('Invalid last byte. It seams that this data was not padded with PKCS7')
 
-        yield data_cache[:-padded]
+        yield next_block[:-padded]
