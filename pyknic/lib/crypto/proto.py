@@ -23,8 +23,33 @@ import typing
 
 from abc import ABCMeta, abstractmethod
 
+from cryptography.hazmat.primitives.hashes import HashAlgorithm as C10yHashAlgorithm
+
 from pyknic.lib.io import IOGenerator
 from pyknic.lib.verify import verify_value
+
+
+class HasherProto(metaclass=ABCMeta):
+    """This is a base class for all generalized hashers."""
+
+    @abstractmethod
+    def update(self, source: IOGenerator) -> IOGenerator:
+        """Update digest and yield all the received data.
+
+        :param source: a data to update digest
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @abstractmethod
+    def digest(self) -> bytes:
+        """Return generated digest."""
+        raise NotImplementedError('This method is abstract')
+
+    @abstractmethod
+    def c10y_algorithm(self) -> typing.Optional[C10yHashAlgorithm]:
+        """If available -- return object of the "cryptography" module which implements the hash algorithm
+        """
+        return None
 
 
 class CipherProto(metaclass=ABCMeta):

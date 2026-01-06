@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/random.py
+# pyknic/lib/crypto/random.py
 #
 # Copyright (C) 2016-2026 the pyknic authors and contributors
 # <see AUTHORS file>

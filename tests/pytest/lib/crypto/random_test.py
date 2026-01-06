@@ -2,7 +2,7 @@
 
 import pytest
 
-from pyknic.lib.random import random_bits, random_bytes, random_int
+from pyknic.lib.crypto.random import random_bits, random_bytes, random_int
 
 
 @pytest.mark.parametrize("bits_count", range(1, 100))

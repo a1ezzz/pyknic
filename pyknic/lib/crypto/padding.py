@@ -24,7 +24,7 @@ import typing
 from pyknic.lib.io import IOGenerator
 from pyknic.lib.crypto.proto import BlockPaddingProto
 from pyknic.lib.verify import verify_value
-from pyknic.lib.random import random_int
+from pyknic.lib.crypto.random import random_int
 
 
 class SimplePadding(BlockPaddingProto):

@@ -2,16 +2,10 @@
 
 import pytest
 
-from pyknic.lib.crypto.hash import __default_io_hashers_registry__, HasherProto, BLAKE2b_64Hasher, BLAKE2s_32Hasher
-from pyknic.lib.crypto.hash import MD5Hasher, SHA1Hasher, SHA224Hasher, SHA256Hasher, SHA384Hasher, SHA512Hasher
-from pyknic.lib.crypto.hash import SHA512_224Hasher, SHA512_256Hasher, SHA3_224Hasher, SHA3_256Hasher, SHA3_384Hasher
-from pyknic.lib.crypto.hash import SHA3_512Hasher
-
-
-def test_abstract() -> None:
-    pytest.raises(TypeError, HasherProto)
-    pytest.raises(NotImplementedError, HasherProto.update, None, None)
-    pytest.raises(NotImplementedError, HasherProto.digest, None)
+from pyknic.lib.crypto.proto import HasherProto
+from pyknic.lib.crypto.hash import __default_io_hashers_registry__, BLAKE2b_64Hasher, BLAKE2s_32Hasher, MD5Hasher
+from pyknic.lib.crypto.hash import SHA1Hasher, SHA224Hasher, SHA256Hasher, SHA384Hasher, SHA512Hasher, SHA512_224Hasher
+from pyknic.lib.crypto.hash import SHA512_256Hasher, SHA3_224Hasher, SHA3_256Hasher, SHA3_384Hasher, SHA3_512Hasher
 
 
 class TestHasher:

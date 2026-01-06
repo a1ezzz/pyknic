@@ -21,31 +21,16 @@
 
 import typing
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 
 from cryptography.hazmat.primitives import hashes as c10y_hashes
+from cryptography.hazmat.primitives.hashes import HashAlgorithm as C10yHashAlgorithm
 
 from pyknic.lib.io import IOGenerator
 from pyknic.lib.registry import APIRegistry, register_api
+from pyknic.lib.crypto.proto import HasherProto
 
 __default_io_hashers_registry__ = APIRegistry()
-
-
-class HasherProto(metaclass=ABCMeta):
-    """This is a base class for all generalized hashers."""
-
-    @abstractmethod
-    def update(self, source: IOGenerator) -> IOGenerator:
-        """Update digest and yield all the received data.
-
-        :param source: a data to update digest
-        """
-        raise NotImplementedError('This method is abstract')
-
-    @abstractmethod
-    def digest(self) -> bytes:
-        """Return generated digest."""
-        raise NotImplementedError('This method is abstract')
 
 
 class CryptographyHasherAdapter(HasherProto):
@@ -70,9 +55,11 @@ class CryptographyHasherAdapter(HasherProto):
 
     def __create_hasher(self) -> c10y_hashes.Hash:
         """Create a new object from the cryptography library."""
-        hash_algo = getattr(c10y_hashes, self._hasher_name())
-        hash_args = self._hasher_args()
-        return c10y_hashes.Hash(hash_algo(*hash_args))
+        hash_algo = self.c10y_algorithm()
+        if hash_algo is None:
+            raise RuntimeError('No suitable algorithm available')
+
+        return c10y_hashes.Hash(hash_algo)
 
     def update(self, source: IOGenerator) -> IOGenerator:
         """The :meth:`.HasherProto.update` method implementation."""
@@ -89,6 +76,13 @@ class CryptographyHasherAdapter(HasherProto):
         if self.__digest is None:
             raise ValueError('Digest is not available. Please call the "update" method first.')
         return self.__digest
+
+    def c10y_algorithm(self) -> typing.Optional[C10yHashAlgorithm]:
+        """The :meth:`.HasherProto.c10y_algorithm` method implementation."""
+        hash_algo = getattr(c10y_hashes, self._hasher_name())
+        hash_args = self._hasher_args()
+
+        return hash_algo(*hash_args)  # type: ignore[no-any-return]
 
 
 @register_api(__default_io_hashers_registry__, "blake2b_64")
