@@ -1,7 +1,7 @@
 
 import pytest
 
-from pyknic.lib.io.crypto.proto import CipherProto, BlockPaddingProto
+from pyknic.lib.crypto.proto import CipherProto, BlockPaddingProto
 
 
 def test_abstract() -> None:

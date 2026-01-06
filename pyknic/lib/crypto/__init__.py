@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/io/crypto/__init__.py
+# pyknic/lib/crypto/__init__.py
 #
 # Copyright (C) 2026 the pyknic authors and contributors
 # <see AUTHORS file>

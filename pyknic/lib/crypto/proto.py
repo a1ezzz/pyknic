@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/io/crypto/proto.py
+# pyknic/lib/crypto/proto.py
 #
 # Copyright (C) 2018-2026 the pyknic authors and contributors
 # <see AUTHORS file>

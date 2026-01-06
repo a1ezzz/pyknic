@@ -6,8 +6,8 @@ import typing
 
 from cryptography.hazmat.primitives.padding import PKCS7
 
-from pyknic.lib.io.crypto.proto import BlockPaddingProto
-from pyknic.lib.io.crypto.padding import SimplePadding, ZeroPadding, ShiftPadding, PKCS7Padding
+from pyknic.lib.crypto.proto import BlockPaddingProto
+from pyknic.lib.crypto.padding import SimplePadding, ZeroPadding, ShiftPadding, PKCS7Padding
 from pyknic.lib.io.aio_wrapper import IOThrottler, cg
 
 

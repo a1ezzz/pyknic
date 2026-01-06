@@ -2,10 +2,10 @@
 
 import pytest
 
-from pyknic.lib.io.hash import __default_io_hashers_registry__, HasherProto, BLAKE2b_64Hasher, BLAKE2s_32Hasher
-from pyknic.lib.io.hash import MD5Hasher, SHA1Hasher, SHA224Hasher, SHA256Hasher, SHA384Hasher, SHA512Hasher
-from pyknic.lib.io.hash import SHA512_224Hasher, SHA512_256Hasher, SHA3_224Hasher, SHA3_256Hasher, SHA3_384Hasher
-from pyknic.lib.io.hash import SHA3_512Hasher
+from pyknic.lib.crypto.hash import __default_io_hashers_registry__, HasherProto, BLAKE2b_64Hasher, BLAKE2s_32Hasher
+from pyknic.lib.crypto.hash import MD5Hasher, SHA1Hasher, SHA224Hasher, SHA256Hasher, SHA384Hasher, SHA512Hasher
+from pyknic.lib.crypto.hash import SHA512_224Hasher, SHA512_256Hasher, SHA3_224Hasher, SHA3_256Hasher, SHA3_384Hasher
+from pyknic.lib.crypto.hash import SHA3_512Hasher
 
 
 def test_abstract() -> None:

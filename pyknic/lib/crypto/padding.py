@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/io/crypto/padding.py
+# pyknic/lib/crypto/padding.py
 #
 # Copyright (C) 2018-2026 the pyknic authors and contributors
 # <see AUTHORS file>
@@ -22,7 +22,7 @@
 import typing
 
 from pyknic.lib.io import IOGenerator
-from pyknic.lib.io.crypto.proto import BlockPaddingProto
+from pyknic.lib.crypto.proto import BlockPaddingProto
 from pyknic.lib.verify import verify_value
 from pyknic.lib.random import random_int
 

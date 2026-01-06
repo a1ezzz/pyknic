@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/io/hash.py
+# pyknic/lib/crypto/hash.py
 #
 # Copyright (C) 2025 the pyknic authors and contributors
 # <see AUTHORS file>
