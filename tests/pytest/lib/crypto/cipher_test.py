@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import base64
 import pytest
 import typing
 
@@ -27,7 +28,7 @@ class TestCipherModeModel:
 class TestCBCMode:
 
     def test_plain(self) -> None:
-        model = CBCMode(initialization_vector=b'aaa')
+        model = CBCMode(initialization_vector=base64.b64encode(b'aaa'))
         assert(isinstance(model, CipherModeModel))
         assert(isinstance(model, pydantic.BaseModel))
         assert(model.c10y_mode() is not None)
@@ -47,14 +48,14 @@ class TestCBCMode:
     def test_exceptions(self) -> None:
         cipher = AES128CBCCipher(b'b' * int(128 / 8))  # type: ignore[abstract]
 
-        corrupted_model = CBCMode(initialization_vector=b'aaa')
+        corrupted_model = CBCMode(initialization_vector=base64.b64encode(b'aaa'))
         pytest.raises(ValueError, CBCMode.deserialize, corrupted_model.model_dump(), cipher)
 
 
 class TestCTRMode:
 
     def test_plain(self) -> None:
-        model = CTRMode(nonce=(b'a' * 128))
+        model = CTRMode(nonce=base64.b64encode(b'a' * 16))
         assert(isinstance(model, CipherModeModel))
         assert(isinstance(model, pydantic.BaseModel))
         assert(model.c10y_mode() is not None)
@@ -75,9 +76,9 @@ class TestCTRMode:
         cipher = AES128CBCCipher(b'b' * int(128 / 8))  # type: ignore[abstract]
 
         with pytest.raises(ValueError):
-            _ = CTRMode(nonce=b'a')  # too short
+            _ = CTRMode(nonce=base64.b64encode(b'a' * 15))  # too short
 
-        corrupted_model = CTRMode(nonce=(b'a' * 128))
+        corrupted_model = CTRMode(nonce=base64.b64encode(b'a' * 17))  # too long for aes-128-cbc
         pytest.raises(ValueError, CTRMode.deserialize, corrupted_model.model_dump(), cipher)
 
 

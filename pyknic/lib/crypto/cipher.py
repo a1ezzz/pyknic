@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import base64
 import typing
 
 from abc import abstractmethod
@@ -74,7 +75,7 @@ class CBCMode(CipherModeModel):
     see also: https://cryptography.io/en/latest/hazmat/primitives/symmetric-encryption/#cryptography.hazmat.primitives.ciphers.modes.CBC  # noqa: E501
     """
 
-    initialization_vector: bytes
+    initialization_vector: pydantic.Base64Bytes
     mode: typing.Literal['CBC'] = pydantic.Field(default='CBC', frozen=True)
 
     @classmethod
@@ -83,7 +84,7 @@ class CBCMode(CipherModeModel):
         """
         block_size = cipher.algo_block_size()
         assert(block_size is not None)
-        return CBCMode(initialization_vector=random_bytes(block_size))
+        return CBCMode(initialization_vector=base64.b64encode(random_bytes(block_size)))
 
     @classmethod
     def deserialize(cls, model_data: typing.Dict[str, typing.Any], cipher: CipherProto) -> 'CBCMode':
@@ -108,7 +109,8 @@ class CTRMode(CipherModeModel):
     :note: please note minimal block size!
     """
 
-    nonce: bytes = pydantic.Field(min_length=int(128 / 8))
+    nonce: pydantic.Base64Bytes = pydantic.Field(min_length=22)  # (((128 / 8) / 3) * 4) -- length of base64-encoded
+    # string required for 128-bit block
     mode: typing.Literal['CTR'] = pydantic.Field(default='CTR', frozen=True)
 
     @classmethod
@@ -117,7 +119,7 @@ class CTRMode(CipherModeModel):
         """
         block_size = cipher.algo_block_size()
         assert(block_size is not None)
-        return CTRMode(nonce=random_bytes(block_size))
+        return CTRMode(nonce=base64.b64encode(random_bytes(block_size)))
 
     @classmethod
     def deserialize(cls, model_data: typing.Dict[str, typing.Any], cipher: CipherProto) -> 'CTRMode':

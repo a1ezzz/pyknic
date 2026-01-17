@@ -28,6 +28,10 @@ from pyknic.lib.verify import verify_value
 from pyknic.lib.crypto.hash import __default_hashers_registry__
 from pyknic.lib.crypto.random import random_bytes
 
+# TODO: checkout Balloon and Argon2 algorithms. The first one (Balloon) is recommended by NIST but there is no support
+#  from cryptography package and openssl utility (at least I didn't found). The second one (Argon2) is implemented
+#  in cryptography and openssl but was not recommended by NIST
+
 
 class PBKDF2:
     """ Wrapper for Cryptography io PBKDF2 implementation with NIST recommendation and HMAC is used as pseudorandom
@@ -55,12 +59,13 @@ class PBKDF2:
     """ Hash-generator that is used by default
     """
 
-    __minimum_iterations_count__ = 1000
-    """ Minimum iteration Count is specified at Section 5.2 of Recommendation for Password-Based Key Derivation by
-    NIST
+    __minimum_iterations_count__ = 1000000
+    """ 1000 is the minimum iteration Count is specified at Section 5.2 of Recommendation for Password-Based Key
+    Derivation by NIST. But at the same time, this recommendation was published at 2010. So it is better to use
+    more iterations like OWASP recommends
     """
 
-    __default_iterations_count__ = 1000
+    __default_iterations_count__ = 1000000
     """ The iteration count used by default
     """
 
@@ -96,9 +101,11 @@ class PBKDF2:
 
         if iterations_count is None:
             iterations_count = self.__default_iterations_count__
+        self.__iterations_count = iterations_count
 
         if hash_fn_name is None:
             hash_fn_name = self.__class__.__default_digest_generator_name__
+        self.__hash_name = hash_fn_name
 
         hash_cls = __default_hashers_registry__.get(hash_fn_name)
         hash_obj = hash_cls()
@@ -107,7 +114,7 @@ class PBKDF2:
             algorithm=hash_obj.c10y_algorithm(),
             length=derived_key_length,
             salt=self.__salt,
-            iterations=iterations_count,
+            iterations=self.__iterations_count,
             backend=default_backend()
         )
 
@@ -117,6 +124,16 @@ class PBKDF2:
         """ Return salt value (that was given in constructor or created automatically)
         """
         return self.__salt
+
+    def iterations(self) -> int:
+        """ Return number of iterations this KDF used
+        """
+        return self.__iterations_count
+
+    def hash_name(self) -> str:
+        """ Return name of hash function this KDF used
+        """
+        return self.__hash_name
 
     def derived_key(self) -> bytes:
         """ Return derived key

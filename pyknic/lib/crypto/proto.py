@@ -104,8 +104,7 @@ class CipherProto(metaclass=ABCMeta):
         or initialization vector) that are crucial for decryption. This data is safe to transmit along with secured
         message.
 
-        :note: result of this method should be serializable
-        # TODO: double check this sentence and all the implementations
+        :note: result of this method should be able to serialize to JSON
         """
         raise NotImplementedError('This method is abstract')
 
