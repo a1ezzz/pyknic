@@ -25,7 +25,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC as C10yPBKDF2HM
 from cryptography.hazmat.backends import default_backend
 
 from pyknic.lib.verify import verify_value
-from pyknic.lib.crypto.hash import __default_io_hashers_registry__
+from pyknic.lib.crypto.hash import __default_hashers_registry__
 from pyknic.lib.crypto.random import random_bytes
 
 
@@ -71,7 +71,7 @@ class PBKDF2:
     @verify_value(key=lambda x: len(x) >= PBKDF2.__minimum_key_length__)
     @verify_value(salt=lambda x: x is None or len(x) >= PBKDF2.__minimum_salt_length__)
     @verify_value(iterations_count=lambda x: x is None or x >= PBKDF2.__minimum_iterations_count__)
-    @verify_value(hash_fn_name=lambda x: x is None or __default_io_hashers_registry__.get(x))
+    @verify_value(hash_fn_name=lambda x: x is None or __default_hashers_registry__.get(x))
     def __init__(
         self,
         key: typing.Union[bytes],
@@ -100,7 +100,7 @@ class PBKDF2:
         if hash_fn_name is None:
             hash_fn_name = self.__class__.__default_digest_generator_name__
 
-        hash_cls = __default_io_hashers_registry__.get(hash_fn_name)
+        hash_cls = __default_hashers_registry__.get(hash_fn_name)
         hash_obj = hash_cls()
 
         pbkdf2_obj = C10yPBKDF2HMAC(
