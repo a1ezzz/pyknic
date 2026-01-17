@@ -56,29 +56,72 @@ class CipherProto(metaclass=ABCMeta):
     """ This class is a generalization of ciphers (now it is AES cipher only)
     """
 
+    @classmethod
     @abstractmethod
-    def block_size(self) -> typing.Optional[int]:
-        """Return a size of a block that may be encrypted or decrypted.
+    def algo_block_size(cls) -> typing.Optional[int]:
+        """Return cipher's block size
 
-        :return: int (in bytes) or None if cipher is able to encrypt/decrypt block with any length
+        :return: int (in bytes) or None if cipher is a stream cipher (not a block cipher)
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @classmethod
+    @abstractmethod
+    def key_size(cls) -> typing.Optional[int]:
+        """Return a size of a key this cipher require
+
+        :return: int (in bytes) or None if cipher is able to use a key with any length
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @classmethod
+    @abstractmethod
+    def create_encryptor(cls, key: bytes) -> 'CipherProto':
+        """Create a new cipher object that is able to encrypt data (decryption may not be possible and
+        calling to the :meth:`.CipherProto.decrypt` should be avoided)
+
+        :param key: key to use for encryption
+        """
+
+        raise NotImplementedError('This method is abstract')
+
+    @classmethod
+    @abstractmethod
+    def create_decryptor(cls, key: bytes, decryptor_init_data: typing.Any) -> 'CipherProto':
+        """Create a new cipher object that is able to decrypt data (encryption may not be possible and
+        calling to the :meth:`.CipherProto.encrypt` should be avoided)
+
+        :param key: key to use for decryption
+        :param decryptor_init_data: initialization data with which cipher was created.
+        See the :meth:`.CipherProto.decryptor_init_data` method
+        """
+
+        raise NotImplementedError('This method is abstract')
+
+    @abstractmethod
+    def decryptor_init_data(self) -> typing.Any:
+        """Initialization data with which this cipher was created. This data may contain some random bytes (like nonce
+        or initialization vector) that are crucial for decryption. This data is safe to transmit along with secured
+        message.
+
+        :note: result of this method should be serializable
+        # TODO: double check this sentence and all the implementations
         """
         raise NotImplementedError('This method is abstract')
 
     @abstractmethod
     def encrypt(self, data: IOGenerator) -> IOGenerator:
-        """ Encrypt the given data
+        """Encrypt the given data
 
-        :param data: data to encrypt. The size of the data must be multiple of :meth:`.CipherProto.block_size`
+        :param data: data to encrypt
         """
         raise NotImplementedError('This method is abstract')
 
     @abstractmethod
     def decrypt(self, data: IOGenerator) -> IOGenerator:
-        """ Decrypt the given data
+        """Decrypt the given data
 
-        :param data: data to decrypt. The size of the data must be multiple of :meth:`.CipherProto.block_size`
-
-        :return: bytes
+        :param data: data to decrypt
         """
         raise NotImplementedError('This method is abstract')
 
