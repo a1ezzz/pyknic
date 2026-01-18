@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
 import pathlib
 import pytest
 import sys
@@ -7,10 +8,21 @@ import tarfile
 
 from pyknic.lib.io import IOGenerator
 from pyknic.lib.io.aio_wrapper import IOThrottler, cg
-from pyknic.lib.io.tar import TarInnerFileGenerator, TarArchiveGenerator
+from pyknic.lib.io.tar import StaticTarEntryProto, DynamicTarEntryProto
+from pyknic.lib.io.tar import TarInnerFileGenerator, TarInnerGenerator, TarArchive, TarInnerDynamicGenerator
+
+from fixtures.asyncio import pyknic_async_test
 
 
-class TestTarArchiveGenerator:
+def test_abstract() -> None:
+    pytest.raises(TypeError, StaticTarEntryProto)
+    pytest.raises(NotImplementedError, StaticTarEntryProto.entry, None)
+
+    pytest.raises(TypeError, DynamicTarEntryProto)
+    pytest.raises(NotImplementedError, DynamicTarEntryProto.entry, None, None)
+
+
+class TestTarArchive:
 
     def test(self, tmp_path: pathlib.Path) -> None:
         test_data = b'Test data'
@@ -21,17 +33,19 @@ class TestTarArchiveGenerator:
             f.write(test_data)
 
         with pyknic_tar_file.open('wb') as f:
-            tar_arch = TarArchiveGenerator()
+            tar_arch = TarArchive()
 
-            def file_gen() -> IOGenerator:
-                inner_file = TarInnerFileGenerator()
-
-                yield from inner_file.file(str(tmp_path / "sample1"))
-                yield from inner_file.generator(
-                    [test_data], len(test_data), str((tmp_path / "sample2").relative_to('/'))
-                )
-
-            cg(IOThrottler.sync_writer(tar_arch.write(file_gen()), f))
+            cg(IOThrottler.sync_writer(
+                tar_arch.static_archive([
+                    TarInnerFileGenerator(str(tmp_path / "sample1")),
+                    TarInnerGenerator(
+                        [test_data],  # type: ignore[arg-type]
+                        len(test_data),
+                        str((tmp_path / "sample2").relative_to('/'))
+                    )
+                ]),
+                f
+            ))
 
         with tarfile.open(pyknic_tar_file) as tar:
             inner_names = list(tar.getnames())
@@ -62,22 +76,70 @@ class TestTarArchiveGenerator:
         test_data = b'Test data'
         pyknic_tar_file = tmp_path / "pyknic-archive.tar"
 
+        with pytest.raises(ValueError):
+            _ = TarInnerGenerator([test_data], len(test_data), "/sample2")  # type: ignore[arg-type]
+
+        with pytest.raises(ValueError):
+            _ = TarInnerDynamicGenerator([test_data], "/sample2")  # type: ignore[arg-type]
+
         with pyknic_tar_file.open('wb') as f:
-            tar_arch = TarArchiveGenerator()
+            tar_arch = TarArchive()
 
-            def incorrect_size_file_gen(file_size) -> IOGenerator:
-                inner_file = TarInnerFileGenerator()
-
+            def incorrect_size_file_gen(file_size: int) -> IOGenerator:
                 with pytest.raises(ValueError):
-                    yield from inner_file.generator([test_data], file_size, "sample2")
+                    yield from TarInnerGenerator(
+                        [test_data], file_size, "sample2"  # type: ignore[arg-type]
+                    ).entry()
 
-            def incorrect_filename_gen() -> IOGenerator:
-                inner_file = TarInnerFileGenerator()
+            cg(IOThrottler.sync_writer(tar_arch._write(incorrect_size_file_gen(len(test_data) + 1)), f))
+            cg(IOThrottler.sync_writer(tar_arch._write(incorrect_size_file_gen(len(test_data) - 1)), f))
 
-                with pytest.raises(ValueError):
-                    yield from inner_file.generator([test_data], len(test_data), "/sample2")
+    @pyknic_async_test
+    async def test_dynamic(self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path) -> None:
+        test_data = b'Test data'
 
-            cg(IOThrottler.sync_writer(tar_arch.write(incorrect_size_file_gen(len(test_data) + 1)), f))
-            cg(IOThrottler.sync_writer(tar_arch.write(incorrect_size_file_gen(len(test_data) - 1)), f))
+        pyknic_tar_file = tmp_path / "pyknic-archive.tar"
 
-            cg(IOThrottler.sync_writer(tar_arch.write(incorrect_filename_gen()), f))
+        with (tmp_path / "sample1").open('wb') as f:
+            f.write(test_data)
+
+        with pyknic_tar_file.open('wb') as f:
+            tar_arch = TarArchive()
+
+            await tar_arch.dynamic_archive(
+                f,  # type: ignore[arg-type]
+                [
+                    TarInnerFileGenerator(str(tmp_path / "sample1")),
+                    TarInnerDynamicGenerator(
+                        [test_data],  # type: ignore[arg-type]
+                        str((tmp_path / "sample2").relative_to('/'))
+                    )
+                ]
+            )
+
+    def test_extract(self, tmp_path: pathlib.Path) -> None:
+        test_data = b'Test data'
+
+        pyknic_tar_file = tmp_path / "pyknic-archive.tar"
+
+        with pyknic_tar_file.open('wb') as f:
+            tar_arch = TarArchive()
+
+            cg(IOThrottler.sync_writer(
+                tar_arch.static_archive([
+                    TarInnerGenerator(
+                        [test_data],  # type: ignore[arg-type]
+                        len(test_data),
+                        str((tmp_path / "sample").relative_to('/'))
+                    )
+                ]),
+                f
+            ))
+
+        with pyknic_tar_file.open('rb') as f:
+            tar_arch = TarArchive()
+            result = b''.join(
+                tar_arch.extract(f, str((tmp_path / "sample").relative_to('/')))  # type: ignore[arg-type]
+            )
+
+            assert(result == test_data)
