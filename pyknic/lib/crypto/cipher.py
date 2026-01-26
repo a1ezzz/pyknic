@@ -30,7 +30,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, modes
 from cryptography.hazmat.primitives.ciphers.algorithms import AES as C10yAES
 from cryptography.hazmat.backends import default_backend
 
-from pyknic.lib.io import IOGenerator
+from pyknic.lib.io import IOGenerator, IOProducer
 from pyknic.lib.io.aligner import Aligner
 from pyknic.lib.registry import APIRegistry, register_api
 from pyknic.lib.crypto.random import random_bytes
@@ -196,7 +196,7 @@ class _PlainAESCipher(CipherProto):
         """
         return self.__mode_model.model_dump()
 
-    def encrypt(self, data: IOGenerator) -> IOGenerator:
+    def encrypt(self, data: IOProducer) -> IOGenerator:
         """The :meth:`.CipherProto.encrypt` method implementation
         """
         if not self.__encryption_mode:
@@ -210,7 +210,7 @@ class _PlainAESCipher(CipherProto):
 
         yield encryptor.finalize()
 
-    def decrypt(self, data: IOGenerator) -> IOGenerator:
+    def decrypt(self, data: IOProducer) -> IOGenerator:
         """The :meth:`.CipherProto.decrypt` method implementation
         """
 

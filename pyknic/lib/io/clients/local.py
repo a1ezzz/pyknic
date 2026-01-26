@@ -93,6 +93,8 @@ class LocalClient(VirtualDirectoryClient):
         path = pathlib.PosixPath(self.session_path()) / directory_name
         path.rmdir()
 
+    @verify_value(from_fo=lambda x: x.seekable())
+    @verify_value(to_fo=lambda x: x.seekable())
     async def __copy(self, from_fo: typing.IO[bytes], to_fo: typing.IO[bytes]) -> None:
         """Copy files from one to another.
 
@@ -106,6 +108,7 @@ class LocalClient(VirtualDirectoryClient):
         await cag(IOThrottler().async_copier(from_fo, to_fo, block_size=self.__block_size))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    @verify_value(local_file_obj=lambda x: x.seekable())
     async def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         """The :meth:`.IOClientProto.upload_file` method implementation."""
         path = self.entry_path(remote_file_name)
@@ -119,6 +122,7 @@ class LocalClient(VirtualDirectoryClient):
         path.unlink()
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    @verify_value(local_file_obj=lambda x: x.seekable())
     async def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         """The :meth:`.IOClientProto.receive_file` method implementation."""
         path = str(self.entry_path(remote_file_name))

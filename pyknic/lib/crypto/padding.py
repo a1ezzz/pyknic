@@ -21,7 +21,7 @@
 
 import typing
 
-from pyknic.lib.io import IOGenerator
+from pyknic.lib.io import IOGenerator, IOProducer
 from pyknic.lib.crypto.proto import BlockPaddingProto
 from pyknic.lib.verify import verify_value
 from pyknic.lib.crypto.random import random_int
@@ -61,7 +61,7 @@ class SimplePadding(BlockPaddingProto):
         return self.__always_pad
 
     @verify_value(block_size=lambda x: x > 0)
-    def pad(self, data: IOGenerator, block_size: int) -> IOGenerator:
+    def pad(self, data: IOProducer, block_size: int) -> IOGenerator:
         """ :meth:`.BlockPaddingProto.pad` method implementation
         """
 
@@ -79,7 +79,7 @@ class SimplePadding(BlockPaddingProto):
         yield self.padding_symbol() * pad_length
 
     @verify_value(block_size=lambda x: x > 0)
-    def undo_pad(self, data: IOGenerator, block_size: int) -> IOGenerator:
+    def undo_pad(self, data: IOProducer, block_size: int) -> IOGenerator:
         """ :meth:`.BlockPaddingProto.undo_pad` method implementation
         """
 
@@ -131,11 +131,11 @@ class ShiftPadding(SimplePadding):
         SimplePadding.__init__(self, padding=padding, always_pad=True)
 
     @verify_value(block_size=lambda x: x > 0)
-    def pad(self, data: IOGenerator, block_size: int) -> IOGenerator:
+    def pad(self, data: IOProducer, block_size: int) -> IOGenerator:
         """ :meth:`.BlockPaddingProto.pad` method implementation
         """
 
-        def shifted_data(original_data: IOGenerator) -> IOGenerator:
+        def shifted_data(original_data: IOProducer) -> IOGenerator:
 
             shift_length = random_int(block_size)
             if shift_length == 0:
@@ -149,7 +149,7 @@ class ShiftPadding(SimplePadding):
         return SimplePadding.pad(self, shifted_data(data), block_size)
 
     @verify_value(block_size=lambda x: x > 0)
-    def undo_pad(self, data: IOGenerator, block_size: int) -> IOGenerator:
+    def undo_pad(self, data: IOProducer, block_size: int) -> IOGenerator:
         """ :meth:`.BlockPaddingProto.undo_pad` method implementation
         """
 
@@ -179,7 +179,7 @@ class PKCS7Padding(BlockPaddingProto):
         self.__processed_bytes = 0
 
     @verify_value(block_size=lambda x: x > 0)
-    def pad(self, data: IOGenerator, block_size: int) -> IOGenerator:
+    def pad(self, data: IOProducer, block_size: int) -> IOGenerator:
         """ :meth:`.BlockPaddingProto.pad` method implementation
         """
 
@@ -197,7 +197,7 @@ class PKCS7Padding(BlockPaddingProto):
         yield bytes([pad_length] * pad_length)
 
     @verify_value(block_size=lambda x: x > 0)
-    def undo_pad(self, data: IOGenerator, block_size: int) -> IOGenerator:
+    def undo_pad(self, data: IOProducer, block_size: int) -> IOGenerator:
         """ :meth:`.BlockPaddingProto.undo_pad` method implementation
         """
 

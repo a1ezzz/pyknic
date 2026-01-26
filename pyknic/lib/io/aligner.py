@@ -20,7 +20,7 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 
-from pyknic.lib.io import IOGenerator
+from pyknic.lib.io import IOGenerator, IOProducer
 
 
 class Aligner:
@@ -36,7 +36,7 @@ class Aligner:
         self.__block_size = block_size
         self.__strict_mode = strict_mode
 
-    def iterate_data(self, data: IOGenerator) -> IOGenerator:
+    def iterate_data(self, data: IOProducer) -> IOGenerator:
         """Chop data into blocks/chunks
         """
 

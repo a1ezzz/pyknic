@@ -153,6 +153,7 @@ class _SFTPSyncImplementation:
         return tuple(self.__sftp_client.listdir(dir_to_list))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    @verify_value(local_file_obj=lambda x: x.seekable())
     def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         """Synchronous implementation of the `.IOClientProto.upload_file` method
         """
@@ -174,6 +175,7 @@ class _SFTPSyncImplementation:
         self.__sftp_client.remove(str(rm_file_path))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    @verify_value(local_file_obj=lambda x: x.seekable())
     def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         """Synchronous implementation of the `.IOClientProto.receive_file` method
         """

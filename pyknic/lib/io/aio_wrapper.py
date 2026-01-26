@@ -32,6 +32,7 @@ from pyknic.lib.tasks.threaded_task import ThreadedTask
 from pyknic.lib.signals.extra import AsyncWatchDog
 from pyknic.lib.verify import verify_value
 from pyknic.lib.io import __default_block_size__, IOGenerator, IOAsyncGenerator, IOProcessor, IOAsyncProcessor
+from pyknic.lib.io import IOProducer
 
 
 class AsyncWrapper:
@@ -215,7 +216,7 @@ class IOThrottler:
     @verify_value(write_size=lambda x: x is None or x > 0, block_size=lambda x: x is None or x > 0)
     def writer(
         self,
-        source: typing.Generator[bytes, None, None],
+        source: IOProducer,
         io_obj: typing.IO[bytes],
         *,
         write_size: typing.Optional[int] = None,
@@ -274,7 +275,7 @@ class IOThrottler:
 
     @staticmethod
     def sync_writer(
-        source: typing.Generator[bytes, None, None],
+        source: IOProducer,
         io_obj: typing.IO[bytes],
         *,
         write_size: typing.Optional[int] = None,
@@ -292,7 +293,7 @@ class IOThrottler:
 
     @staticmethod
     async def async_writer(
-        source: typing.Generator[bytes, None, None],
+        source: IOProducer,
         io_obj: typing.IO[bytes],
         *,
         write_size: typing.Optional[int] = None,

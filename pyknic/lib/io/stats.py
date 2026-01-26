@@ -23,7 +23,7 @@
 import time
 import typing
 
-from pyknic.lib.io import IOGenerator
+from pyknic.lib.io import IOGenerator, IOProducer
 
 
 class GeneratorStats:
@@ -55,7 +55,7 @@ class GeneratorStats:
             raise RuntimeError('The generator has not been finished')
         return self.__bytes
 
-    def process(self, source: IOGenerator) -> IOGenerator:
+    def process(self, source: IOProducer) -> IOGenerator:
         """Process a source and calculate statistics.
 
         :param source: source which statistics should be calculated

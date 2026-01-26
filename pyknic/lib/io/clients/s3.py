@@ -194,6 +194,7 @@ class _S3ClientSyncImplementation:
         return tuple(self.__list_generator(self.__vd_client.session_path()))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    @verify_value(local_file_obj=lambda x: x.seekable())
     def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         assert(self.__client is not None)
 
@@ -226,6 +227,7 @@ class _S3ClientSyncImplementation:
         self.__client.remove_object(self.__bucket_name, path_to_str(rm_file_path, relative_path=True))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    @verify_value(local_file_obj=lambda x: x.seekable())
     def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         assert(self.__client is not None)
 

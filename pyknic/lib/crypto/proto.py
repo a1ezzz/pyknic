@@ -25,7 +25,7 @@ from abc import ABCMeta, abstractmethod
 
 from cryptography.hazmat.primitives.hashes import HashAlgorithm as C10yHashAlgorithm
 
-from pyknic.lib.io import IOGenerator
+from pyknic.lib.io import IOGenerator, IOProducer
 from pyknic.lib.verify import verify_value
 
 
@@ -33,7 +33,7 @@ class HasherProto(metaclass=ABCMeta):
     """This is a base class for all generalized hashers."""
 
     @abstractmethod
-    def update(self, source: IOGenerator) -> IOGenerator:
+    def update(self, source: IOProducer) -> IOGenerator:
         """Update digest and yield all the received data.
 
         :param source: a data to update digest
@@ -109,7 +109,7 @@ class CipherProto(metaclass=ABCMeta):
         raise NotImplementedError('This method is abstract')
 
     @abstractmethod
-    def encrypt(self, data: IOGenerator) -> IOGenerator:
+    def encrypt(self, data: IOProducer) -> IOGenerator:
         """Encrypt the given data
 
         :param data: data to encrypt
@@ -117,7 +117,7 @@ class CipherProto(metaclass=ABCMeta):
         raise NotImplementedError('This method is abstract')
 
     @abstractmethod
-    def decrypt(self, data: IOGenerator) -> IOGenerator:
+    def decrypt(self, data: IOProducer) -> IOGenerator:
         """Decrypt the given data
 
         :param data: data to decrypt
@@ -131,7 +131,7 @@ class BlockPaddingProto(metaclass=ABCMeta):
 
     @abstractmethod
     @verify_value(block_size=lambda x: x > 0)
-    def pad(self, data: IOGenerator, block_size: int) -> IOGenerator:
+    def pad(self, data: IOProducer, block_size: int) -> IOGenerator:
         """ Pad given data to given size
 
         :param data: data to pad
@@ -142,7 +142,7 @@ class BlockPaddingProto(metaclass=ABCMeta):
 
     @abstractmethod
     @verify_value(block_size=lambda x: x > 0)
-    def undo_pad(self, data: IOGenerator, block_size: int) -> IOGenerator:
+    def undo_pad(self, data: IOProducer, block_size: int) -> IOGenerator:
         """Remove pads and return original data
 
         :param data: data to remove pads from

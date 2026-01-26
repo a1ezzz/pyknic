@@ -103,6 +103,7 @@ class IOClientProto(CapabilitiesHolder):
 
     @capability
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    @verify_value(local_file_obj=lambda x: x.seekable())
     async def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         """Upload file. File will be uploaded to a current session directory. A name must not contain
         a directory separator
@@ -124,6 +125,7 @@ class IOClientProto(CapabilitiesHolder):
 
     @capability
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    @verify_value(local_file_obj=lambda x: x.seekable())
     async def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
         """Fetch/download a file. A remote file name must not contain a directory separator
 

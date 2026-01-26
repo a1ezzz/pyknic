@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
+import io
+
 import pytest
 
 from pyknic.lib.uri import URI
@@ -36,14 +38,14 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
         await IOClientProto.remove_directory(None, 'old_dir')  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
-        await IOClientProto.upload_file(None, 'file_name', None)  # type: ignore[arg-type]  # it is just a test
+        await IOClientProto.upload_file(None, 'file_name', io.BytesIO())  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
         await IOClientProto.remove_file(None, 'file_name')  # type: ignore[arg-type]  # it is just a test
 
     with pytest.raises(NotImplementedError):
         await IOClientProto.receive_file(
-            None, 'remote_file', 'local_file'  # type: ignore[arg-type]  # it is just a test
+            None, 'remote_file', io.BytesIO()  # type: ignore[arg-type]  # it is just a test
         )
 
     with pytest.raises(NotImplementedError):

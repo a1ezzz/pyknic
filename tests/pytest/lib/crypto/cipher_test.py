@@ -109,15 +109,15 @@ class TestAESCipher:
         cipher_decryptor2 = cipher_cls.create_decryptor(cipher_key2, cipher_encryptor2.decryptor_init_data())
 
         secret_text = b'some secret text'
-        encrypted_text1 = b''.join(cipher_encryptor1.encrypt([secret_text]))  # type: ignore[arg-type]
-        encrypted_text2 = b''.join(cipher_encryptor2.encrypt([secret_text]))  # type: ignore[arg-type]
+        encrypted_text1 = b''.join(cipher_encryptor1.encrypt([secret_text]))
+        encrypted_text2 = b''.join(cipher_encryptor2.encrypt([secret_text]))
 
         assert(encrypted_text1 != encrypted_text2)
-        assert(b''.join(cipher_decryptor1.decrypt([encrypted_text1])) == secret_text)  # type: ignore[arg-type]
-        assert(b''.join(cipher_decryptor2.decrypt([encrypted_text2])) == secret_text)  # type: ignore[arg-type]
+        assert(b''.join(cipher_decryptor1.decrypt([encrypted_text1])) == secret_text)
+        assert(b''.join(cipher_decryptor2.decrypt([encrypted_text2])) == secret_text)
 
-        assert(b''.join(cipher_decryptor1.decrypt([encrypted_text2])) != secret_text)  # type: ignore[arg-type]
-        assert(b''.join(cipher_decryptor2.decrypt([encrypted_text1])) != secret_text)  # type: ignore[arg-type]
+        assert(b''.join(cipher_decryptor1.decrypt([encrypted_text2])) != secret_text)
+        assert(b''.join(cipher_decryptor2.decrypt([encrypted_text1])) != secret_text)
 
     def test_exceptions(self, cipher_cls: typing.Type[CipherProto]) -> None:
         key_size = cipher_cls.key_size()
@@ -128,13 +128,13 @@ class TestAESCipher:
         cipher_decryptor = cipher_cls.create_decryptor(cipher_key, cipher_encryptor.decryptor_init_data())
 
         secret_text = b'some secret text'
-        encrypted_text = b''.join(cipher_encryptor.encrypt([secret_text]))  # type: ignore[arg-type]
+        encrypted_text = b''.join(cipher_encryptor.encrypt([secret_text]))
 
         with pytest.raises(RuntimeError):
-            _ = list(cipher_encryptor.decrypt([encrypted_text]))  # type: ignore[arg-type]
+            _ = list(cipher_encryptor.decrypt([encrypted_text]))
 
         with pytest.raises(RuntimeError):
-            _ = list(cipher_decryptor.encrypt([secret_text]))  # type: ignore[arg-type]
+            _ = list(cipher_decryptor.encrypt([secret_text]))
 
         with pytest.raises(ValueError):
             cipher_cls.create_encryptor(b'small key')

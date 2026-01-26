@@ -29,7 +29,7 @@ import typing
 from abc import ABCMeta, abstractmethod
 
 from pyknic.lib.registry import APIRegistry, register_api
-from pyknic.lib.io import __default_block_size__, IOGenerator
+from pyknic.lib.io import __default_block_size__, IOGenerator, IOProducer
 
 
 __default_io_compressors_registry__ = APIRegistry()
@@ -40,7 +40,7 @@ class CompressorProto(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def compress(self, source: IOGenerator) -> IOGenerator:
+    def compress(self, source: IOProducer) -> IOGenerator:
         """Compress data and yield compressed chunks
 
         :param source: a data to compress
@@ -48,7 +48,7 @@ class CompressorProto(metaclass=ABCMeta):
         raise NotImplementedError('This method is abstract')
 
     @abstractmethod
-    def decompress(self, source: IOGenerator) -> IOGenerator:
+    def decompress(self, source: IOProducer) -> IOGenerator:
         """Decompress data and yield uncompressed chunks
 
         :param source: a compressed data
@@ -69,7 +69,7 @@ class NativeCompressor(CompressorProto):
         """
         raise NotImplementedError('This method is abstract')
 
-    def compress(self, source: IOGenerator) -> IOGenerator:
+    def compress(self, source: IOProducer) -> IOGenerator:
         """The :meth:`.CompressorProto.compress` method implementation."""
         compress_buffer = io.BytesIO()
         compressor = self._compressor(compress_buffer, 'wb')
@@ -88,7 +88,7 @@ class NativeCompressor(CompressorProto):
 
         yield compress_buffer.getvalue()
 
-    def decompress(self, source: IOGenerator) -> IOGenerator:
+    def decompress(self, source: IOProducer) -> IOGenerator:
         """The :meth:`.CompressorProto.decompress` method implementation."""
         compress_buffer = io.BytesIO()
         compressor = self._compressor(compress_buffer, 'rb')

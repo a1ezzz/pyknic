@@ -26,7 +26,7 @@ from abc import abstractmethod
 from cryptography.hazmat.primitives import hashes as c10y_hashes
 from cryptography.hazmat.primitives.hashes import HashAlgorithm as C10yHashAlgorithm
 
-from pyknic.lib.io import IOGenerator
+from pyknic.lib.io import IOGenerator, IOProducer
 from pyknic.lib.registry import APIRegistry, register_api
 from pyknic.lib.crypto.proto import HasherProto
 
@@ -61,7 +61,7 @@ class CryptographyHasherAdapter(HasherProto):
 
         return c10y_hashes.Hash(hash_algo)
 
-    def update(self, source: IOGenerator) -> IOGenerator:
+    def update(self, source: IOProducer) -> IOGenerator:
         """The :meth:`.HasherProto.update` method implementation."""
         self.__hasher = self.__create_hasher()
 

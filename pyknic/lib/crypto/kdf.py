@@ -76,7 +76,7 @@ class PBKDF2:
     @verify_value(key=lambda x: len(x) >= PBKDF2.__minimum_key_length__)
     @verify_value(salt=lambda x: x is None or len(x) >= PBKDF2.__minimum_salt_length__)
     @verify_value(iterations_count=lambda x: x is None or x >= PBKDF2.__minimum_iterations_count__)
-    @verify_value(hash_fn_name=lambda x: x is None or __default_hashers_registry__.get(x))
+    @verify_value(hash_fn_name=lambda x: x is None or __default_hashers_registry__.has(x))
     def __init__(
         self,
         key: typing.Union[bytes],
