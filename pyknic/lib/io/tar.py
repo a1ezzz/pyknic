@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import dataclasses
 import datetime
 import grp
 import io
@@ -31,21 +32,52 @@ import typing
 from abc import ABCMeta, abstractmethod
 
 from pyknic.lib.verify import verify_value
-from pyknic.lib.io import IOGenerator
+from pyknic.lib.io import IOGenerator, IOProducer
 from pyknic.lib.io.aio_wrapper import IOThrottler, cag
+from pyknic.lib.io.aligner import Aligner
+
+
+MAX_DYNAMIC_FILE_SIZE = (2 ** 10) ** 7  # This is a maximum number of bytes (1 zebibyte) that may be saved "dynamically"
+# Dynamically means that a size of data is unknown at archiving startup.
+# Units:
+#   kibi  Ki 2^10
+#   mebi  Mi 2^20
+#   gibi  Gi 2^30
+#   tebi  Ti 2^40
+#   pebi  Pi 2^50
+#   exbi  Ei 2^60
+#   zebi  Zi 2^70
+#   yobi  Yi 2^80
+#   robi  Ri 2^90
+#   quebi Qi 2^100
+#
+# Note. The maximum volume size for EXT4 is 1 exbibyte
 
 
 class StaticTarEntryProto(metaclass=ABCMeta):
+    """This class describes tar entry which size is known before start
+    """
 
     @abstractmethod
     def entry(self) -> IOGenerator:
+        """Yield bytes that describe tar header and data.
+        """
         raise NotImplementedError('This method is abstract')
 
 
 class DynamicTarEntryProto(metaclass=ABCMeta):
+    """This class describes tar entry which size is unknown
+
+    :note: please note the MAX_DYNAMIC_FILE_SIZE
+    """
 
     @abstractmethod
-    def entry(self, file_obj: io.BufferedRandom) -> IOGenerator:
+    def entry(self, file_obj: typing.IO[bytes]) -> IOGenerator:
+        """Yield bytes that describe tar header and data.
+
+        :param file_obj: file object to which data is written. Header and content must be yielded, but this object
+        may be used for patching header only
+        """
         raise NotImplementedError('This method is abstract')
 
 
@@ -64,7 +96,7 @@ class _TarPaddingGenerator:
         self.__min_padding = min_padding
         self.__counter = 0
 
-    def _write(self, data: IOGenerator) -> IOGenerator:
+    def _write(self, data: IOProducer) -> IOGenerator:
         """This processor writes data and required padding
 
         :param data: data to write
@@ -89,6 +121,30 @@ class _BaseTarInnerFileGenerator(_TarPaddingGenerator):
         """
         _TarPaddingGenerator.__init__(self, tarfile.BLOCKSIZE)
 
+    # noinspection PyMethodMayBeStatic
+    def __pax_headers_padding(self, tar_info: tarfile.TarInfo, expected_size: int) -> tarfile.TarInfo:
+        """Fill comment section in PAX header in order to comply limitations
+
+        :param tar_info: original header to update
+        :param expected_size: expected size of tar header
+        """
+
+        if expected_size % tarfile.BLOCKSIZE != 0:
+            raise ValueError('Expected tar header is not aligned with the blocksize')
+
+        if len(tar_info.tobuf()) > expected_size:
+            raise ValueError('Original tar header is more than expected size')
+
+        comment_chunk = 'pyknic-' + ('-c' * 60) + ';'  # 128 bytes
+        tar_info.pax_headers['comment'] = comment_chunk  # type: ignore[index]
+        while len(tar_info.tobuf()) < expected_size:
+            tar_info.pax_headers['comment'] += comment_chunk  # type: ignore[index]
+
+        if len(tar_info.tobuf()) != expected_size:
+            raise ValueError('Unable to align tar header')
+
+        return tar_info
+
     def _custom_tar_info(
         self,
         filename: str,
@@ -100,18 +156,24 @@ class _BaseTarInnerFileGenerator(_TarPaddingGenerator):
         gid: typing.Optional[int] = None,
         uname: typing.Optional[str] = None,
         gname: typing.Optional[str] = None,
+        expected_header_size: typing.Optional[int] = None,
     ) -> tarfile.TarInfo:
-        """Generate meta-info for a single file inside archive
+        """Generate meta-info for a single file inside archive.
 
-        :param filename: filename of an inner file
-        :param size: size of file (zero by default)
-        :param mtime: file modification time (is now by default)
-        :param mode: file mode (0440 by default)
-        :param uid: file UID (current process user is used by default)
-        :param gid: file GID (current process group is used by default)
-        :param uname: username related to uid
-        :param gname: group name related to gid
+        :param filename: filename of an inner file.
+        :param size: size of file (zero by default).
+        :param mtime: file modification time (is now by default).
+        :param mode: file mode (0440 by default).
+        :param uid: file UID (current process user is used by default).
+        :param gid: file GID (current process group is used by default).
+        :param uname: username related to uid.
+        :param gname: group name related to gid.
+        :param expected_header_size: if specified then it is number of bytes that tar header should have.
+        (result may have extra comment message in PAX header in order to achieve expectations)
         """
+        if filename.startswith('/'):
+            raise ValueError('Tar entries should not have absolute path because of possible tar bomb')
+
         tar_info = tarfile.TarInfo(name=filename)
         if size is not None:
             tar_info.size = size
@@ -123,8 +185,12 @@ class _BaseTarInnerFileGenerator(_TarPaddingGenerator):
         tar_info.uname = uname if uname is not None else pwd.getpwuid(tar_info.uid).pw_name
         tar_info.gname = gname if gname is not None else grp.getgrgid(tar_info.gid).gr_name
 
+        if expected_header_size is not None and len(tar_info.tobuf()) != expected_header_size:
+            tar_info = self.__pax_headers_padding(tar_info, expected_header_size)
+
         return tar_info
 
+    # noinspection PyMethodMayBeStatic
     def _tar_info_by_file(self, filename: typing.Union[str, pathlib.Path]) -> tarfile.TarInfo:
         """Retrieve meta-info by a real file
 
@@ -132,7 +198,12 @@ class _BaseTarInnerFileGenerator(_TarPaddingGenerator):
         """
         # TODO: filename related to some directory?!
         tar_file = tarfile.TarFile('/dev/zero', mode='w')  # TODO: it seams bogus
-        return tar_file.gettarinfo(filename)
+        tar_info = tar_file.gettarinfo(filename)
+
+        if tar_info.name.startswith('/'):
+            raise ValueError('Tar entries should not have absolute path because of possible tar bomb')
+
+        return tar_info
 
 
 class TarInnerFileGenerator(_BaseTarInnerFileGenerator, StaticTarEntryProto):
@@ -170,7 +241,7 @@ class TarInnerGenerator(_BaseTarInnerFileGenerator, StaticTarEntryProto):
 
     def __init__(
         self,
-        source: IOGenerator,
+        source: IOProducer,
         data_size: int,
         filename: str,
         /,
@@ -251,7 +322,7 @@ class TarInnerDynamicGenerator(_BaseTarInnerFileGenerator, DynamicTarEntryProto)
 
     def __init__(
         self,
-        source: IOGenerator,
+        source: IOProducer,
         filename: str,
         /,
         mtime: typing.Optional[int] = None,
@@ -286,7 +357,8 @@ class TarInnerDynamicGenerator(_BaseTarInnerFileGenerator, DynamicTarEntryProto)
         self.__uname = uname
         self.__gname = gname
 
-    def entry(self, file_obj: io.BufferedRandom) -> IOGenerator:
+    @verify_value(file_obj=lambda x: x.seekable())
+    def entry(self, file_obj: typing.IO[bytes]) -> IOGenerator:
         """ :meth:`.DynamicTarEntryProto.entry` implementation
         """
 
@@ -295,7 +367,7 @@ class TarInnerDynamicGenerator(_BaseTarInnerFileGenerator, DynamicTarEntryProto)
 
             tar_info = self._custom_tar_info(
                 self.__filename,
-                size=0,
+                size=MAX_DYNAMIC_FILE_SIZE,
                 mtime=self.__mtime,
                 mode=self.__mode,
                 uid=self.__uid,
@@ -309,23 +381,218 @@ class TarInnerDynamicGenerator(_BaseTarInnerFileGenerator, DynamicTarEntryProto)
             data_size = 0
             for chunk in self.__source:
                 data_size += len(chunk)
+
+                if data_size > MAX_DYNAMIC_FILE_SIZE:
+                    raise ValueError('Are you saving the universe?!')
+
                 yield chunk
 
             end_pos = file_obj.tell()
 
-            tar_info.size = data_size
-            patched_tar_info = tar_info.tobuf()
-            assert(len(patched_tar_info) == len(binary_tar_info))  # check that we didn't change a header size
+            patched_tar_info = self._custom_tar_info(
+                self.__filename,
+                size=data_size,
+                mtime=self.__mtime,
+                mode=self.__mode,
+                uid=self.__uid,
+                gid=self.__gid,
+                uname=self.__uname,
+                gname=self.__gname,
+                expected_header_size=len(binary_tar_info)
+            )
+
+            patched_binary_tar_info = patched_tar_info.tobuf()
+            assert(len(binary_tar_info) == len(patched_binary_tar_info))
 
             file_obj.seek(start_pos, os.SEEK_SET)
-            file_obj.write(patched_tar_info)
+            file_obj.write(patched_binary_tar_info)
             file_obj.seek(end_pos, os.SEEK_SET)
 
         yield from self._write(data_generator())
 
 
+@dataclasses.dataclass
+class _FilthyTarEntry:
+    """This class helps to track tar entries while reading. Using it in other modules should be avoided. Better choose
+    :class:`.DecentTarEntry`
+    """
+
+    source: IOGenerator           # source of the data
+    binary_info: bytes            # original tar header (may be larger than tarfile.BLOCKSIZE when it is combined
+    # from several extended entries)
+    parsed_info: tarfile.TarInfo  # tar header
+
+    def data(self) -> IOGenerator:
+        """Read data related to this entry
+        """
+        counter = self.parsed_info.size
+
+        while counter > 0:
+            next_chunk = next(self.source)
+            assert(len(next_chunk) == tarfile.BLOCKSIZE)
+            counter -= tarfile.BLOCKSIZE
+            yield next_chunk
+
+
+class DecentTarEntry:
+    """This class helps to read tar entry in a safe way.
+    """
+
+    def __init__(self, tar_info: tarfile.TarInfo, data_generator: IOGenerator) -> None:
+        """Create new entry.
+
+        :param tar_info: information about inner entry
+        :param data_generator: content of inner entry that must be read before the request for the next entry.
+        """
+        self.__tar_info = tar_info
+        self.__data_generator = data_generator
+        self.__wasted = False
+
+    def is_wasted(self) -> bool:
+        """Return True if data fully read.
+        """
+        return self.__wasted
+
+    def tar_info(self) -> tarfile.TarInfo:
+        """Return information about inner entry
+        """
+        return self.__tar_info
+
+    def data(self) -> IOGenerator:
+        """Read data related to this entry
+        """
+        counter = self.__tar_info.size
+
+        while counter > 0:
+            next_chunk = next(self.__data_generator)
+            assert(len(next_chunk) == tarfile.BLOCKSIZE)
+            counter -= tarfile.BLOCKSIZE
+            yield next_chunk[:(-0 if counter >= 0 else counter)]
+
+        self.__wasted = True
+
+
+class _TarReader:
+    """This class helps to read data from a tar archive. Since it scans through all the data it may be unacceptable
+    slowly. Use it on you own risk
+    """
+
+    # noinspection PyMethodMayBeStatic
+    def _is_regular_entry(self, entry: tarfile.TarInfo) -> bool:
+        """Return True if entry is FS-representable entry like file, directory or some named socket.
+
+        :param entry: entry to check
+        """
+
+        regular_entries = [
+            tarfile.REGTYPE,
+            tarfile.AREGTYPE,
+            tarfile.LNKTYPE,
+            tarfile.SYMTYPE,
+            tarfile.CHRTYPE,
+            tarfile.BLKTYPE,
+            tarfile.DIRTYPE,
+            tarfile.FIFOTYPE,
+
+            # there is tarfile.CONTTYPE also, but what the fuck is this?!
+        ]
+
+        return entry.type in regular_entries
+
+    # noinspection PyMethodMayBeStatic
+    def _is_extended_head_entry(self, entry: tarfile.TarInfo) -> bool:
+        """Return True if entry is a special one dedicated to overcome original TAR limits (like path limitations
+        or size limitations)
+
+        :param entry: entry to check
+        """
+        extended_head_types = [
+            tarfile.GNUTYPE_LONGNAME,  # GNU format
+            tarfile.GNUTYPE_LONGLINK,  # GNU format
+            tarfile.GNUTYPE_SPARSE,    # GNU format
+            tarfile.XHDTYPE            # PAX format
+
+            # tarfile.XGLTYPE -- this is PAX format, but wtf?!
+            # tarfile.SOLARIS_XHDTYPE -- some old shit
+        ]
+
+        return entry.type in extended_head_types
+
+    # noinspection PyMethodMayBeStatic
+    def _iterate_raw_entries(self, source: IOProducer) -> typing.Generator[_FilthyTarEntry, None, None]:
+        """Iterate over all entries in source. Extended headers will be split and yielded independently
+        """
+
+        zero_block = b'\x00' * tarfile.BLOCKSIZE
+        aligner = Aligner(tarfile.BLOCKSIZE, strict_mode=True)
+
+        next_entry_size = 0
+        aligner_generator = aligner.iterate_data(source)
+        for chunk in aligner_generator:
+            next_entry_size -= len(chunk)
+
+            if chunk == zero_block:
+                continue
+
+            head = tarfile.TarInfo.frombuf(chunk, tarfile.ENCODING, 'strict')  # read the
+            # https://docs.python.org/3/library/codecs.html#error-handlers
+            yield _FilthyTarEntry(aligner_generator, chunk, head)
+
+    def _iterate_extended_entries(self, source: IOProducer) -> typing.Generator[_FilthyTarEntry, None, None]:
+        """Iterate over all entries in source. Extended headers will be combined and only "regular" entries will be
+        yielded.
+        """
+        raw_entries_generator = self._iterate_raw_entries(source)
+        for tar_entry in raw_entries_generator:
+            tar_head = tar_entry.parsed_info
+
+            if self._is_regular_entry(tar_head):
+                yield tar_entry
+                continue
+
+            if self._is_extended_head_entry(tar_head):
+
+                extended_head_data = tar_entry.binary_info
+                for chunk in tar_entry.data():
+                    extended_head_data += chunk
+
+                next_entry = next(raw_entries_generator)
+                while not self._is_regular_entry(next_entry.parsed_info):
+                    if not self._is_extended_head_entry(next_entry.parsed_info):
+                        raise ValueError(
+                            f'Unknown tar entry spotted -- {str(tar_head.type)} (file -- {str(tar_head.name)})'
+                        )
+
+                    extended_head_data += next_entry.binary_info
+                    for chunk in next_entry.data():
+                        extended_head_data += chunk
+
+                    next_entry = next(raw_entries_generator)
+
+                extended_head_data += next_entry.binary_info
+
+                combined_head = tarfile.TarFile(fileobj=io.BytesIO(extended_head_data)).next()
+                assert(combined_head is not None)
+                yield _FilthyTarEntry(next_entry.source, extended_head_data, combined_head)
+                continue
+
+            raise ValueError(f'Unknown tar entry spotted -- {str(tar_head.type)} (file -- {str(tar_head.name)})')
+
+    def iterate_entries(self, data: IOProducer) -> typing.Generator[DecentTarEntry, None, None]:
+        """Yield information about inner files
+        """
+        aligner = Aligner(tarfile.BLOCKSIZE, strict_mode=True)
+
+        for filthy_entry in self._iterate_extended_entries(aligner.iterate_data(data)):
+            previous_entry = DecentTarEntry(filthy_entry.parsed_info, filthy_entry.source)
+            yield previous_entry
+
+            if not previous_entry.is_wasted():
+                raise RuntimeError('You must read data from previous entry before requesting a next one')
+
+
 class TarArchive(_TarPaddingGenerator):
-    """This class helps to save a single tar archive.
+    """This class helps to save a single tar archive or helps to read it
     """
 
     def __init__(self) -> None:
@@ -334,6 +601,10 @@ class TarArchive(_TarPaddingGenerator):
         _TarPaddingGenerator.__init__(self, aligned_to=tarfile.RECORDSIZE, min_padding=(2 * tarfile.BLOCKSIZE))
 
     def static_archive(self, sources: typing.Iterable[StaticTarEntryProto]) -> IOGenerator:
+        """Yield data that may be saved as a tar archive.
+
+        :param sources: archive entries
+        """
 
         def entries() -> IOGenerator:
             for s in sources:
@@ -341,12 +612,19 @@ class TarArchive(_TarPaddingGenerator):
 
         yield from self._write(entries())
 
+    @verify_value(destination=lambda x: x.seekable())
     async def dynamic_archive(
         self,
-        destination: io.BufferedRandom,
+        destination: typing.IO[bytes],
         sources: typing.Iterable[typing.Union[StaticTarEntryProto, DynamicTarEntryProto]],
         write_throttling: typing.Optional[int] = None
     ) -> None:
+        """Save data as a tar archive.
+
+        :param destination: destination file
+        :param sources: archive entries
+        :param write_throttling: whether to throttle at saving (number of bytes per second)
+        """
         destination.seek(0)
         destination.truncate()
 
@@ -360,7 +638,9 @@ class TarArchive(_TarPaddingGenerator):
 
         await cag(IOThrottler.async_writer(self._write(entries()), destination, throttling=write_throttling))
 
-    def extract(self, source: io.BufferedRandom, filename: str) -> IOGenerator:
+    # noinspection PyMethodMayBeStatic
+    @verify_value(source=lambda x: x.seekable())
+    def extract(self, source: typing.IO[bytes], filename: str) -> IOGenerator:
         """Extract data from an archive
 
         :param source: tar-data
@@ -377,3 +657,24 @@ class TarArchive(_TarPaddingGenerator):
             yield from IOThrottler.sync_reader(source, read_size=file_size)
 
             source.seek(start_pos, os.SEEK_SET)
+
+    @staticmethod
+    def entries(source: IOProducer) -> typing.Generator[DecentTarEntry, None, None]:
+        """Read data and yield information about inner files. Entries are returned one by one. Each entry must be
+        read with the :meth:`.DecentTarEntry.data` method before the request for the next entry.
+
+        :param source: tar data to read
+        """
+        yield from _TarReader().iterate_entries(source)
+
+    @staticmethod
+    def inner_descriptors(source: IOProducer) -> typing.Generator[tarfile.TarInfo, None, None]:
+        """Yield information about inner files. Entries are returned one by one
+
+        :param source: tar data to read
+        """
+
+        for i in _TarReader().iterate_entries(source):
+            yield i.tar_info()
+            for _ in i.data():
+                pass
