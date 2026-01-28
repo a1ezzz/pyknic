@@ -86,14 +86,14 @@ class _TarPaddingGenerator:
     """
 
     @verify_value(aligned_to=lambda x: x > 0)
-    @verify_value(min_padding=lambda x: x is None or x > 0)
-    def __init__(self, aligned_to: int, min_padding: typing.Optional[int] = None):
+    def __init__(self, aligned_to: int, extra_padding: bool = False):
         """Create new padding helper
 
         :param aligned_to: number of bytes required for padding
+        :param extra_padding: whether extra padding block should be appended at the end
         """
         self.__aligned_to = aligned_to if aligned_to else tarfile.BLOCKSIZE
-        self.__min_padding = min_padding
+        self.__extra_padding = extra_padding
         self.__counter = 0
 
     def _write(self, data: IOProducer) -> IOGenerator:
@@ -106,8 +106,8 @@ class _TarPaddingGenerator:
             yield block
 
         _, extra_bytes = divmod(self.__counter, self.__aligned_to)
-        delta = (self.__aligned_to - extra_bytes) if extra_bytes else self.__aligned_to
-        if self.__min_padding is not None and delta < self.__min_padding:
+        delta = (self.__aligned_to - extra_bytes) if extra_bytes else 0
+        if self.__extra_padding:
             delta += self.__aligned_to
         yield (tarfile.NUL * delta) if delta else b''
 
@@ -466,8 +466,12 @@ class DecentTarEntry:
         while counter > 0:
             next_chunk = next(self.__data_generator)
             assert(len(next_chunk) == tarfile.BLOCKSIZE)
+
+            if counter >= tarfile.BLOCKSIZE:
+                yield next_chunk
+            else:
+                yield next_chunk[:counter]
             counter -= tarfile.BLOCKSIZE
-            yield next_chunk[:(-0 if counter >= 0 else counter)]
 
         self.__wasted = True
 
@@ -598,7 +602,7 @@ class TarArchive(_TarPaddingGenerator):
     def __init__(self) -> None:
         """Create a new tar archive writer
         """
-        _TarPaddingGenerator.__init__(self, aligned_to=tarfile.RECORDSIZE, min_padding=(2 * tarfile.BLOCKSIZE))
+        _TarPaddingGenerator.__init__(self, aligned_to=tarfile.RECORDSIZE, extra_padding=True)
 
     def static_archive(self, sources: typing.Iterable[StaticTarEntryProto]) -> IOGenerator:
         """Yield data that may be saved as a tar archive.
@@ -638,9 +642,9 @@ class TarArchive(_TarPaddingGenerator):
 
         await cag(IOThrottler.async_writer(self._write(entries()), destination, throttling=write_throttling))
 
-    # noinspection PyMethodMayBeStatic
+    @staticmethod
     @verify_value(source=lambda x: x.seekable())
-    def extract(self, source: typing.IO[bytes], filename: str) -> IOGenerator:
+    def extract(source: typing.IO[bytes], filename: str) -> IOGenerator:
         """Extract data from an archive
 
         :param source: tar-data
@@ -654,9 +658,10 @@ class TarArchive(_TarPaddingGenerator):
             file_size = tar_info.size
             source.seek(start_pos + tar_info.offset_data, os.SEEK_SET)
 
-            yield from IOThrottler.sync_reader(source, read_size=file_size)
+            if file_size:  # not empty file
+                yield from IOThrottler.sync_reader(source, read_size=file_size)
 
-            source.seek(start_pos, os.SEEK_SET)
+        source.seek(start_pos, os.SEEK_SET)
 
     @staticmethod
     def entries(source: IOProducer) -> typing.Generator[DecentTarEntry, None, None]:

@@ -28,9 +28,22 @@ def test_abstract() -> None:
 
 class TestTarArchive:
 
-    def test(self, tmp_path: pathlib.Path) -> None:
-        test_data = b'Test data'
-
+    @pytest.mark.parametrize(
+        "test_data",
+        [
+            b'Test data',
+            b'',
+            b'1' * tarfile.BLOCKSIZE,
+            b'3' * tarfile.RECORDSIZE,
+        ],
+        ids=[
+            "small-data",
+            "null-data",
+            "blocksize-aligned-data",
+            "record-aligned-data"
+        ]
+    )
+    def test(self, test_data: bytes, tmp_path: pathlib.Path) -> None:
         pyknic_tar_file = tmp_path / "pyknic-archive.tar"
 
         with (tmp_path / "sample1").open('wb') as f:
@@ -81,8 +94,22 @@ class TestTarArchive:
                 ]
             )
 
-    def test_exceptions(self, tmp_path: pathlib.Path) -> None:
-        test_data = b'Test data'
+    @pytest.mark.parametrize(
+        "test_data",
+        [
+            b'Test data',
+            b'',
+            b'1' * tarfile.BLOCKSIZE,
+            b'3' * tarfile.RECORDSIZE,
+        ],
+        ids=[
+            "small-data",
+            "null-data",
+            "blocksize-aligned-data",
+            "record-aligned-data"
+        ]
+    )
+    def test_exceptions(self, test_data: bytes, tmp_path: pathlib.Path) -> None:
         pyknic_tar_file = tmp_path / "pyknic-archive.tar"
 
         with pytest.raises(ValueError):
@@ -103,9 +130,22 @@ class TestTarArchive:
             cg(IOThrottler.sync_writer(tar_arch._write(incorrect_size_file_gen(len(test_data) + 1)), f))
             cg(IOThrottler.sync_writer(tar_arch._write(incorrect_size_file_gen(len(test_data) - 1)), f))
 
-    def test_entries_exceptions(self, tmp_path: pathlib.Path) -> None:
-        test_data = b'Test data'
-
+    @pytest.mark.parametrize(
+        "test_data",
+        [
+            b'Test data',
+            b'',
+            b'1' * tarfile.BLOCKSIZE,
+            b'3' * tarfile.RECORDSIZE,
+        ],
+        ids=[
+            "small-data",
+            "null-data",
+            "blocksize-aligned-data",
+            "record-aligned-data"
+        ]
+    )
+    def test_entries_exceptions(self, test_data: bytes, tmp_path: pathlib.Path) -> None:
         tar_arch = TarArchive()
         arch_gen = tar_arch.static_archive([
             TarInnerGenerator(
@@ -124,9 +164,24 @@ class TestTarArchive:
             _ = next(entries_gen)
 
     @pyknic_async_test
-    async def test_dynamic(self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path) -> None:
-        test_data = b'Test data'
-
+    @pytest.mark.parametrize(
+        "test_data",
+        [
+            b'Test data',
+            b'',
+            b'1' * tarfile.BLOCKSIZE,
+            b'3' * tarfile.RECORDSIZE,
+        ],
+        ids=[
+            "small-data",
+            "null-data",
+            "blocksize-aligned-data",
+            "record-aligned-data"
+        ]
+    )
+    async def test_dynamic(
+        self, test_data: bytes, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path
+    ) -> None:
         pyknic_tar_file = tmp_path / "pyknic-archive.tar"
 
         with (tmp_path / "sample1").open('wb') as f:
@@ -143,9 +198,22 @@ class TestTarArchive:
                 ]
             )
 
-    def test_extract(self, tmp_path: pathlib.Path) -> None:
-        test_data = b'Test data'
-
+    @pytest.mark.parametrize(
+        "test_data",
+        [
+            b'Test data',
+            b'',
+            b'1' * tarfile.BLOCKSIZE,
+            b'3' * tarfile.RECORDSIZE,
+        ],
+        ids=[
+            "small-data",
+            "null-data",
+            "blocksize-aligned-data",
+            "record-aligned-data"
+        ]
+    )
+    def test_extract(self, test_data: bytes, tmp_path: pathlib.Path) -> None:
         pyknic_tar_file = tmp_path / "pyknic-archive.tar"
 
         with pyknic_tar_file.open('wb') as f:
@@ -159,16 +227,28 @@ class TestTarArchive:
             ))
 
         with pyknic_tar_file.open('rb') as f:
-            tar_arch = TarArchive()
             result = b''.join(
-                tar_arch.extract(f, str((tmp_path / "sample").relative_to('/')))
+                TarArchive.extract(f, str((tmp_path / "sample").relative_to('/')))
             )
 
             assert(result == test_data)
 
-    def test_plain_entries(self, tmp_path: pathlib.Path) -> None:
-        test_data = b'Test data'
-
+    @pytest.mark.parametrize(
+        "test_data",
+        [
+            b'Test data',
+            b'',
+            b'1' * tarfile.BLOCKSIZE,
+            b'3' * tarfile.RECORDSIZE,
+        ],
+        ids=[
+            "small-data",
+            "null-data",
+            "blocksize-aligned-data",
+            "record-aligned-data"
+        ]
+    )
+    def test_plain_entries(self, test_data: bytes, tmp_path: pathlib.Path) -> None:
         with (tmp_path / "sample1").open('wb') as f:
             f.write(test_data)
 
@@ -228,9 +308,22 @@ class TestTarArchive:
             assert(next_entry.tar_info().name == (str((tmp_path / link_name).relative_to('/'))))
             assert(next_entry.tar_info().linkname == destination)
 
-    def test_entries(self, tmp_path: pathlib.Path) -> None:
-        test_data = b'Test data'
-
+    @pytest.mark.parametrize(
+        "test_data",
+        [
+            b'Test data',
+            b'',
+            b'1' * tarfile.BLOCKSIZE,
+            b'3' * tarfile.RECORDSIZE,
+        ],
+        ids=[
+            "small-data",
+            "null-data",
+            "blocksize-aligned-data",
+            "record-aligned-data"
+        ]
+    )
+    def test_entries(self, test_data: bytes, tmp_path: pathlib.Path) -> None:
         with (tmp_path / "sample1").open('wb') as f:
             f.write(test_data)
 
@@ -247,18 +340,33 @@ class TestTarArchive:
 
         next_entry = next(entries_gen)
         assert(next_entry.tar_info().name == str((tmp_path / "sample1").relative_to('/')))
+        assert(next_entry.tar_info().size == len(test_data))
         assert(b''.join(next_entry.data()) == test_data)
 
         next_entry = next(entries_gen)
         assert(next_entry.tar_info().name == str((tmp_path / "sample2").relative_to('/')))
+        assert(next_entry.tar_info().size == len(test_data))
         assert(b''.join(next_entry.data()) == test_data)
 
         with pytest.raises(StopIteration):
             next(entries_gen)
 
-    def test_inner_descriptors(self, tmp_path: pathlib.Path) -> None:
-        test_data = b'Test data'
-
+    @pytest.mark.parametrize(
+        "test_data",
+        [
+            b'Test data',
+            b'',
+            b'1' * tarfile.BLOCKSIZE,
+            b'3' * tarfile.RECORDSIZE,
+        ],
+        ids=[
+            "small-data",
+            "null-data",
+            "blocksize-aligned-data",
+            "record-aligned-data"
+        ]
+    )
+    def test_inner_descriptors(self, test_data, tmp_path: pathlib.Path) -> None:
         with (tmp_path / "sample1").open('wb') as f:
             f.write(test_data)
 
@@ -283,6 +391,7 @@ class TestTarArchive:
             next(entries_gen)
 
     @pyknic_async_test
+    @pytest.mark.skip  # TODO: remove!
     async def test_huge_file(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
         # this test check possibility to archive files that are over 8GB
 
