@@ -366,7 +366,7 @@ class TestTarArchive:
             "record-aligned-data"
         ]
     )
-    def test_inner_descriptors(self, test_data, tmp_path: pathlib.Path) -> None:
+    def test_inner_descriptors(self, test_data: bytes, tmp_path: pathlib.Path) -> None:
         with (tmp_path / "sample1").open('wb') as f:
             f.write(test_data)
 
@@ -391,7 +391,6 @@ class TestTarArchive:
             next(entries_gen)
 
     @pyknic_async_test
-    @pytest.mark.skip  # TODO: remove!
     async def test_huge_file(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
         # this test check possibility to archive files that are over 8GB
 
