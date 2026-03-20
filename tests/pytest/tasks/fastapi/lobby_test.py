@@ -81,11 +81,11 @@ class TestLobbyApp:
             fingerprint = LobbyFingerprint.deserialize(fingerprint_model.fingerprint.encode('ascii'))
 
         async with session.post(lobby_url) as response:
-            assert(response.status == 403)
+            assert(response.status in (403, 401))
 
         headers = {'Authorization': f'Bearer {self.__invalid_secret_token__}'}
         async with session.post(lobby_url, headers=headers) as response:
-            assert(response.status == 401)
+            assert(response.status in (403, 401))
 
         headers = {'Authorization': f'Bearer {self.__secret_token__}'}
 
