@@ -151,18 +151,20 @@ class SharedMemorySecretBackend(SecretBackendImplementationProto):
     __shm_filename__ = '/pyknic-secrets'  # the '/' at the beginning is crucial
 
     def __shared_memory_args(self) -> typing.Dict[str, typing.Any]:
-        """ This is a crutch for older python versions defines default arguments for the
+        """ This is a crutch for older python versions defines extra arguments for the
         multiprocessing.shared_memory.SharedMemory constructor.
         """
         if sys.version_info >= (3, 13, 0):
-            return {'create': False, 'track': False}
-        return {'create': False}
+            return {'track': False}
+        return {}
 
     def receive_secrets(self) -> typing.Optional[str]:
         """The :meth:`.SecretBackendImplementationProto.receive_secrets` method implementation
         """
         with contextlib.suppress(FileNotFoundError):
-            secret = multiprocessing.shared_memory.SharedMemory(self.__shm_filename__, **self.__shared_memory_args())
+            secret = multiprocessing.shared_memory.SharedMemory(
+                self.__shm_filename__, create=False, **self.__shared_memory_args()
+            )
             secret_bytes = bytes(secret.buf)
             result = secret_bytes.decode()
             secret.close()
@@ -178,16 +180,16 @@ class SharedMemorySecretBackend(SecretBackendImplementationProto):
         with contextlib.suppress(FileNotFoundError):
             # force file to be removed!
             sh_mem = multiprocessing.shared_memory.SharedMemory(
-                self.__shm_filename__, **self.__shared_memory_args()
+                self.__shm_filename__, create=False, **self.__shared_memory_args()
             )
             sh_mem.unlink()
             sh_mem.close()
 
         sh_mem = multiprocessing.shared_memory.SharedMemory(
             self.__shm_filename__,
-            create=True,
             size=len(secret_bytes),
-            track=False
+            create=True,
+            **self.__shared_memory_args()
         )
         sh_mem.buf[:] = secret_bytes
         sh_mem.close()
