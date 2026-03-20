@@ -99,6 +99,7 @@ class TestBackupArchiveV1:
     )
     async def test_empty_file(
         self,
+        monkeypatch: pytest.MonkeyPatch,
         hash_algos: typing.Optional[typing.List[HashMethod]],
         compression: CompressionMode,
         encryption_key: typing.Optional[str],
@@ -117,7 +118,7 @@ class TestBackupArchiveV1:
             f.write(b'')
 
         with tar_archive_file.open('wb') as f:
-            os.chdir(str(tmp_path))
+            monkeypatch.chdir(str(tmp_path))
             await archive.backup_files(['sample'], f)  # just check that there is no error
 
     @pyknic_async_test
@@ -279,7 +280,12 @@ class TestBackupArchiveV1:
                 assert([x.digest for x in tail_meta.hashes if x.algorithm == ha] == [digests[i]])
 
     @pyknic_async_test
-    async def test_files(self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path) -> None:
+    async def test_files(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        module_event_loop: asyncio.AbstractEventLoop,
+        tmp_path: pathlib.Path
+    ) -> None:
         test_data = b'Test data'
         archive = BackupArchiveV1()
 
@@ -293,11 +299,11 @@ class TestBackupArchiveV1:
 
         with tar_archive_file.open('wb') as f:
             old_cwd = os.getcwd()
-            os.chdir(str(tmp_path))
+            monkeypatch.chdir(str(tmp_path))
 
             await archive.backup_files(['sample1', 'sample2'], f)
 
-            os.chdir(old_cwd)
+            monkeypatch.chdir(old_cwd)
 
         with tar_archive_file.open('rb') as af:
             destination_tar = tmp_path / "destination.tar"

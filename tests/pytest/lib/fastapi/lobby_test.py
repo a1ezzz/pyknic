@@ -24,7 +24,7 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
     pytest.raises(NotImplementedError, LobbyCommandHandler.command_model)
 
     with pytest.raises(NotImplementedError):
-        _ = await LobbyCommandHandler.exec(None)
+        _ = await LobbyCommandHandler.exec(None)  # type: ignore[arg-type]
 
 
 class TestLobbyCommandHandler:
@@ -46,7 +46,7 @@ class TestLobbyCommandHandler:
                 return NullableModel()
 
         with pytest.raises(TypeError):
-            CustomHandler.prepare_command(1)
+            CustomHandler.prepare_command(1)  # type: ignore[arg-type]
 
         cmd = CustomHandler.prepare_command(NullableModel())
         result = await cmd.exec()

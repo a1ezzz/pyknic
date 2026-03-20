@@ -83,6 +83,6 @@ class TestBellboyConsole:
         LobbyKeyValueFeedbackResult(kv_result={'foo': 'bar', 'bar': 'foo'}),
         LobbyListValueFeedbackResult(list_result=['foo', 'bar'])
     ])
-    def test_process_result(self, capsys: 'CaptureFixture[typing.Any]', result: LobbyCommandResult):
+    def test_process_result(self, capsys: 'CaptureFixture[typing.Any]', result: LobbyCommandResult) -> None:
         console = BellboyConsole()
         console.process_result(result)
