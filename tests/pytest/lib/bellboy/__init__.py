@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/fastapi/lobby_commands/__init__.py
+# tests/pytest/lib/bellboy/__init__.py
 #
-# Copyright (C) 2025 the pyknic authors and contributors
+# Copyright (C) 2026 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.

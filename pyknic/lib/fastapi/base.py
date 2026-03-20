@@ -32,7 +32,7 @@ from pyknic.lib.gettext import GetTextWrapper
 from pyknic.lib.fastapi.apps_registry import FastAPIAppProto
 from pyknic.lib.fastapi.models.tg_bot_types import User, Message, ReplyParameters, Update
 from pyknic.lib.fastapi.models.tg_bot_methods import MethodSendMessage, MethodAnswerCallbackQuery
-from pyknic.lib.fastapi.models.base import NullableResponseModel
+from pyknic.lib.fastapi.models.base import NullableModel
 
 
 # noinspection PyAbstractClass
@@ -63,7 +63,7 @@ class BaseFastAPIApp(FastAPIAppProto):
         return self.__translations(lang_name)
 
 
-TgBotResponseType: typing.TypeAlias = typing.Union[MethodSendMessage, MethodAnswerCallbackQuery, NullableResponseModel]
+TgBotResponseType: typing.TypeAlias = typing.Union[MethodSendMessage, MethodAnswerCallbackQuery, NullableModel]
 
 
 class TgBotBaseFastAPIApp(BaseFastAPIApp):
@@ -129,7 +129,7 @@ class TgBotBaseFastAPIApp(BaseFastAPIApp):
             if result is not None:
                 return result
 
-        return NullableResponseModel()
+        return NullableModel()
 
     async def callback_query(self,  tg_update: Update) -> MethodAnswerCallbackQuery:
         """ A request treated as a callback_query -- return a default value

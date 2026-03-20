@@ -7,6 +7,7 @@ from fixtures.event_loop import event_loop, class_event_loop, module_event_loop,
 from fixtures.gettext import gettext
 from fixtures.fastapi import fastapi_fixture, fastapi_class_fixture, fastapi_module_fixture, fastapi_package_fixture
 from fixtures.fastapi import fastapi_session_fixture, AsyncFastAPIFixture
+from fixtures.lobby import lobby_shm_secrets
 from fixtures.sftp_server import sftp_server
 from fixtures.tasks import sample_tasks, empty_datalog, SampleTasks
 from fixtures.tgbot import tgbot_fixture, TGBotFixture
@@ -43,5 +44,7 @@ __all__ = [
     "tgbot_fixture",
     "TGBotFixture",
 
-    "sftp_server"
+    "sftp_server",
+
+    "lobby_shm_secrets"
 ]

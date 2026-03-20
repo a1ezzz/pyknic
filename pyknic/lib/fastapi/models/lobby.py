@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # pyknic/lib/fastapi/models/lobby.py
 #
-# Copyright (C) 2025 the pyknic authors and contributors
+# Copyright (C) 2025-2026 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -23,44 +23,51 @@ import typing
 
 import pydantic
 
-from pyknic.lib.fastapi.models.base import NullableResponseModel
+from pyknic.lib.fastapi.models.base import NullableModel
 from pyknic.lib.fastapi.lobby_fingerprint import LobbyFingerprint
+from pyknic.version import __version__
 
 
-class LobbyCommand(pydantic.BaseModel):
-    """ This is a lobby command
+class LobbyCommandRequest(pydantic.BaseModel):
+    """ This is a request for a command execution
     """
-    model_config = pydantic.ConfigDict(extra='forbid')
-
-    name: str = pydantic.Field(min_length=1, validate_default=True)  # name of a command to execute
-    args: typing.Tuple[()] | None = None                             # positional arguments to a command
-    kwargs: None = None                                              # kw-arguments to a command
-    cargs: None = None                                               # context value
-
-    _command_origin: typing.Type[typing.Any] | None = None  # special private class that implements command
-
-
-class LobbyCommandRequest(LobbyCommand):
-    args: typing.Tuple[typing.Any, ...] | None = None   # positional arguments to a command
-    kwargs: typing.Dict[str, typing.Any] | None = None  # type: ignore[assignment]  # kw-arguments to a command
-    cargs: typing.Dict[str, typing.Any] | None = None   # type: ignore[assignment]  # context value
+    model_config = pydantic.ConfigDict(extra='forbid')  # just to be sure that everything attributes are known
+    client_version: str = __version__                   # a description of a client
+    name: str                                           # a command to execute
+    args: typing.Dict[str, typing.Any]                  # command's arguments (dictionary may be empty)
 
 
 class LobbyStrFeedbackResult(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra='forbid')
-    str_result: str
+    """Possible command result -- as a string"""
+    model_config = pydantic.ConfigDict(extra='forbid')  # just to be sure that everything attributes are known
+    server_version: str = __version__                   # a description of a server
+    str_result: str                                     # a command result
 
 
 class LobbyKeyValueFeedbackResult(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra='forbid')
-    kv_result: typing.Dict[str, typing.Any]
+    """Possible command result -- as a key-value pairs"""
+    model_config = pydantic.ConfigDict(extra='forbid')  # just to be sure that everything attributes are known
+    server_version: str = __version__                   # a description of a server
+    kv_result: typing.Dict[str, typing.Any]             # a command result
 
 
-LobbyCommandResult = typing.Union[NullableResponseModel, LobbyStrFeedbackResult, LobbyKeyValueFeedbackResult]
+class LobbyListValueFeedbackResult(pydantic.BaseModel):
+    """Possible command result -- as a list of values"""
+    model_config = pydantic.ConfigDict(extra='forbid')  # just to be sure that everything attributes are known
+    server_version: str = __version__                   # a description of a server
+    list_result: typing.List[typing.Any]                # a command result
 
 
-class LobbyServerFingerprint(pydantic.BaseModel):
-    fingerprint: str = pydantic.Field(
+# possible command results
+LobbyCommandResult = typing.Union[
+    NullableModel, LobbyStrFeedbackResult, LobbyKeyValueFeedbackResult, LobbyListValueFeedbackResult
+]
+
+
+class LobbyFingerprintModel(pydantic.BaseModel):
+    """ A fingerprint of a lobby server
+    """
+    fingerprint: str = pydantic.Field(  # unique string. This is a string because of min/max length limitations
         min_length=LobbyFingerprint.serialized_length(),
         max_length=LobbyFingerprint.serialized_length(),
         validate_default=True

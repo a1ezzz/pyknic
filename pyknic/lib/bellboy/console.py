@@ -19,44 +19,29 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import shlex
-import pathlib
-import readline
 import typing
 
 import rich.console
+import rich.padding
 import rich.prompt
 import rich.table
 import rich.text
 
-from pyknic.lib.bellboy.error import BellboyCLIError
-from pyknic.lib.fastapi.models.lobby import LobbyStrFeedbackResult, LobbyKeyValueFeedbackResult
-from pyknic.lib.fastapi.models.base import NullableResponseModel
-from pyknic.lib.verify import verify_value
-
-
-class Prompt(rich.prompt.Prompt):
-    """Overrides default prompt. It must have '\n' at the end because of readline (history) behaviour."""
-    prompt_suffix = '>\n'
+from pyknic.lib.bellboy.app import BellboyCLIError
+from pyknic.lib.fastapi.models.lobby import LobbyStrFeedbackResult, LobbyKeyValueFeedbackResult, LobbyCommandResult
+from pyknic.lib.fastapi.models.lobby import LobbyListValueFeedbackResult
+from pyknic.lib.fastapi.models.base import NullableModel
 
 
 class BellboyConsole:
-    """ Wraps and unify style and behaviour"""
-    # TODO: implement completer with readline.set_completer
+    """ Wraps and unify style and CLI behavior"""
 
-    def __init__(self, enable_history: bool = True) -> None:
-        """ Create a new console.
-
-        :param enable_history: whether to enable history saving or not
+    def __init__(self) -> None:
+        """ Create a new console renderer
         """
 
         self.__console = rich.console.Console()
         self.__last_prompt: typing.Optional[str] = None
-        self.__history_enabled = enable_history
-
-        if self.__history_enabled:
-            readline.set_auto_history(False)
-            readline.read_history_file(self.history_file_path())
 
     def ask(self, question: str | None = None, password: bool = False) -> str:
         """ Ask a user for an input
@@ -66,26 +51,9 @@ class BellboyConsole:
         """
         if question:
             self.__console.print(rich.text.Text(question))
-        result = Prompt.ask(password=password)
+        result = rich.prompt.Prompt.ask(password=password)
         self.__last_prompt = result.strip()
         return self.__last_prompt
-
-    def commit_history(self) -> None:
-        """Commit last entered string. This method call must be forestalled by the :meth:`.BellboyConsole.ask` method.
-        """
-
-        if self.__history_enabled:
-            if not self.__last_prompt:
-                raise ValueError('No prompt was entered')
-            readline.add_history(self.__last_prompt)
-            self.__last_prompt = None
-
-    def log(self, message: str) -> None:
-        """Print message as a console log entry
-
-        :param message: message to print
-        """
-        self.__console.log(message)
 
     def critical(self, raised_exception: BellboyCLIError) -> None:
         """Process raised exception -- print error message and reraise the one.
@@ -128,99 +96,37 @@ class BellboyConsole:
 
         self.__console.print(table)
 
-    def null_feedback(self, feedback: NullableResponseModel) -> None:
+    def null_feedback(self, feedback: NullableModel) -> None:
         """Process null result.
 
         :param feedback: None as is =)
         """
         self.__console.print(rich.text.Text('<command succeeded without feedback>'))
 
-    def dump_history(self) -> None:
-        """Save current history."""
-        if self.__history_enabled:
-            readline.write_history_file(self.history_file_path())
+    def list_feedback(self, feedback: LobbyListValueFeedbackResult) -> None:
+        """Process null result.
 
-    @classmethod
-    def history_file_path(cls) -> str:
-        """Return path to a history file."""
-        file_path = pathlib.Path.home() / '.bellboy_history'
-
-        if not file_path.exists():
-            file_path.touch()
-
-        return str(file_path)
-
-
-class BellboyPromptParser:
-    """Parser that is used in conjunction with :meth:`.BellboyConsole.ask` method."""
-
-    @verify_value(command=lambda x: len(x) > 0)
-    def __init__(self, command: str, contexts: typing.Tuple[str, ...]):
-        """Parse command
-
-        :param command: command to parse
-        :param contexts: contexts that server has
+        :param feedback: None as is =)
         """
+        self.__console.print(rich.text.Text('Values received:'))
+        for i in feedback.list_result:
+            self.__console.print(rich.padding.Padding.indent(i, 4))
 
-        tokens = shlex.split(command)
+    def process_result(
+        self,
+        command_result: LobbyCommandResult
+    ) -> None:
+        """Print a result in a stylish way
 
-        self.__command = tokens[0]
-        self.__args, self.__kwargs, self.__cargs = self.__parse_tokens(contexts, *tokens[1:])
-
-    def command(self) -> str:
-        """Return command name (ie LobbyCommandRequest.name)."""
-        return self.__command
-
-    def args(self) -> typing.Tuple[typing.Any, ...]:
-        """Return command arguments (ie LobbyCommandRequest.args)."""
-        return self.__args
-
-    def kwargs(self) -> typing.Dict[str, typing.Any]:
-        """Return key-word arguments (ie LobbyCommandRequest.kwargs)."""
-        return self.__kwargs
-
-    def cargs(self) -> typing.Dict[str, typing.Any]:
-        """Return contextualized arguments (ie LobbyCommandRequest.cargs)."""
-        return self.__cargs
-
-    def __parse_tokens(
-        self, contexts: typing.Tuple[str, ...], *tokens: str
-    ) -> typing.Tuple[
-        typing.Tuple[typing.Any, ...],
-        typing.Dict[str, typing.Any],
-        typing.Dict[str, typing.Any]
-    ]:
-        """Implement base logic (parse tokens)
+        :param command_result: command result to print
         """
-        args = []
-        kwargs = dict()
-        cargs = dict()
-
-        bypass_next = False
-        for i, token in enumerate(tokens):
-            if bypass_next:
-                bypass_next = False
-                continue
-
-            if token.startswith('--'):
-                if len(token) == 2:
-                    raise BellboyCLIError('Variable name is not followed by the "--"')
-                token_name = token[2:]
-
-                if i == (len(tokens) - 1):
-                    raise BellboyCLIError(f'Variable value is not followed by the named argument "{token_name}"')
-
-                token_value = tokens[i + 1]
-                if token_name in contexts:
-                    cargs[token_name] = token_value
-                else:
-                    kwargs[token_name] = token_value
-                bypass_next = True
-            else:
-                args.append(token)
-
-        return (  # type: ignore[return-value]  # mypy issue
-            tuple(args) if args else None,
-            kwargs if kwargs else None,
-            cargs if cargs else None,
-        )
+        if isinstance(command_result, LobbyStrFeedbackResult):
+            self.str_feedback(command_result)
+        elif isinstance(command_result, LobbyKeyValueFeedbackResult):
+            self.kv_feedback(command_result)
+        elif isinstance(command_result, LobbyListValueFeedbackResult):
+            self.list_feedback(command_result)
+        elif isinstance(command_result, NullableModel):
+            self.null_feedback(command_result)
+        else:
+            raise BellboyCLIError('Unknown command result spotted! Check logs')

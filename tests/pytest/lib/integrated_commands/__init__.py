@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/bellboy/error.py
+# tests/pytest/lib/integrated_commands/__init__.py
 #
-# Copyright (C) 2025 the pyknic authors and contributors
+# Copyright (C) 2026 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -18,8 +18,3 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
-
-
-class BellboyCLIError(Exception):
-    """Indicates errors in Bellboy CLI."""
-    pass

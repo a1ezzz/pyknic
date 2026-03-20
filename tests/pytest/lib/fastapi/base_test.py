@@ -104,7 +104,7 @@ class TestTgBotBaseFastAPIApp:
 
             async def process_message(
                 self, tg_update: tg_bot_types.Update
-            ) -> tg_bot_methods.MethodSendMessage | base_models.NullableResponseModel | None:
+            ) -> tg_bot_methods.MethodSendMessage | base_models.NullableModel | None:
                 assert(tg_update.message)
                 assert(tg_update.message.text)
 

@@ -19,165 +19,169 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
-
-import json
-import logging
 import typing
+from abc import ABCMeta
 
 import aiohttp
 import pydantic
 
+from pyknic.lib.bellboy.models import SecretBackendType
+from pyknic.lib.bellboy.secret_backend import SecretBackend, KeyringSecretBackendImplementation, SecretTokenModel
+from pyknic.lib.bellboy.secret_backend import SharedMemorySecretBackend, SecretBackendImplementationProto
+from pyknic.lib.fastapi.lobby import LobbyCommandHandler
 from pyknic.lib.fastapi.lobby_fingerprint import LobbyFingerprint
-from pyknic.path import root_path
-from pyknic.lib.config import Config
-from pyknic.lib.log import Logger
-from pyknic.lib.verify import verify_value
-from pyknic.lib.fastapi.models.lobby import LobbyCommandResult, LobbyStrFeedbackResult, LobbyKeyValueFeedbackResult
-from pyknic.lib.fastapi.models.base import NullableResponseModel
-from pyknic.lib.bellboy.console import BellboyConsole, BellboyPromptParser
-from pyknic.lib.bellboy.error import BellboyCLIError
-from pyknic.lib.bellboy.client import LobbyClient
+from pyknic.lib.fastapi.headers import FastAPIHeaders
+from pyknic.lib.fastapi.models.lobby import LobbyCommandRequest, LobbyFingerprintModel, LobbyCommandResult
+from pyknic.lib.registry import APIRegistry, register_api
+
+__default_bellboy_commands_registry__ = APIRegistry()  # default registry for all commands
 
 
-class BellboyCLIApp:
+def register_bellboy_command(
+    registry: APIRegistry | None = None,
+) -> typing.Callable[..., typing.Any]:
+    """This decorator help to register commands with the given registry."""
 
-    @verify_value(log_level=lambda x: x >= 0)
-    def __init__(
-        self,
-        url: str,
-        log_level: int = 0,
-        config_file: typing.Optional[str] = None,
-        token: typing.Optional[str] = None,
-    ) -> None:
+    if registry is None:
+        registry = __default_bellboy_commands_registry__
 
-        self.__token_set = True if token else False
-        self.__client = LobbyClient(url, token)
-        self.__console = BellboyConsole()
+    return register_api(
+        registry=registry,
+        api_id=lambda x: x.command_name(),
+        callable_api_id=True
+    )
 
-        with open(root_path / 'lib/bellboy/config.yaml') as f:
-            self.__config = Config(file_obj=f)
 
-        if config_file is not None:
-            with open(config_file) as f:
-                self.__config.merge_file(f)
+class BellboyCLIError(Exception):
+    """Indicates errors in Bellboy CLI."""
+    pass
 
-        self.__setup_logger(log_level)
 
-    def __log_level(self, log_level: int) -> str:
-        if log_level == 0:
-            return "ERROR"
-        elif log_level == 1:
-            return "WARN"
-        elif log_level == 2:
-            return "INFO"
+class BellBoyCommandHandler(LobbyCommandHandler, metaclass=ABCMeta):
+    """ This is an extended version of the :class:`.LobbyCommandHandler`
+    """
+
+    @classmethod
+    def secret_backend(cls, secret_backend_type: SecretBackendType) -> SecretBackend:
+        """ Return a backend implementation by a specified type
+
+        :param secret_backend_type: type of secret backend
+        """
+        if secret_backend_type == SecretBackendType.keyring:
+            secret_backend: SecretBackendImplementationProto = KeyringSecretBackendImplementation()
+        elif secret_backend_type == SecretBackendType.shm:
+            secret_backend = SharedMemorySecretBackend()
         else:
-            return "DEBUG"
+            raise BellboyCLIError(f'Unknown backend spotted -- {secret_backend_type}')
 
-    def __setup_logger(self, log_level: int) -> None:
-        formatter = logging.Formatter(
-            str(self.__config['bellboy']['logger']['format_string']),
-            str(self.__config['bellboy']['logger']['date_format'])
-        )
+        return SecretBackend(backend_implementation=secret_backend)
 
-        handler = logging.StreamHandler()
-        handler.setFormatter(formatter)
+    @classmethod
+    def auth_data(cls, secret_backend_type: SecretBackendType, lobby_url: str) -> SecretTokenModel:
+        """ Return an auth info for the specified URL from the specified secret backend
 
-        log_level = getattr(logging, self.__log_level(log_level))
-        Logger.name = str(self.__config['bellboy']['logger']['app_name'])
-        Logger.addHandler(handler)
-        Logger.setLevel(log_level)
+        :param secret_backend_type: backend that holds secret
+        :param lobby_url: URL which secret should be retrieved
+        """
+        secret_backend = cls.secret_backend(secret_backend_type)
+        all_secrets = secret_backend.get_secrets()
 
-    async def start(self) -> None:
-        Logger.info('Starting the "Bellboy" CLI Application')
+        if lobby_url not in all_secrets.secrets:
+            raise BellboyCLIError('Login at first')
 
-        if not self.__token_set:
-            try:
-                # TODO: make token with config in order: args, configs, prompt
-                token = self.__console.ask('Secret token was not set. Submit it now', password=True)
-                self.__client.set_token(token)
-            except (KeyboardInterrupt, EOFError):
-                return
+        return all_secrets.secrets[lobby_url]
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                fingerprint = await self.__receive_fingerprint(session)
-                contexts = await self.__receive_contexts(session, fingerprint)
-                self.__console.log('')
-            except BellboyCLIError as e:
-                self.__console.critical(e)
 
-            try:
-                prompt_message: typing.Optional[str] = \
-                    'Enter commands. Type "exit" or "quit" to finish this session. Type "help" for more information.'
-                while await self.__client_session_one_shot(session, fingerprint, contexts, prompt_message):
-                    prompt_message = None  # disable next messages
-            except (KeyboardInterrupt, EOFError):
-                pass
+class LobbyClient:
+    """This class wraps API calls routine.
+    """
 
-        self.__console.dump_history()
+    def __init__(self, url: str, fingerprint: typing.Union[LobbyFingerprint | LobbyFingerprintModel], token: str):
+        """Create a new client.
 
-    async def __receive_fingerprint(self, session: aiohttp.ClientSession) -> LobbyFingerprint:
-        self.__console.log(f'Connecting to a server with url {self.__client.url()}')
-        fingerprint = await self.__client.fingerprint(session)
-        self.__console.log(f'Received fingerprint: {str(fingerprint)}')
-        return fingerprint
+        :param url: URL to connect to.
+        :param fingerprint: allowed server's fingerprint to check a response
+        :param token: token to authenticate with.
+        """
+        is_lobby_fingerprint = isinstance(fingerprint, LobbyFingerprint)
 
-    async def __receive_contexts(
-        self, session: aiohttp.ClientSession, fingerprint: LobbyFingerprint
-    ) -> typing.Tuple[str]:
+        self.__url = url
+        self.__fingerprint = fingerprint if is_lobby_fingerprint else LobbyFingerprint.from_model(fingerprint)
+        self.__token = token
 
-        self.__console.log('Checking contexts...')
-        context_request = await self.__client.secure_request(
-            fingerprint, session, 'get', '/contexts'
-        )
-        contexts = tuple(json.loads(context_request))
-        self.__console.log(f'Number of received contexts: {len(contexts)}')
-        return contexts
-
-    async def __client_session_one_shot(
+    async def secure_request(
         self,
-        session: aiohttp.ClientSession,
         fingerprint: LobbyFingerprint,
-        contexts: typing.Tuple[str, ...],
-        prompt_message: str | None
-    ) -> bool:
-        try:
-            cli_input = self.__console.ask(prompt_message)
+        session: aiohttp.ClientSession,
+        method_name: str,
+        path: str | None = None,
+        data: str | bytes | None = None
+    ) -> bytes:
+        """Make a secure request and return bytes that this request returns.
 
-            if not cli_input:
-                return True
+        :param fingerprint: allowed server's fingerprint to check a response
+        :param session: HTTP-client to use
+        :param method_name: HTTP-method to use (like 'get' or 'post')
+        :param path: URL path
+        :param data: Data to send with request
+        """
+        auth_headers = {"Authorization": f"Bearer {self.__token}"}
 
-            parser = BellboyPromptParser(cli_input, contexts)
+        session_method = getattr(session, method_name)
+        async with session_method(f'{self.__url}{path if path else ""}', headers=auth_headers, data=data) as response:
+            if response.status != 200:
+                raise BellboyCLIError(f'API request failed with status code {response.status}')
 
-            if parser.command().lower() in ('exit', 'quit'):
-                self.__console.log('Quiting...')
-                return False
+            binary_body = await response.content.read()
+            signature = fingerprint.sign(binary_body, encode_base64=True).decode('ascii')
 
-            if parser.command().lower() == 'help':
-                self.__console.log('Some day there will be some help')  # TODO: implement!
-                return True
+            if response.headers[FastAPIHeaders.fingerprint.value] != signature:
+                raise BellboyCLIError(
+                    'Response signature mismatch! Consider to restart session and validate connectivity'
+                )
+            return binary_body  # type: ignore[no-any-return]
 
-            command_result_txt = await self.__client.command_request(fingerprint, session, parser)
-            # TODO: test command with extra args on the server side!
+    async def command_request(
+        self, command: LobbyCommandRequest, session: typing.Optional[aiohttp.ClientSession] = None
+    ) -> LobbyCommandResult:
+        """Send command to a server.
+        :param command: Command to send to a server
+        :param session: HTTP-client to use (a new session will be made if this parameter is omitted)
+        """
 
-            command_result_json = json.loads(command_result_txt)
-            command_result: LobbyCommandResult = \
-                pydantic.TypeAdapter(LobbyCommandResult).validate_python(command_result_json, strict=True)
+        async def cmd_request(s: aiohttp.ClientSession) -> LobbyCommandResult:
+            request_json = command.model_dump_json()
+            result = await self.secure_request(
+                self.__fingerprint, s, 'post', data=request_json  # type: ignore[arg-type]
+            )
+            return pydantic.TypeAdapter(LobbyCommandResult).validate_json(result.decode())
 
-            if isinstance(command_result, LobbyStrFeedbackResult):
-                self.__console.str_feedback(command_result)
-            elif isinstance(command_result, LobbyKeyValueFeedbackResult):
-                self.__console.kv_feedback(command_result)
-            elif isinstance(command_result, NullableResponseModel):
-                self.__console.null_feedback(command_result)
-            else:
-                raise BellboyCLIError('Unknown command result spotted! Check server logs')
+        if session:
+            return await cmd_request(session)
 
-        except BellboyCLIError as e:
-            self.__console.error(str(e))
-        else:
-            self.__console.commit_history()
+        async with aiohttp.ClientSession() as new_session:
+            return await cmd_request(new_session)
 
-        return True
+    @staticmethod
+    async def fingerprint(url: str, session: typing.Optional[aiohttp.ClientSession] = None) -> LobbyFingerprint:
+        """Return server's fingerprint.
+
+        :param url: URL to connect to.
+        :param session: HTTP-client to use
+        """
+        # TODO: persist it from a server side
+
+        async def fp_by_session(s: aiohttp.ClientSession) -> LobbyFingerprint:
+            async with s.get(f'{url}/fingerprint') as response:
+
+                if response.status != 200:
+                    raise BellboyCLIError('Unable to fetch fingerprint')
+
+                fingerprint_model = LobbyFingerprintModel.model_validate(await response.json())
+                return LobbyFingerprint.deserialize(fingerprint_model.fingerprint.encode('ascii'))
+
+        if session is not None:
+            return await fp_by_session(session)
+
+        async with aiohttp.ClientSession() as new_session:
+            return await fp_by_session(new_session)
