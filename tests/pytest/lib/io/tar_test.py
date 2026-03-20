@@ -75,12 +75,12 @@ class TestTarArchive:
             assert(sample2_info.size == len(test_data))
 
             # TODO: enable filter by default when python 3.11 support ends
-            extract_kw = {}
-            if sys.version_info[0] >= 3 and sys.version_info[1] >= 12:
-                extract_kw['filter'] = 'data'
-
-            tar.extract(sample1_info, tmp_path, **extract_kw)  # type: ignore[arg-type]  # test issue
-            tar.extract(sample2_info, tmp_path, **extract_kw)  # type: ignore[arg-type]  # test issue
+            if sys.version_info >= (3, 12, 0):
+                tar.extract(sample1_info, tmp_path, filter='data')
+                tar.extract(sample2_info, tmp_path, filter='data')
+            else:
+                tar.extract(sample1_info, tmp_path)
+                tar.extract(sample2_info, tmp_path)
 
             assert((tmp_path / sample1_file).open('rb').read() == test_data)
             assert((tmp_path / sample2_file).open('rb').read() == test_data)
