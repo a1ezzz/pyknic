@@ -26,12 +26,12 @@ class TestListLoginsCommand:
         )
         secret_backend = SecretBackend(SharedMemorySecretBackend())
 
-        result = await ListLoginsCommand.exec(args=lobby_options)
+        result = await ListLoginsCommand.prepare_command(lobby_options).exec()
         assert(isinstance(result, LobbyListValueFeedbackResult))
 
         lobby_url = 'http://lobby.localhost:8080/some-test-endpoint/api'
         secret_backend.set_secret(lobby_url, LobbyFingerprint.generate_fingerprint(), 'some-token')
 
-        result = await ListLoginsCommand.exec(args=lobby_options)
+        result = await ListLoginsCommand.prepare_command(lobby_options).exec()
         assert(isinstance(result, LobbyListValueFeedbackResult))
         assert(lobby_url in result.list_result)

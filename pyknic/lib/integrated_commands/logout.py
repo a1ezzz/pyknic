@@ -44,18 +44,18 @@ class LogoutCommand(BellBoyCommandHandler):
         """The :meth:`.BellBoyCommandHandler.command_model` method implementation"""
         return GeneralBellBoyCommandModel
 
-    @classmethod
-    async def exec(cls, args: GeneralBellBoyCommandModel) -> LobbyCommandResult:  # type: ignore[override]
+    async def exec(self) -> LobbyCommandResult:
         """The :meth:`.BellBoyInternalCommand.exec_from_cli` method implementation
         """
+        assert(isinstance(self._args, GeneralBellBoyCommandModel))
 
-        secret_backend = cls.secret_backend(args.secret_backend)
+        secret_backend = self.secret_backend(self._args.secret_backend)
 
         with contextlib.suppress(KeyError):
-            secret_backend.pop_secret(args.lobby_url)
+            secret_backend.pop_secret(self._args.lobby_url)
             return LobbyStrFeedbackResult(
-                str_result=f'Login credential for the {args.lobby_url} site has been forgotten'
+                str_result=f'Login credential for the {self._args.lobby_url} site has been forgotten'
             )
         return LobbyStrFeedbackResult(
-            str_result=f'There is no credential for the {args.lobby_url} site'
+            str_result=f'There is no credential for the {self._args.lobby_url} site'
         )

@@ -43,12 +43,12 @@ class ListLoginsCommand(BellBoyCommandHandler):
         """The :meth:`.BellBoyCommandHandler.command_model` method implementation"""
         return SecretBackendBellBoyCommandModel
 
-    @classmethod
-    async def exec(cls, args: SecretBackendBellBoyCommandModel) -> LobbyCommandResult:  # type: ignore[override]
+    async def exec(self) -> LobbyCommandResult:
         """The :meth:`.BellBoyInternalCommand.exec_from_cli` method implementation
         """
+        assert(isinstance(self._args, SecretBackendBellBoyCommandModel))
 
-        backend = cls.secret_backend(args.secret_backend)
+        backend = self.secret_backend(self._args.secret_backend)
 
         all_secrets = backend.get_secrets()
         return LobbyListValueFeedbackResult(

@@ -56,13 +56,13 @@ class TestLoginCommand:
         monkeypatch.setattr('rich.prompt.Prompt.ask', TestLoginCommand.ask_patch("foo"))
         with pytest.raises(BellboyCLIError):
             # 401 exception
-            await LoginCommand.exec(args=lobby_options)
+            await LoginCommand.prepare_command(lobby_options).exec()
 
         monkeypatch.setattr(
             'rich.prompt.Prompt.ask',
             TestLoginCommand.ask_patch(self.__secret_token__)
         )
 
-        result = await LoginCommand.exec(args=lobby_options)
+        result = await LoginCommand.prepare_command(lobby_options).exec()
         assert(isinstance(result, LobbyStrFeedbackResult))
         assert(len(result.str_result) > 0)  # check that there is a response

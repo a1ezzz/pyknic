@@ -20,7 +20,7 @@ class TestLobbyPingCommand:
         assert(len(LobbyPingCommand.command_name()) > 0)  # check that there is a name
         assert(LobbyPingCommand.command_model() is NullableModel)
 
-        result = await LobbyPingCommand.exec(args=NullableModel())
+        result = await LobbyPingCommand.prepare_command(NullableModel()).exec()
         assert(isinstance(result, LobbyStrFeedbackResult))
         assert(len(result.str_result) > 0)  # check that there is a response
 
@@ -40,7 +40,7 @@ class TestBellBoyPingCommand:
         assert(len(BellBoyPingCommand.command_name()) > 0)  # check that there is a name
         assert(BellBoyPingCommand.command_model() is OptionalBellBoyCommandModel)
 
-        result = await BellBoyPingCommand.exec(args=OptionalBellBoyCommandModel())
+        result = await BellBoyPingCommand.prepare_command(OptionalBellBoyCommandModel()).exec()
         assert(isinstance(result, LobbyStrFeedbackResult))
         assert(len(result.str_result) > 0)  # check that there is a response
 
@@ -64,6 +64,6 @@ class TestBellBoyPingCommand:
             )
         )
 
-        result = await BellBoyPingCommand.exec(args=lobby_options)
+        result = await BellBoyPingCommand.prepare_command(lobby_options).exec()
         assert(isinstance(result, LobbyStrFeedbackResult))
         assert(len(result.str_result) > 0)  # check that there is a response

@@ -49,8 +49,7 @@ class LobbyPingCommand(LobbyCommandHandler):
         """
         return NullableModel
 
-    @classmethod
-    async def exec(cls, args: NullableModel) -> LobbyCommandResult:  # type: ignore[override]
+    async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.LobbyCommandHandler.exec` method implementation
         """
         return LobbyStrFeedbackResult(
@@ -76,18 +75,19 @@ class BellBoyPingCommand(BellBoyCommandHandler):
         """
         return OptionalBellBoyCommandModel
 
-    @classmethod
-    async def exec(cls, args: OptionalBellBoyCommandModel) -> LobbyCommandResult:  # type: ignore[override]
+    async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        if args.server is None:
-            result = await LobbyPingCommand.exec(NullableModel())
+        assert(isinstance(self._args, OptionalBellBoyCommandModel))
+
+        if self._args.server is None:
+            result = await LobbyPingCommand.prepare_command(NullableModel()).exec()
             result.str_result = f"Client response: {result.str_result}"  # type: ignore[union-attr]
             return result
 
-        auth_data = cls.auth_data(args.server.secret_backend, args.server.lobby_url)
+        auth_data = self.auth_data(self._args.server.secret_backend, self._args.server.lobby_url)
 
-        client = LobbyClient(args.server.lobby_url, auth_data.server_fingerprint, auth_data.token)
+        client = LobbyClient(self._args.server.lobby_url, auth_data.server_fingerprint, auth_data.token)
         result = await client.command_request(
             LobbyCommandRequest(
                 name=LobbyPingCommand.command_name(),

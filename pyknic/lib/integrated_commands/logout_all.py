@@ -43,12 +43,12 @@ class LogoutAllCommand(BellBoyCommandHandler):
         """The :meth:`.BellBoyCommandHandler.command_model` method implementation"""
         return SecretBackendBellBoyCommandModel
 
-    @classmethod
-    async def exec(cls, args: SecretBackendBellBoyCommandModel) -> LobbyCommandResult:  # type: ignore[override]
+    async def exec(self) -> LobbyCommandResult:
         """The :meth:`.BellBoyInternalCommand.exec_from_cli` method implementation
         """
+        assert(isinstance(self._args, SecretBackendBellBoyCommandModel))
 
-        secret_backend = cls.secret_backend(args.secret_backend)
+        secret_backend = self.secret_backend(self._args.secret_backend)
 
         count = secret_backend.get_secrets().secrets.keys()
         secret_backend.purge()

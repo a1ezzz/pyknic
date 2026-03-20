@@ -20,7 +20,7 @@ class TestLobbyResourcesCommand:
         assert(len(LobbyResourcesCommand.command_name()) > 0)  # check that there is a name
         assert(LobbyResourcesCommand.command_model() is NullableModel)
 
-        result = await LobbyResourcesCommand.exec(args=NullableModel())
+        result = await LobbyResourcesCommand.prepare_command(NullableModel()).exec()
         assert(isinstance(result, LobbyKeyValueFeedbackResult))
         assert(len(result.kv_result) > 0)  # check that there is a response
 
@@ -53,6 +53,6 @@ class TestBellBoyResourcesCommand:
             secret_backend=SecretBackendType.shm
         )
 
-        result = await BellBoyResourcesCommand.exec(args=lobby_options)
+        result = await BellBoyResourcesCommand.prepare_command(lobby_options).exec()
         assert(isinstance(result, LobbyKeyValueFeedbackResult))
         assert(len(result.kv_result) > 0)  # check that there is a response

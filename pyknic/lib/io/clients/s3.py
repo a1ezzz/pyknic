@@ -80,7 +80,7 @@ class _S3ClientSyncImplementation:
 
         try:
             available_buckets = self.__client.list_buckets()
-            if self.__bucket_name not in available_buckets:
+            if self.__bucket_name not in (x.name for x in available_buckets):  # mypy issue
                 raise ConnectionError(
                     f'There is no such bucket "{self.__bucket_name}", buckets that are available:'
                 )

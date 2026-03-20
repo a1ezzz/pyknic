@@ -51,8 +51,7 @@ class LobbyResourcesCommand(LobbyCommandHandler):
         """
         return NullableModel
 
-    @classmethod
-    async def exec(cls, args: NullableModel) -> LobbyCommandResult:  # type: ignore[override]
+    async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.LobbyCommandHandler.exec` method implementation
         """
         with open('/proc/self/statm') as mem_usage_fd:  # TODO: validate errors!
@@ -83,13 +82,13 @@ class BellBoyResourcesCommand(BellBoyCommandHandler):
         """
         return GeneralBellBoyCommandModel
 
-    @classmethod
-    async def exec(cls, args: GeneralBellBoyCommandModel) -> LobbyCommandResult:  # type: ignore[override]
+    async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        auth_data = cls.auth_data(args.secret_backend, args.lobby_url)
+        assert(isinstance(self._args, GeneralBellBoyCommandModel))
+        auth_data = self.auth_data(self._args.secret_backend, self._args.lobby_url)
 
-        client = LobbyClient(args.lobby_url, auth_data.server_fingerprint, auth_data.token)
+        client = LobbyClient(self._args.lobby_url, auth_data.server_fingerprint, auth_data.token)
         return await client.command_request(
             LobbyCommandRequest(
                 name=LobbyResourcesCommand.command_name(),

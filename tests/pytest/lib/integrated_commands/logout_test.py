@@ -30,11 +30,11 @@ class TestLogoutCommand:
         )
         secret_backend = SecretBackend(SharedMemorySecretBackend())
 
-        await LogoutCommand.exec(args=lobby_options)  # it is ok to logout from unknown url
+        await LogoutCommand.prepare_command(lobby_options).exec()  # it is ok to logout from unknown url
 
         secret_backend.set_secret(lobby_url, LobbyFingerprint.generate_fingerprint(), 'some-token')
-        result = await ListLoginsCommand.exec(args=lobby_options)
+        result = await ListLoginsCommand.prepare_command(lobby_options).exec()
         assert(isinstance(result, LobbyListValueFeedbackResult))
         assert(lobby_url in result.list_result)
 
-        await LogoutCommand.exec(args=lobby_options)  # it is ok to logout from known url also =)
+        await LogoutCommand.prepare_command(lobby_options).exec()  # it is ok to logout from known url also =)

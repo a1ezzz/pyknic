@@ -112,9 +112,8 @@ class Bellboy:
         LogTask.setup_log()
 
         loop = asyncio.new_event_loop()
-        result = loop.run_until_complete(
-            subcommand_obj._command_handler.exec(subcommand_obj)
-        )
+        prepared_command = subcommand_obj._command_handler.prepare_command(subcommand_obj)
+        result = loop.run_until_complete(prepared_command.exec())
 
         json_mode = False
         if subcommand_obj.bellboy is not None:
