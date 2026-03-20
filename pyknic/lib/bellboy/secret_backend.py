@@ -165,7 +165,7 @@ class SharedMemorySecretBackend(SecretBackendImplementationProto):
             secret = multiprocessing.shared_memory.SharedMemory(
                 self.__shm_filename__, create=False, **self.__shared_memory_args()
             )
-            secret_bytes = bytes(secret.buf)
+            secret_bytes = bytes(secret.buf)  # type: ignore[arg-type]
             result = secret_bytes.decode()
             secret.close()
             return result
@@ -191,5 +191,5 @@ class SharedMemorySecretBackend(SecretBackendImplementationProto):
             create=True,
             **self.__shared_memory_args()
         )
-        sh_mem.buf[:] = secret_bytes
+        sh_mem.buf[:] = secret_bytes  # type: ignore[index]
         sh_mem.close()

@@ -12,7 +12,7 @@ from fixtures.sftp_server import sftp_fixture
 
 def test_collection() -> None:
     available_clients = list(__default_io_clients_registry__.ids())
-    available_clients.sort()  # type: ignore[call-overload]
+    available_clients.sort()  # type: ignore[call-arg]
 
     assert(available_clients == ['file', 's3', 's3s', 'sftp'])
 

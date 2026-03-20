@@ -34,7 +34,7 @@ import pydantic_settings
 from pyknic.lib.config import Config
 from pyknic.lib.bellboy.console import BellboyConsole
 from pyknic.lib.bellboy.models import CommonBellBoyCommandModel, FormattingMode
-from pyknic.lib.bellboy.app import __default_bellboy_commands_registry__
+from pyknic.lib.bellboy.app import __default_bellboy_commands_registry__, BellBoyCommandHandler
 from pyknic.tasks.log import LogTask
 
 import pyknic.lib.integrated_commands  # noqa: F401  # force commands loading
@@ -48,6 +48,13 @@ import pyknic.lib.integrated_commands  # noqa: F401  # force commands loading
 
 class Bellboy:
 
+    class BaseCommand(pydantic.BaseModel):
+        bellboy: typing.Optional[CommonBellBoyCommandModel] = pydantic.Field(
+            default=None,
+            description='Utility configuration'
+        )
+        _command_handler: typing.Type[BellBoyCommandHandler]
+
     @classmethod
     def args_parser_cls(cls) -> pydantic_settings.BaseSettings:
         commands_annotations: typing.Dict[str, typing.Any] = dict()
@@ -56,11 +63,7 @@ class Bellboy:
             assert(isinstance(command, str))
             handler_model: typing.Type[pydantic.BaseModel] = handler.command_model()
 
-            class CustomModel(handler_model):  # type: ignore[misc,valid-type]
-                bellboy: typing.Optional[CommonBellBoyCommandModel] = pydantic.Field(
-                    default=None,
-                    description='Utility configuration'
-                )
+            class CustomModel(Bellboy.BaseCommand, handler_model):  # type: ignore[misc,valid-type]
                 _command_handler = handler
 
             commands_annotations[command] = pydantic_settings.CliSubCommand[CustomModel]  # type: ignore[misc]
@@ -99,9 +102,10 @@ class Bellboy:
         subcommand_obj = pydantic_settings.get_subcommand(cmd)
         assert(subcommand_obj is not None)
 
-        if subcommand_obj.bellboy is not None:  # type: ignore[attr-defined]
-            if subcommand_obj.bellboy.config is not None:  # type: ignore[attr-defined]
-                with pathlib.Path().open(subcommand_obj.bellboy.config):  # type: ignore[attr-defined]
+        assert(isinstance(subcommand_obj, Bellboy.BaseCommand))
+        if subcommand_obj.bellboy is not None:
+            if subcommand_obj.bellboy.config is not None:
+                with pathlib.Path().open(subcommand_obj.bellboy.config):
                     config.merge_file(f)
 
         os.environ[LogTask.__env_var_name__] = "INFO"  # possible options are: "ERROR", "WARN", "INFO", "DEBUG"
@@ -109,16 +113,16 @@ class Bellboy:
 
         loop = asyncio.new_event_loop()
         result = loop.run_until_complete(
-            subcommand_obj._command_handler.exec(subcommand_obj)  # type: ignore[attr-defined]
+            subcommand_obj._command_handler.exec(subcommand_obj)
         )
 
         json_mode = False
-        if subcommand_obj.bellboy is not None:  # type: ignore[attr-defined]
-            if subcommand_obj.bellboy.formatting is not None:  # type: ignore[attr-defined]
-                if subcommand_obj.bellboy.formatting == FormattingMode.json:  # type: ignore[attr-defined]
+        if subcommand_obj.bellboy is not None:
+            if subcommand_obj.bellboy.formatting is not None:
+                if subcommand_obj.bellboy.formatting == FormattingMode.json:
                     json_mode = True
                 else:
-                    assert(subcommand_obj.bellboy.formatting == FormattingMode.rich)  # type: ignore[attr-defined]
+                    assert(subcommand_obj.bellboy.formatting == FormattingMode.rich)
 
         if json_mode:
             print(result.model_dump_json())
