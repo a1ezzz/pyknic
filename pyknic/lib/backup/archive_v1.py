@@ -21,7 +21,7 @@
 
 # TODO: Add snapshot support and keep original lv uuid to metadata
 
-
+import asyncio
 import base64
 import copy
 import functools
@@ -282,20 +282,54 @@ class _BackupHelper:
         return chain_sync_processor(data, *backup_processors)
 
     @classmethod
+    def hashes_validate_chain(cls, tail: ArchiveV1TailMeta, data: IOGenerator) -> IOGenerator:
+        """ Check that data inside archive has the correct hashes
+
+        :param tail: meta-data with digests
+        :param data: data to validate
+        """
+
+        digests = dict()
+        for i in tail.hashes:
+            digests[i.algorithm] = __default_hashers_registry__.get(i.algorithm.value)()
+
+        digests_processors = [x.update for x in digests.values()]
+        if len(digests_processors) == 0:
+            raise ValueError('There is no digests inside archive!')
+
+        yield from chain_sync_processor(data, *digests_processors)
+
+        for i in tail.hashes:
+            calculated_hash = digests[i.algorithm]
+
+            if calculated_hash.digest() != i.digest:
+                raise ValueError(f'The calculated hash for the "{i.algorithm.value}" did not match!')
+
+    @classmethod
     def unarchive_chain(
-        cls, header: ArchiveV1HeaderMeta, data: IOGenerator, encryption_key: typing.Optional[str] = None
+        cls,
+        header: ArchiveV1HeaderMeta,
+        tail: ArchiveV1TailMeta,
+        data: IOGenerator,
+        encryption_key: typing.Optional[str] = None,
+        validate_hashes: bool = False,
     ) -> IOGenerator:
         """Process archived data and return decrypted and/or uncompressed and/or raw result (depends on arguments
         with which archive was created)
 
-        :param header: original archive meta-data
+        :param header: original archive header meta-data
+        :param tail: original archive tail meta-data
         :param data: data to restore
         :param encryption_key: encryption key that will be used for decryption
+        :param validate_hashes: whether to validate the archive hashes
 
         :note: there is no digest checking at the moment!
         """
-        # TODO: add optional digest checking with this or any other method
+
         backup_processors = []
+
+        if validate_hashes:
+            backup_processors += [functools.partial(cls.hashes_validate_chain, tail)]
 
         if header.cipher is not None:
             if encryption_key is None:
@@ -411,7 +445,7 @@ class BackupArchiveV1:
 
         data_reader = TarArchive().static_archive(files_generator())
 
-        await self.__backup(ArchiveType.io_archive, data_reader, destination)
+        await self.__backup(ArchiveType.file_archive, data_reader, destination)
 
     @classmethod
     def extract_header_meta(cls, archive: typing.IO[bytes]) -> ArchiveV1HeaderMeta:
@@ -438,13 +472,43 @@ class BackupArchiveV1:
         return ArchiveV1TailMeta.model_validate_json(header_buffer.getvalue())
 
     @classmethod
-    def extract_data(cls, archive: typing.IO[bytes], encryption_key: typing.Optional[str] = None) -> IOGenerator:
+    def extract_data(
+        cls,
+        archive: typing.IO[bytes],
+        encryption_key: typing.Optional[str] = None,
+        validate_hashes: bool = False,
+    ) -> IOGenerator:
         """Extract data from stored archive
 
         :param archive: archive to extract from
         :param encryption_key: encryption key that was used for archive creation (if any)
+        :param validate_hashes: whether to check hashes or not
         """
         header_meta = cls.extract_header_meta(archive)
+        tail_meta = cls.extract_tail_meta(archive)
         inner_data = TarArchive().extract(archive, ArchiveInnerFiles.backup_file(header_meta))
 
-        yield from _BackupHelper.unarchive_chain(header_meta, inner_data, encryption_key=encryption_key)
+        return _BackupHelper.unarchive_chain(
+            header_meta, tail_meta, inner_data, encryption_key=encryption_key, validate_hashes=validate_hashes
+        )
+
+    @classmethod
+    async def validate_archive(
+        cls,
+        archive: typing.IO[bytes],
+        throttling: typing.Optional[int] = None
+    ) -> None:
+        """Validate data stored in an archive
+
+        :param archive: archive to check
+        :param throttling: bytes per second rate to read an archive
+        """
+        header_meta = cls.extract_header_meta(archive)
+        tail_meta = cls.extract_tail_meta(archive)
+        inner_data = TarArchive().extract(archive, ArchiveInnerFiles.backup_file(header_meta))
+
+        throttler = IOThrottler(throttling=throttling)
+        throttler.start()
+        for chunk in _BackupHelper.hashes_validate_chain(tail_meta, inner_data):
+            throttler += len(chunk)
+            await asyncio.sleep(throttler.pause())

@@ -13,7 +13,7 @@ import pytest
 from pyknic.lib.io.aio_wrapper import cg, IOThrottler
 from pyknic.lib.backup.archive_v1 import ArchiveInnerFiles, ArchiveV1HeaderMeta, ArchiveType, CompressionMode
 from pyknic.lib.backup.archive_v1 import ArchiveV1MetaCipher, ArchiveV1PBKDF, BackupArchiveV1, HashMethod
-from pyknic.lib.io.tar import TarArchive
+from pyknic.lib.io.tar import TarArchive, TarInnerDynamicGenerator
 
 from fixtures.asyncio import pyknic_async_test
 
@@ -278,6 +278,67 @@ class TestBackupArchiveV1:
 
             for i, ha in enumerate(hash_algos):
                 assert([x.digest for x in tail_meta.hashes if x.algorithm == ha] == [digests[i]])
+
+    @pyknic_async_test
+    async def test_hashes_validate_chain(
+        self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path
+    ) -> None:
+        test_data = io.BytesIO(b'Test data')
+        archive = BackupArchiveV1(
+            hash_algorithms=[HashMethod.md5, HashMethod.sha256]
+        )
+
+        tar_archive_file = tmp_path / "archive.tar"
+
+        with tar_archive_file.open('wb') as f:
+            await archive.backup_io(IOThrottler.sync_reader(test_data), f)
+
+        with tar_archive_file.open('rb') as original_file:
+            header_meta = BackupArchiveV1.extract_header_meta(original_file)
+            tail_meta = BackupArchiveV1.extract_tail_meta(original_file)
+            tail_meta.hashes[0].digest = (b'\x00' * len(tail_meta.hashes[0].digest))
+
+            tar_corrupted_archive_file = tmp_path / "corrupted-archive.tar"
+            with tar_corrupted_archive_file.open('wb') as corrupted_file:
+
+                tail_file = TarInnerDynamicGenerator(
+                    io.BytesIO(tail_meta.model_dump_json().encode()),
+                    ArchiveInnerFiles.tail_meta.value
+                )
+
+                archive_file = TarInnerDynamicGenerator(
+                    TarArchive().extract(original_file, ArchiveInnerFiles.backup_file(header_meta)),
+                    ArchiveInnerFiles.backup_file(header_meta)
+                )
+
+                header_file = TarInnerDynamicGenerator(
+                    TarArchive().extract(original_file, ArchiveInnerFiles.header_meta.value),
+                    ArchiveInnerFiles.header_meta.value
+                )
+
+                await TarArchive().dynamic_archive(corrupted_file, [tail_file, archive_file, header_file])
+
+        with pytest.raises(ValueError):
+            # corrupted hash
+            with tar_corrupted_archive_file.open('rb') as corrupted_file:
+                await BackupArchiveV1.validate_archive(corrupted_file)
+
+    @pyknic_async_test
+    async def test_hashes_validate_chain_error(
+        self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path
+    ) -> None:
+        test_data = io.BytesIO(b'Test data')
+        archive = BackupArchiveV1()
+
+        tar_archive_file = tmp_path / "archive.tar"
+
+        with tar_archive_file.open('wb') as f:
+            await archive.backup_io(IOThrottler.sync_reader(test_data), f)
+
+        with pytest.raises(ValueError):
+            # no digests
+            with tar_archive_file.open('rb') as f:
+                await BackupArchiveV1.validate_archive(f)
 
     @pyknic_async_test
     async def test_files(
