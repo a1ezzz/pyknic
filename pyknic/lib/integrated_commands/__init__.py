@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+from pyknic.lib.integrated_commands.backup import BellBoyBackupCommand, BellBoyArchiveValidateCommand
+from pyknic.lib.integrated_commands.backup import BellBoyRestoreCommand
 from pyknic.lib.integrated_commands.list_logins import ListLoginsCommand
 from pyknic.lib.integrated_commands.login import LoginCommand
 from pyknic.lib.integrated_commands.logout import LogoutCommand
@@ -27,6 +29,9 @@ from pyknic.lib.integrated_commands.ping import LobbyPingCommand, BellBoyPingCom
 from pyknic.lib.integrated_commands.resources import LobbyResourcesCommand, BellBoyResourcesCommand
 
 __all__ = [
+    'BellBoyBackupCommand',
+    'BellBoyArchiveValidateCommand',
+    'BellBoyRestoreCommand',
     'ListLoginsCommand',
     'LoginCommand',
     'LogoutCommand',
