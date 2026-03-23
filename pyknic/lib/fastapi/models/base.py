@@ -22,5 +22,5 @@
 import pydantic
 
 
-class NullableResponseModel(pydantic.BaseModel):
+class NullableModel(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra='forbid')

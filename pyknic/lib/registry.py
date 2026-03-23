@@ -166,7 +166,11 @@ class APIRegistry(APIRegistryProto):
 
 
 def register_api(
-    registry: APIRegistryProto, api_id: typing.Optional[typing.Hashable] = None, callable_api_id: bool = False
+    registry: APIRegistryProto,
+    api_id: typing.Optional[
+        typing.Union[typing.Hashable, typing.Callable[[typing.Any], typing.Hashable]]
+    ] = None,
+    callable_api_id: bool = False
 ) -> typing.Callable[..., typing.Callable[..., typing.Any]]:
     """ This decorator helps to register function, static method or class in the specified registry
 

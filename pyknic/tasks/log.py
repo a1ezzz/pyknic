@@ -35,6 +35,17 @@ class LogTask(ChainedTask):
     __env_var_name__ = "PYKNIC_LOG_LEVEL"  # defines an environment variable for log level
 
     def start(self) -> None:
+        """ Call the method :meth:`.LogTask.setup_log` to tweak the logger
+        """
+        self.setup_log()
+
+    def task_name(self) -> str:
+        """ Return this task's name
+        """
+        return "logger-setter"
+
+    @staticmethod
+    def setup_log() -> None:
         """ Tweak the logger
         """
         if LogTask.__env_var_name__ not in os.environ:
@@ -57,8 +68,3 @@ class LogTask(ChainedTask):
         Logger.setLevel(log_level)
 
         Logger.info('Logger was set up')
-
-    def task_name(self) -> str:
-        """ Return this task's name
-        """
-        return "logger-setter"

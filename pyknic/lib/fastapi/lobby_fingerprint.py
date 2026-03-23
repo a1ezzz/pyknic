@@ -39,6 +39,18 @@ class LobbyFingerprint:
         self.__fingerprint = fingerprint
 
     @classmethod
+    def from_model(
+        cls, fingerprint_model: 'LobbyFingerprintModel'  # type: ignore[name-defined]  # noqa: F821  # recurse issue
+    ) -> 'LobbyFingerprint':
+        """ Convert model to this class
+
+        :param fingerprint_model: model to convert
+        """
+        return LobbyFingerprint.deserialize(
+                fingerprint_model.fingerprint.encode('ascii')
+        )
+
+    @classmethod
     def fingerprint_bytes(cls) -> int:
         """Return fixed number of bytes that this fingerprint has. In HMAC-SHA256 it must be the same size
         as 32 bytes (256 bit)

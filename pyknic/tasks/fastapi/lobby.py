@@ -20,7 +20,6 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import importlib
-import json
 import typing
 import secrets
 
@@ -32,7 +31,7 @@ import fastapi.security
 from pyknic.lib.config import Config
 from pyknic.lib.registry import register_api
 from pyknic.lib.fastapi.apps_registry import __default_fastapi_apps_registry__
-from pyknic.lib.fastapi.models.lobby import LobbyServerFingerprint
+from pyknic.lib.fastapi.models.lobby import LobbyFingerprintModel, LobbyCommandRequest
 from pyknic.lib.gettext import GetTextWrapper
 from pyknic.lib.fastapi.base import BaseFastAPIApp
 from pyknic.lib.fastapi.lobby import LobbyCommandError, __default_lobby_commands_registry__
@@ -46,8 +45,8 @@ class LobbyApp(BaseFastAPIApp):
     """This web-app executes commands on remote server."""
 
     __default_modules__ = {
-        'pyknic.lib.fastapi.lobby_commands.ping',
-        'pyknic.lib.fastapi.lobby_commands.resources',
+        'pyknic.lib.integrated_commands.ping',
+        'pyknic.lib.integrated_commands.resources',
     }
 
     def __init__(self, config: Config, translations: GetTextWrapper):
@@ -83,13 +82,8 @@ class LobbyApp(BaseFastAPIApp):
         fastapi_app.get(
             cls.lobby_fingerprint_path(config),
             status_code=200,
-            response_model=LobbyServerFingerprint
+            response_model=LobbyFingerprintModel
         )(app.fingerprint)
-
-        fastapi_app.get(
-            cls.lobby_contexts_path(config),
-            status_code=200,
-        )(app.lobby_contexts)
 
         return app
 
@@ -108,7 +102,7 @@ class LobbyApp(BaseFastAPIApp):
     def __sign_result(self, json_data: str) -> fastapi.Response:
         """Sign request result.
 
-        :param json_data: json to sign
+        :param json_data: API result to sign
         """
         signature = self.__fingerprint.sign(json_data.encode(), encode_base64=True)
 
@@ -117,13 +111,8 @@ class LobbyApp(BaseFastAPIApp):
 
         return fastapi.Response(content=json_data, media_type="application/json", headers=response_headers)
 
-    async def lobby_contexts(self, request: fastapi.Request) -> fastapi.Response:
-        await self.login_with_bearer(request)
-        json_result = list(self.__lobby_registry.list_contexts())
-        return self.__sign_result(json.dumps(json_result))
-
-    async def fingerprint(self, request: fastapi.Request) -> LobbyServerFingerprint:
-        return LobbyServerFingerprint(fingerprint=str(self.__fingerprint))
+    async def fingerprint(self, request: fastapi.Request) -> LobbyFingerprintModel:
+        return LobbyFingerprintModel(fingerprint=str(self.__fingerprint))
 
     async def login_with_bearer(self, request: fastapi.Request) -> None:
         """Authenticate request with bearer token.
@@ -168,6 +157,9 @@ class LobbyApp(BaseFastAPIApp):
         """
         await self.login_with_bearer(request)
 
+        # TODO: check versions in client requests and the server's one. If they are differ, then result should have
+        #   a warning about it. In future there may be plugins that has versions other than pyknic's
+
         try:
             if not await request.body():
                 raise fastapi.HTTPException(
@@ -175,11 +167,15 @@ class LobbyApp(BaseFastAPIApp):
                 )
 
             data = await request.json()
-            command, args = self.__lobby_registry.deserialize_command(data)
 
-            command_result = command.exec(args)
-            json_result = fastapi.encoders.jsonable_encoder(command_result)
-            return self.__sign_result(json.dumps(json_result))
+            command_request = LobbyCommandRequest.model_validate(data)
+            command_handler = self.__lobby_registry.get(command_request.name)
+            command_args_class = command_handler.command_model()
+            command_args = command_args_class.model_validate(command_request.args)
+
+            command_result = await command_handler.exec(command_args)
+            json_result = command_result.model_dump_json()
+            return self.__sign_result(json_result)
 
         except LobbyCommandError as e:
             raise fastapi.HTTPException(status_code=fastapi.status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -193,11 +189,6 @@ class LobbyApp(BaseFastAPIApp):
     def lobby_fingerprint_path(cls, config: Config) -> str:
         """Return path for fingerprint request."""
         return str(config["pyknic"]["fastapi"]["lobby"]["fingerprint_url_path"])
-
-    @classmethod
-    def lobby_contexts_path(cls, config: Config) -> str:
-        """Return path for fingerprint request."""
-        return str(config["pyknic"]["fastapi"]["lobby"]["contexts_url_path"])
 
     @classmethod
     def secret_token(cls, config: Config) -> typing.Optional[str]:

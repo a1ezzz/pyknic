@@ -38,6 +38,7 @@ jobs:
       - across:
           - var: python_version
             values:
+              - "3.14"
               - "3.13"
               - "3.12"
               - "3.11"
