@@ -226,11 +226,14 @@ class TarInnerFileGenerator(_BaseTarInnerFileGenerator, StaticTarEntryProto):
             tar_info = self._tar_info_by_file(self.__source)
             yield tar_info.tobuf()
 
-            with open(self.__source, 'rb') as f:
-                # TODO: consider checking that file modification time hasn't changed!
+            source = pathlib.Path(self.__source)
+            if source.is_file():
 
-                for chunk in IOThrottler.sync_reader(f):
-                    yield chunk
+                with open(source, 'rb') as f:
+                    # TODO: consider checking that file modification time hasn't changed!
+
+                    for chunk in IOThrottler.sync_reader(f):
+                        yield chunk
 
         yield from self._write(data_generator())
 
