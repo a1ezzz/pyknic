@@ -161,14 +161,17 @@ jobs:
             image_resource:
               type: registry-image
               source:
-                repository: python
-                tag: ((python_version))-slim
+                repository: alpine
+                tag: latest
             run:
-              path: /bin/bash
+              path: /bin/sh
               args:
                 - -ecx
                 - |
                   if [[ -n "((pull_request_branch_name))" ]]; then
+
+                      apk add --no-cache bash curl
+
                       curl \
                           -L \
                           -X POST \
@@ -185,14 +188,17 @@ jobs:
           image_resource:
             type: registry-image
             source:
-              repository: python
-              tag: ((python_version))-slim
+              repository: alpine
+              tag: latest
           run:
-            path: /bin/bash
+            path: /bin/sh
             args:
               - -ecx
               - |
                 if [[ -n "((pull_request_branch_name))" ]]; then
+
+                    apk add --no-cache bash curl
+
                     curl \
                         -L \
                         -X POST \
@@ -231,14 +237,17 @@ jobs:
             image_resource:
               type: registry-image
               source:
-                repository: python
-                tag: ((python_version))-slim
+                repository: alpine
+                tag: latest
             run:
-              path: /bin/bash
+              path: /bin/sh
               args:
                 - -ecx
                 - |
                   if [[ -n "((pull_request_branch_name))" ]]; then
+
+                      apk add --no-cache bash curl
+
                       curl \
                           -L \
                           -X POST \
@@ -255,14 +264,17 @@ jobs:
           image_resource:
             type: registry-image
             source:
-              repository: python
-              tag: ((python_version))-slim
+              repository: alpine
+              tag: latest
           run:
-            path: /bin/bash
+            path: /bin/sh
             args:
               - -ecx
               - |
                 if [[ -n "((pull_request_branch_name))" ]]; then
+
+                    apk add --no-cache bash curl
+
                     curl \
                         -L \
                         -X POST \
