@@ -23,6 +23,8 @@
 # TODO: make the remote LobbyCommandHandler command for backup, restore and validate
 
 import base64
+import os
+import os.path
 import shlex
 import subprocess
 import typing
@@ -143,6 +145,39 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
                 yield next_line.decode().rstrip('\n')
                 next_line = pipe.stdout.readline()
 
+    def __walk_through_directories(self, files_iterator: typing.Iterable[str]) -> typing.Iterator[str]:
+        """ Walk through directories and yield entries
+
+        :param files_iterator: files and/or directories to walk through
+        """
+
+        def walk_through_dir(dir_name: str) -> typing.Iterator[str]:
+            dirs_to_scan = [dir_name]
+
+            def on_error(e: Exception) -> None:
+                raise e
+
+            while dirs_to_scan:
+                next_dirs_to_scan = []
+
+                for single_search_dir in dirs_to_scan:
+                    yield str(single_search_dir)
+
+                    for search_dir, inner_dirs, inner_files in os.walk(single_search_dir, onerror=on_error):
+                        for i in inner_dirs:
+                            next_dirs_to_scan.append(os.path.join(search_dir, i))
+
+                        for i in inner_files:
+                            yield str(os.path.join(search_dir, i))
+
+                dirs_to_scan = next_dirs_to_scan
+
+        for i in files_iterator:
+            if os.path.isdir(i):
+                yield from walk_through_dir(i)
+            else:
+                yield i
+
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
@@ -161,10 +196,16 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
             if self._args.backup_source.command is not None:
                 await archiver.backup_io(self.__read_command(self._args.backup_source.command), archive_file)
             elif self._args.backup_source.files is not None:
-                await archiver.backup_files(self._args.backup_source.files, archive_file)
+                await archiver.backup_files(
+                    self.__walk_through_directories(self._args.backup_source.files),
+                    archive_file
+                )
             elif self._args.backup_source.files_command is not None:
                 await archiver.backup_files(
-                    self.__read_files_by_command(self._args.backup_source.files_command), archive_file
+                    self.__walk_through_directories(
+                        self.__read_files_by_command(self._args.backup_source.files_command)
+                    ),
+                    archive_file
                 )
             else:
                 raise ValueError('Unknown backup source spotted!')
