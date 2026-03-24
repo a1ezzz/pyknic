@@ -376,3 +376,37 @@ class TestBackupArchiveV1:
 
             with destination_tar.open('rb') as df:
                 assert(b''.join(TarArchive().extract(df, 'sample2')) == test_data + b'-sample2')
+
+    @pyknic_async_test
+    async def test_corrupted_link(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        module_event_loop: asyncio.AbstractEventLoop,
+        tmp_path: pathlib.Path
+    ) -> None:
+        monkeypatch.chdir(str(tmp_path))
+        os.symlink('invalid-file.txt', 'link.txt')
+
+        archive = BackupArchiveV1()
+
+        tar_archive_file = tmp_path / "archive.tar"
+
+        with tar_archive_file.open('wb') as f:
+            await archive.backup_files(['link.txt'], f)
+
+    @pyknic_async_test
+    async def test_directory(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        module_event_loop: asyncio.AbstractEventLoop,
+        tmp_path: pathlib.Path
+    ) -> None:
+        monkeypatch.chdir(str(tmp_path))
+        os.mkdir('empty-dir')
+
+        archive = BackupArchiveV1()
+
+        tar_archive_file = tmp_path / "archive.tar"
+
+        with tar_archive_file.open('wb') as f:
+            await archive.backup_files(['empty-dir'], f)

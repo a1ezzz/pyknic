@@ -60,7 +60,7 @@ jobs:
             type: registry-image
             source:
               repository: python
-              tag: ((python_version))
+              tag: ((python_version))-slim
           inputs:
             - name: code
             - name: metadata
@@ -91,7 +91,7 @@ jobs:
             type: registry-image
             source:
               repository: python
-              tag: ((python_version))
+              tag: ((python_version))-slim
           outputs:
             - name: sandbox
               path: /sandbox
@@ -113,7 +113,7 @@ jobs:
             type: registry-image
             source:
               repository: python
-              tag: ((python_version))
+              tag: ((python_version))-slim
           inputs:
             - name: sandbox
               path: /sandbox
@@ -131,6 +131,8 @@ jobs:
               - |
                 source /sandbox/venv/bin/activate
                 /sandbox/venv/bin/pip3 --cache-dir /sandbox/pip-cache install '.[all]'
+                echo
+                pip cache info --cache-dir /sandbox/pip-cache
 
       - task: run_tests
         config:
@@ -139,7 +141,7 @@ jobs:
             type: registry-image
             source:
               repository: python
-              tag: ((python_version))
+              tag: ((python_version))-slim
           inputs:
             - name: sandbox
               path: /sandbox
@@ -160,7 +162,7 @@ jobs:
               type: registry-image
               source:
                 repository: python
-                tag: ((python_version))
+                tag: ((python_version))-slim
             run:
               path: /bin/bash
               args:
@@ -184,7 +186,7 @@ jobs:
             type: registry-image
             source:
               repository: python
-              tag: ((python_version))
+              tag: ((python_version))-slim
           run:
             path: /bin/bash
             args:
@@ -208,7 +210,7 @@ jobs:
             type: registry-image
             source:
               repository: python
-              tag: ((python_version))
+              tag: ((python_version))-slim
           inputs:
             - name: sandbox
               path: /sandbox
@@ -230,7 +232,7 @@ jobs:
               type: registry-image
               source:
                 repository: python
-                tag: ((python_version))
+                tag: ((python_version))-slim
             run:
               path: /bin/bash
               args:
@@ -254,7 +256,7 @@ jobs:
             type: registry-image
             source:
               repository: python
-              tag: ((python_version))
+              tag: ((python_version))-slim
           run:
             path: /bin/bash
             args:
