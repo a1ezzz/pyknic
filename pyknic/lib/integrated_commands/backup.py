@@ -23,8 +23,8 @@
 # TODO: make the remote LobbyCommandHandler command for backup, restore and validate
 
 import base64
+import os
 import os.path
-import pathlib
 import shlex
 import subprocess
 import typing
