@@ -72,6 +72,9 @@ jobs:
             args:
               - -ecx
               - |
+
+                apt-get update && apt-get install -y git
+              
                 if [[ -n "((pull_request_branch_name))" ]]; then
 
                     git config user.email "john-doe@concourse-ci"
