@@ -152,7 +152,7 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
         """
 
         def walk_through_dir(dir_name: str) -> typing.Iterator[str]:
-            dirs_to_scan = [pathlib.Path(dir_name)]
+            dirs_to_scan = [dir_name]
 
             def on_error(e: Exception) -> None:
                 raise e
@@ -163,12 +163,12 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
                 for single_search_dir in dirs_to_scan:
                     yield str(single_search_dir)
 
-                    for search_dir, inner_dirs, inner_files in single_search_dir.walk(on_error=on_error):
+                    for search_dir, inner_dirs, inner_files in os.walk(single_search_dir, onerror=on_error):
                         for i in inner_dirs:
-                            next_dirs_to_scan.append(search_dir / i)
+                            next_dirs_to_scan.append(os.path.join(search_dir, i))
 
                         for i in inner_files:
-                            yield str(search_dir / i)
+                            yield str(os.path.join(search_dir, i))
 
                 dirs_to_scan = next_dirs_to_scan
 
