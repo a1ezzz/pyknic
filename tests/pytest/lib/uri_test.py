@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import copy
 import pytest
 
 from pyknic.lib.uri import URI, URIQuery, URIQueryInvalidSingleParameter
@@ -117,6 +118,13 @@ class TestURI:
         assert(uri.path == 'foo/bar')
         assert(uri.query is None)
         assert(uri.fragment is None)
+
+    def test_deepcopy(self) -> None:
+        uri1 = URI.parse('proto://user:pass@hostname:90#foo-bar')
+        uri2 = copy.deepcopy(uri1)
+
+        uri1.scheme = 'scheme'
+        assert(uri2.scheme == 'proto')
 
 
 class TestURIQuery:

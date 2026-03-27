@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
-import io
 
 import pytest
 
@@ -18,40 +17,15 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
     pytest.raises(NotImplementedError, IOClientProto.create_client, 'foo')
     pytest.raises(NotImplementedError, IOClientProto.uri, None)
     pytest.raises(NotImplementedError, IOClientProto.current_directory, None)
-
-    with pytest.raises(NotImplementedError):
-        await IOClientProto.connect(None)  # type: ignore[arg-type]  # it is just a test
-
-    with pytest.raises(NotImplementedError):
-        await IOClientProto.disconnect(None)  # type: ignore[arg-type]  # it is just a test
-
-    with pytest.raises(NotImplementedError):
-        await IOClientProto.change_directory(None, '/path/to/dir')  # type: ignore[arg-type]  # it is just a test
-
-    with pytest.raises(NotImplementedError):
-        await IOClientProto.list_directory(None)  # type: ignore[arg-type]  # it is just a test
-
-    with pytest.raises(NotImplementedError):
-        await IOClientProto.make_directory(None, 'new_dir')  # type: ignore[arg-type]  # it is just a test
-
-    with pytest.raises(NotImplementedError):
-        await IOClientProto.remove_directory(None, 'old_dir')  # type: ignore[arg-type]  # it is just a test
-
-    with pytest.raises(NotImplementedError):
-        await IOClientProto.upload_file(None, 'file_name', io.BytesIO())  # type: ignore[arg-type]  # it is just a test
-
-    with pytest.raises(NotImplementedError):
-        await IOClientProto.remove_file(None, 'file_name')  # type: ignore[arg-type]  # it is just a test
-
-    with pytest.raises(NotImplementedError):
-        await IOClientProto.receive_file(
-            None, 'remote_file', io.BytesIO()  # type: ignore[arg-type]  # it is just a test
-        )
-
-    with pytest.raises(NotImplementedError):
-        await IOClientProto.file_size(
-            None, 'remote_file'  # type: ignore[arg-type]  # it is just a test
-        )
+    pytest.raises(NotImplementedError, IOClientProto.connect, None)
+    pytest.raises(NotImplementedError, IOClientProto.disconnect, None)
+    pytest.raises(NotImplementedError, IOClientProto.change_directory, None, '/path/to/dir')
+    pytest.raises(NotImplementedError, IOClientProto.make_directory, None, 'new_dir')
+    pytest.raises(NotImplementedError, IOClientProto.remove_directory, None, 'old_dir')
+    pytest.raises(NotImplementedError, IOClientProto.upload_file, None, 'file_name', [b'ggg'], 3)
+    pytest.raises(NotImplementedError, IOClientProto.remove_file, None, 'file_name')
+    pytest.raises(NotImplementedError, IOClientProto.receive_file, None, 'remote_file')
+    pytest.raises(NotImplementedError, IOClientProto.file_size, None, 'remote_file')
 
     class Client(IOClientProto):
 
