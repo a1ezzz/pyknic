@@ -28,15 +28,6 @@ from pyknic.lib.uri import URI
 from pyknic.lib.io.clients.proto import IOClientProto
 
 
-@verify_value(path=lambda x: x.is_absolute())
-def path_to_str(path: pathlib.PosixPath, relative_path: bool = False) -> str:
-    # TODO: test it and document!
-    if not relative_path:
-        return os.path.abspath(path)  # TODO: Check whether it will work on Windows?!
-
-    return os.path.abspath(path).lstrip('/')
-
-
 class VirtualDirectoryClient(IOClientProto):
     """This class may be used as a basic class for network clients, that does not keep connection between
     capabilities calls. That type of clients may create connection for each request. In this case it is important
@@ -84,6 +75,8 @@ class VirtualDirectoryClient(IOClientProto):
         :param path: If defined then this path will be used as a current session path
         """
         if path is not None:
+            if path != self.normalize_path(path):
+                raise ValueError(f'Path must be normalized before saving -- {path}')
             self.__session_path = path
 
         return self.__session_path
@@ -94,9 +87,28 @@ class VirtualDirectoryClient(IOClientProto):
 
         :param entry: inner file/directory name
         """
-        assert(self.__session_path.is_absolute())  # TODO: or somewhere else!
-        return self.__session_path / entry
+        assert(self.__session_path.is_absolute())
+        return self.normalize_path(self.__session_path / entry)
 
     def current_directory(self) -> str:
         """The :meth:`.IOClientProto.current_directory` method implementation."""
         return str(self.session_path())
+
+    @staticmethod
+    @verify_value(path=lambda x: x.is_absolute())
+    def relative_path(path: pathlib.PosixPath) -> str:
+        """ Return relative path suitable for most clients
+        """
+        # TODO: test it!
+        # TODO: may be it is better to keep this method inside s3 client (it is the only client that uses this)
+
+        result = str(path.relative_to(pathlib.PosixPath('/')))
+        return '' if result == '.' else result
+
+    @staticmethod
+    @verify_value(path=lambda x: x.is_absolute())
+    def normalize_path(path: pathlib.PosixPath) -> pathlib.PosixPath:
+        """ Normalize the given path and remove unnecessary slashes, entries and so on
+        """
+        # TODO: test it!
+        return pathlib.PosixPath(os.path.normpath(path))

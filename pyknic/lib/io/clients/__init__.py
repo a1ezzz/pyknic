@@ -24,7 +24,7 @@ from pyknic.lib.io.clients.local import LocalClient
 from pyknic.lib.io.clients.proto import DirectoryNotEmptyError, IOClientProto
 from pyknic.lib.io.clients.s3 import S3Client
 from pyknic.lib.io.clients.sftp import SFTPClient
-from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient, path_to_str
+from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
 
 __all__ = [
     'IOVirtualClient',
@@ -33,6 +33,5 @@ __all__ = [
     'IOClientProto',
     'S3Client',
     'SFTPClient',
-    'VirtualDirectoryClient',
-    'path_to_str'
+    'VirtualDirectoryClient'
 ]

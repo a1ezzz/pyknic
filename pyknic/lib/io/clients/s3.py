@@ -30,7 +30,7 @@ from pyknic.lib.registry import register_api
 from pyknic.lib.uri import URI, URIQuery
 from pyknic.lib.io import IOGenerator, IOProducer
 from pyknic.lib.io.clients.proto import DirectoryNotEmptyError
-from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient, path_to_str
+from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
 from pyknic.lib.io.clients.collection import __default_io_clients_registry__
 from pyknic.lib.io.read_fo import ReadFileObject
 from pyknic.lib.verify import verify_value
@@ -116,7 +116,7 @@ class S3Client(VirtualDirectoryClient):
     def __has_entry(self, object_path: pathlib.PosixPath, directory_entry: bool = True) -> bool:
         assert(self.__client is not None)
 
-        object_path_str = path_to_str(object_path, relative_path=True)
+        object_path_str = self.relative_path(object_path)
         if not object_path:
             return False
 
@@ -132,19 +132,19 @@ class S3Client(VirtualDirectoryClient):
 
     def change_directory(self, path: str) -> str:
         if path in ('.', ''):
-            return path_to_str(self.session_path())
+            return str(self.session_path())
 
         posix_path = pathlib.PosixPath(path)
         if not posix_path.is_absolute():
             posix_path = self.session_path() / posix_path
 
-        posix_path = pathlib.PosixPath(path_to_str(posix_path))
+        posix_path = self.normalize_path(posix_path)
 
-        if path_to_str(posix_path) != '/':
+        if str(posix_path) != '/':
             if not self.__has_entry(posix_path, True):
                 raise NotADirectoryError(f'There is no such directory: {path}')
 
-        return path_to_str(self.session_path(posix_path))
+        return str(self.session_path(posix_path))
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def make_directory(self, directory_name: str) -> None:
@@ -153,10 +153,10 @@ class S3Client(VirtualDirectoryClient):
         new_dir_path = self.entry_path(directory_name)
 
         if self.__has_entry(new_dir_path, False) or self.__has_entry(new_dir_path, True):
-            raise FileExistsError(f'Object {path_to_str(new_dir_path)} already exists')
+            raise FileExistsError(f'Object {str(new_dir_path)} already exists')
 
         self.__client.put_object(
-            self.__bucket_name, path_to_str(new_dir_path, relative_path=True) + '/', io.BytesIO(b''), 0
+            self.__bucket_name, self.relative_path(new_dir_path) + '/', io.BytesIO(b''), 0
         )
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
@@ -166,25 +166,25 @@ class S3Client(VirtualDirectoryClient):
         rm_dir_path = self.entry_path(directory_name)
 
         if not self.__has_entry(rm_dir_path, True):
-            raise FileNotFoundError(f'There is no such directory {path_to_str(rm_dir_path)}')
+            raise FileNotFoundError(f'There is no such directory {str(rm_dir_path)}')
 
         if self.__has_inner_objects(rm_dir_path):
             raise DirectoryNotEmptyError(f'There is inner object(s) inside a directory {rm_dir_path}')
 
-        self.__client.remove_object(self.__bucket_name, path_to_str(rm_dir_path, relative_path=True) + '/')
+        self.__client.remove_object(self.__bucket_name, self.relative_path(rm_dir_path) + '/')
 
     @verify_value(object_path=lambda x: x.is_absolute())
     def __list_generator(self, list_path: pathlib.PosixPath) -> typing.Generator[str, None, None]:
         assert(self.__client is not None)
 
-        request_path_str = path_to_str(list_path, relative_path=True)
+        request_path_str = self.relative_path(list_path)
         if request_path_str == '.':
             request_path_str = ''
 
         def map_items(m: minio.datatypes.Object) -> str:
             return m.object_name[len(request_path_str):].rstrip('/').lstrip('/')  # type: ignore[index]  # mypy issue
 
-        path = path_to_str(list_path, relative_path=True)
+        path = self.relative_path(list_path)
         if path:
             path += '/'
 
@@ -208,11 +208,11 @@ class S3Client(VirtualDirectoryClient):
         new_file_path = self.entry_path(remote_file_name)
 
         if self.__has_entry(new_file_path, False) or self.__has_entry(new_file_path, True):
-            raise FileExistsError(f'Object {path_to_str(new_file_path)} already exists')
+            raise FileExistsError(f'Object {str(new_file_path)} already exists')
 
         self.__client.put_object(
             self.__bucket_name,
-            path_to_str(new_file_path, relative_path=True),
+            self.relative_path(new_file_path),
             ReadFileObject(source),  # type: ignore[arg-type]
             source_size
         )
@@ -225,9 +225,9 @@ class S3Client(VirtualDirectoryClient):
 
         entry = self.__has_entry(rm_file_path, False)
         if entry is None:
-            raise FileNotFoundError(f'There is no such file {path_to_str(rm_file_path)}')
+            raise FileNotFoundError(f'There is no such file {str(rm_file_path)}')
 
-        self.__client.remove_object(self.__bucket_name, path_to_str(rm_file_path, relative_path=True))
+        self.__client.remove_object(self.__bucket_name, self.relative_path(rm_file_path))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def receive_file(self, remote_file_name: str) -> IOGenerator:
@@ -236,10 +236,10 @@ class S3Client(VirtualDirectoryClient):
         file_path = self.entry_path(remote_file_name)
 
         if not self.__has_entry(file_path, False):
-            raise FileNotFoundError(f'There is no such file {path_to_str(file_path)}')
+            raise FileNotFoundError(f'There is no such file {str(file_path)}')
 
         http_request = self.__client.get_object(
-            self.__bucket_name, path_to_str(file_path, relative_path=True)
+            self.__bucket_name, self.relative_path(file_path)
         )
 
         data = http_request.read(self.__block_size)
@@ -254,8 +254,8 @@ class S3Client(VirtualDirectoryClient):
         file_path = self.entry_path(remote_file_name)
 
         if not self.__has_entry(file_path, False):
-            raise FileNotFoundError(f'There is no such file {path_to_str(file_path)}')
+            raise FileNotFoundError(f'There is no such file {str(file_path)}')
 
-        result = self.__client.stat_object(self.__bucket_name, path_to_str(file_path, relative_path=True))
+        result = self.__client.stat_object(self.__bucket_name, self.relative_path(file_path))
         assert(result.size is not None)
         return result.size

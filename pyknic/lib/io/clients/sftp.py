@@ -28,7 +28,7 @@ import paramiko
 from pyknic.lib.registry import register_api
 from pyknic.lib.uri import URI, URIQuery
 from pyknic.lib.io import IOProducer, IOGenerator
-from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient, path_to_str
+from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
 from pyknic.lib.io.clients.collection import __default_io_clients_registry__
 from pyknic.lib.io.read_fo import ReadFileObject
 from pyknic.lib.io.write_fo import WriteFileObject
@@ -117,19 +117,20 @@ class SFTPClient(VirtualDirectoryClient):
         assert(self.__sftp_client is not None)
 
         if path in ('.', ''):
-            return path_to_str(self.session_path())
+            return str(self.session_path())
 
         posix_path = pathlib.PosixPath(path)
         if not posix_path.is_absolute():
             posix_path = self.session_path() / posix_path
 
+        normalized_path = self.normalize_path(posix_path)
         try:
-            self.__sftp_client.chdir(path_to_str(posix_path))
+            self.__sftp_client.chdir(str(normalized_path))
         finally:
+            # there is no need for the real directory change
             self.__sftp_client.chdir('/')
 
-        normalized_path = pathlib.PosixPath(path_to_str(posix_path))
-        return path_to_str(self.session_path(normalized_path))
+        return str(self.session_path(normalized_path))
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def make_directory(self, directory_name: str) -> None:
@@ -152,7 +153,7 @@ class SFTPClient(VirtualDirectoryClient):
         """
         assert(self.__sftp_client is not None)
 
-        dir_to_list = path_to_str(self.session_path())
+        dir_to_list = str(self.session_path())
         return tuple(self.__sftp_client.listdir(dir_to_list))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
