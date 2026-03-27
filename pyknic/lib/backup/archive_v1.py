@@ -21,7 +21,6 @@
 
 # TODO: Add snapshot support and keep original lv uuid to metadata
 
-import asyncio
 import base64
 import copy
 import functools
