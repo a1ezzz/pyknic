@@ -26,3 +26,12 @@ class TestIOVirtualClient:
         client.connect()
 
         assert(client.uri() is uri)
+
+    @pytest.mark.parametrize('sftp_server', [3001], indirect=['sftp_server'])
+    def test_context(self, sftp_server: sftp_fixture) -> None:
+
+        uri = URI.parse(self.client_uri)
+        client = IOVirtualClient.create_client(uri)
+        with client.open():
+            file_data = b'some data'
+            client.upload_file('remote-file', [file_data], len(file_data))
