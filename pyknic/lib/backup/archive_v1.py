@@ -21,7 +21,6 @@
 
 # TODO: Add snapshot support and keep original lv uuid to metadata
 
-import asyncio
 import base64
 import copy
 import functools
@@ -34,7 +33,7 @@ import typing
 import pydantic
 
 from pyknic.lib.io import IOGenerator
-from pyknic.lib.io.aio_wrapper import IOThrottler, chain_sync_processor, cg
+from pyknic.lib.io.aio_wrapper import IOThrottler, chain_sync_processor, cg, as_ag
 from pyknic.lib.crypto.hash import __default_hashers_registry__
 from pyknic.lib.io.compression import __default_io_compressors_registry__
 from pyknic.lib.crypto.cipher import __default_cipher_registry__
@@ -507,8 +506,6 @@ class BackupArchiveV1:
         tail_meta = cls.extract_tail_meta(archive)
         inner_data = TarArchive().extract(archive, ArchiveInnerFiles.backup_file(header_meta))
 
-        throttler = IOThrottler(throttling=throttling)
-        throttler.start()
-        for chunk in _BackupHelper.hashes_validate_chain(tail_meta, inner_data):
-            throttler += len(chunk)
-            await asyncio.sleep(throttler.pause())
+        sync_generator = _BackupHelper.hashes_validate_chain(tail_meta, inner_data)
+        async for _ in IOThrottler.async_resender(as_ag(sync_generator), throttling=throttling):
+            pass

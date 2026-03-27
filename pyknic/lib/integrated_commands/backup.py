@@ -32,6 +32,7 @@ import typing
 import pydantic
 import pydantic_settings
 
+from pyknic.lib.crypto.kdf import PBKDF2
 from pyknic.lib.io import IOGenerator
 from pyknic.lib.io.aio_wrapper import IOThrottler, cag
 from pyknic.lib.backup.archive_v1 import HashMethod, CompressionMode, BackupArchiveV1
@@ -88,7 +89,7 @@ class BackupCommandModel(pydantic.BaseModel):
     encryption_key: typing.Optional[str] = pydantic.Field(
         validation_alias=pydantic.AliasChoices('encryption-key'),
         default=None,
-        description='enable encryption and use the key for that'
+        description=f'enable encryption and use the key for that. The minimal length is {PBKDF2.__minimum_key_length__}'
     )
 
     extra_meta: typing.Optional[typing.Dict[str, typing.Any]] = pydantic.Field(
@@ -151,32 +152,22 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
         :param files_iterator: files and/or directories to walk through
         """
 
-        def walk_through_dir(dir_name: str) -> typing.Iterator[str]:
-            dirs_to_scan = [dir_name]
+        def on_error(e: Exception) -> None:
+            raise e
 
-            def on_error(e: Exception) -> None:
-                raise e
+        for single_search_dir in files_iterator:
+            yield str(single_search_dir)
 
-            while dirs_to_scan:
-                next_dirs_to_scan = []
+            if not os.path.isdir(single_search_dir):
+                continue
 
-                for single_search_dir in dirs_to_scan:
-                    yield str(single_search_dir)
+            for search_dir, inner_dirs, inner_files in os.walk(single_search_dir, onerror=on_error):
 
-                    for search_dir, inner_dirs, inner_files in os.walk(single_search_dir, onerror=on_error):
-                        for i in inner_dirs:
-                            next_dirs_to_scan.append(os.path.join(search_dir, i))
+                for i in inner_dirs:
+                    yield str(os.path.join(search_dir, i))
 
-                        for i in inner_files:
-                            yield str(os.path.join(search_dir, i))
-
-                dirs_to_scan = next_dirs_to_scan
-
-        for i in files_iterator:
-            if os.path.isdir(i):
-                yield from walk_through_dir(i)
-            else:
-                yield i
+                for i in inner_files:
+                    yield str(os.path.join(search_dir, i))
 
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation

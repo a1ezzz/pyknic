@@ -21,6 +21,7 @@
 
 from pyknic.lib.integrated_commands.backup import BellBoyBackupCommand, BellBoyArchiveValidateCommand
 from pyknic.lib.integrated_commands.backup import BellBoyRestoreCommand
+from pyknic.lib.integrated_commands.copier import BellBoyCopyCommand
 from pyknic.lib.integrated_commands.list_logins import ListLoginsCommand
 from pyknic.lib.integrated_commands.login import LoginCommand
 from pyknic.lib.integrated_commands.logout import LogoutCommand
@@ -32,6 +33,7 @@ __all__ = [
     'BellBoyBackupCommand',
     'BellBoyArchiveValidateCommand',
     'BellBoyRestoreCommand',
+    'BellBoyCopyCommand',
     'ListLoginsCommand',
     'LoginCommand',
     'LogoutCommand',
