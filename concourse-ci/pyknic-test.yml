@@ -47,7 +47,6 @@ jobs:
         trigger: true
 
       - get: pr-code
-        trigger: true
 
       - get: metadata
 
@@ -100,7 +99,7 @@ jobs:
             args:
               - -ecx
               - |
-                mkdir /sandbox
+
                 pip3 --cache-dir /pip-cache install virtualenv
                 virtualenv -p /usr/local/bin/python /sandbox/venv
 
