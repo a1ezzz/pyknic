@@ -61,8 +61,8 @@ jobs:
           image_resource:
             type: registry-image
             source:
-              repository: python
-              tag: ((python_version))-slim
+              repository: a1ezzz/pyknic-concourse-base-image
+              tag: py-alpine-((python_version))
           inputs:
             - name: code
             - name: metadata
@@ -75,8 +75,6 @@ jobs:
               - -ecx
               - |
 
-                apt-get update && apt-get install -y git
-              
                 if [[ -n "((pull_request_branch_name))" ]]; then
 
                     git config user.email "john-doe@concourse-ci"
@@ -92,20 +90,18 @@ jobs:
           image_resource:
             type: registry-image
             source:
-              repository: python
-              tag: ((python_version))-slim
+              repository: a1ezzz/pyknic-concourse-base-image
+              tag: py-alpine-((python_version))
           outputs:
             - name: sandbox
               path: /sandbox
-          caches:
-            - path: sandbox/pip-cache
           run:
             path: /bin/bash
             args:
               - -ecx
               - |
-                mkdir -p /sandbox/pip-cache
-                pip3 --cache-dir /sandbox/pip-cache install virtualenv  # TODO: it is better to do this inside base container
+                mkdir /sandbox
+                pip3 --cache-dir /pip-cache install virtualenv
                 virtualenv -p /usr/local/bin/python /sandbox/venv
 
       - task: install_dependencies
@@ -114,8 +110,8 @@ jobs:
           image_resource:
             type: registry-image
             source:
-              repository: python
-              tag: ((python_version))-slim
+              repository: a1ezzz/pyknic-concourse-base-image
+              tag: py-alpine-((python_version))
           inputs:
             - name: sandbox
               path: /sandbox
@@ -123,8 +119,6 @@ jobs:
           outputs:
             - name: sandbox
               path: /sandbox
-          caches:
-            - path: /sandbox/pip-cache
           run:
             dir: code
             path: /bin/bash
@@ -132,9 +126,9 @@ jobs:
               - -ecx
               - |
                 source /sandbox/venv/bin/activate
-                /sandbox/venv/bin/pip3 --cache-dir /sandbox/pip-cache install '.[all]'
+                /sandbox/venv/bin/pip3 --cache-dir /pip-cache install '.[all]'
                 echo
-                pip cache info --cache-dir /sandbox/pip-cache
+                pip cache info --cache-dir /pip-cache
 
       - task: run_tests
         config:
@@ -142,8 +136,8 @@ jobs:
           image_resource:
             type: registry-image
             source:
-              repository: python
-              tag: ((python_version))-slim
+              repository: a1ezzz/pyknic-concourse-base-image
+              tag: py-alpine-((python_version))
           inputs:
             - name: sandbox
               path: /sandbox
@@ -163,15 +157,13 @@ jobs:
             image_resource:
               type: registry-image
               source:
-                repository: alpine
-                tag: latest
+                repository: a1ezzz/pyknic-concourse-base-image
+                tag: py-alpine-((python_version))
             run:
               path: /bin/sh
               args:
                 - -ecx
                 - |
-
-                  apk add --no-cache bash curl
 
                   if [[ -n "((tg_bot_token))" && -n "((tg_chat))" ]]; then
                       curl \
@@ -199,15 +191,13 @@ jobs:
           image_resource:
             type: registry-image
             source:
-              repository: alpine
-              tag: latest
+              repository: a1ezzz/pyknic-concourse-base-image
+              tag: py-alpine-((python_version))
           run:
             path: /bin/sh
             args:
               - -ecx
               - |
-
-                apk add --no-cache bash curl
 
                 if [[ -n "((tg_bot_token))" && -n "((tg_chat))" ]]; then
                     curl \
@@ -234,8 +224,8 @@ jobs:
           image_resource:
             type: registry-image
             source:
-              repository: python
-              tag: ((python_version))-slim
+              repository: a1ezzz/pyknic-concourse-base-image
+              tag: py-alpine-((python_version))
           inputs:
             - name: sandbox
               path: /sandbox
@@ -256,15 +246,13 @@ jobs:
             image_resource:
               type: registry-image
               source:
-                repository: alpine
-                tag: latest
+                repository: a1ezzz/pyknic-concourse-base-image
+                tag: py-alpine-((python_version))
             run:
               path: /bin/sh
               args:
                 - -ecx
                 - |
-                
-                  apk add --no-cache bash curl
 
                   if [[ -n "((tg_bot_token))" && -n "((tg_chat))" ]]; then
                       curl \
@@ -292,15 +280,13 @@ jobs:
           image_resource:
             type: registry-image
             source:
-              repository: alpine
-              tag: latest
+              repository: a1ezzz/pyknic-concourse-base-image
+              tag: py-alpine-((python_version))
           run:
             path: /bin/sh
             args:
               - -ecx
               - |
-
-                apk add --no-cache bash curl
 
                 if [[ -n "((tg_bot_token))" && -n "((tg_chat))" ]]; then
                     curl \
