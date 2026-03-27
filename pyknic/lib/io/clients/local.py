@@ -24,10 +24,11 @@ import typing
 
 from pyknic.lib.registry import register_api
 from pyknic.lib.uri import URI, URIQuery
+from pyknic.lib.io import IOProducer, IOGenerator
 from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
 from pyknic.lib.io.clients.collection import __default_io_clients_registry__
 from pyknic.lib.verify import verify_value
-from pyknic.lib.io.aio_wrapper import IOThrottler, cag
+from pyknic.lib.io.aio_wrapper import IOThrottler, cg
 
 
 @register_api(__default_io_clients_registry__, "file")
@@ -54,7 +55,7 @@ class LocalClient(VirtualDirectoryClient):
                     raise ValueError(f'Block size must be greater than {4096} bytes, got {block_size}')
                 self.__block_size = block_size
 
-        if uri.path is not None:
+        if uri.path is not None:  # TODO: it is bad! Since it is relative!
             self.__change_directory(pathlib.PosixPath(uri.path))
 
     def current_directory(self) -> str:
@@ -73,63 +74,47 @@ class LocalClient(VirtualDirectoryClient):
             raise NotADirectoryError(f'No such directory: {str(path)}')
         return self.session_path(pathlib.PosixPath(path))
 
-    async def change_directory(self, path: str) -> str:
+    def change_directory(self, path: str) -> str:
         """The :meth:`.IOClientProto.change_directory` method implementation."""
         return str(self.__change_directory(pathlib.PosixPath(path)))
 
-    async def list_directory(self) -> typing.Tuple[str, ...]:
+    def list_directory(self) -> typing.Tuple[str, ...]:
         """The :meth:`.IOClientProto.list_directory` method implementation."""
         return tuple(x.name for x in self.session_path().iterdir())
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    async def make_directory(self, directory_name: str) -> None:
+    def make_directory(self, directory_name: str) -> None:
         """The :meth:`.IOClientProto.make_directory` method implementation."""
         path = pathlib.PosixPath(self.session_path()) / directory_name
         path.mkdir(exist_ok=False, parents=False)
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    async def remove_directory(self, directory_name: str) -> None:
+    def remove_directory(self, directory_name: str) -> None:
         """The :meth:`.IOClientProto.remove_directory` method implementation."""
         path = pathlib.PosixPath(self.session_path()) / directory_name
         path.rmdir()
 
-    @verify_value(from_fo=lambda x: x.seekable())
-    @verify_value(to_fo=lambda x: x.seekable())
-    async def __copy(self, from_fo: typing.IO[bytes], to_fo: typing.IO[bytes]) -> None:
-        """Copy files from one to another.
-
-        :param from_fo: file to copy
-        :param to_fo: file to copy to
-        """
-        from_fo.seek(0)
-        to_fo.truncate(0)
-        to_fo.seek(0)
-
-        await cag(IOThrottler().async_copier(from_fo, to_fo, block_size=self.__block_size))
-
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    @verify_value(local_file_obj=lambda x: x.seekable())
-    async def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
+    def upload_file(self, remote_file_name: str, source: IOProducer, source_size: int) -> None:
         """The :meth:`.IOClientProto.upload_file` method implementation."""
         path = self.entry_path(remote_file_name)
         with open(str(path), mode='wb') as f_remote:
-            await self.__copy(local_file_obj, f_remote)
+            cg(IOThrottler().sync_writer(source, f_remote, write_size=source_size))
 
     @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    async def remove_file(self, file_name: str) -> None:
+    def remove_file(self, file_name: str) -> None:
         """The :meth:`.IOClientProto.remove_file` method implementation."""
         path = self.entry_path(file_name)
         path.unlink()
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    @verify_value(local_file_obj=lambda x: x.seekable())
-    async def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
+    def receive_file(self, remote_file_name: str) -> IOGenerator:
         """The :meth:`.IOClientProto.receive_file` method implementation."""
         path = str(self.entry_path(remote_file_name))
         with open(path, mode='rb') as f_remote:
-            await self.__copy(f_remote, local_file_obj)
+            yield from IOThrottler().sync_reader(f_remote)
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    async def file_size(self, remote_file_name: str) -> int:
+    def file_size(self, remote_file_name: str) -> int:
         """The :meth:`.IOClientProto.file_size` method implementation."""
         return self.entry_path(remote_file_name).stat().st_size

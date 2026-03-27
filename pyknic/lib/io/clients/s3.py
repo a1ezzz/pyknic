@@ -20,7 +20,6 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import io
-import os
 import pathlib
 import typing
 
@@ -29,22 +28,31 @@ import minio.datatypes
 
 from pyknic.lib.registry import register_api
 from pyknic.lib.uri import URI, URIQuery
+from pyknic.lib.io import IOGenerator, IOProducer
 from pyknic.lib.io.clients.proto import DirectoryNotEmptyError
 from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient, path_to_str
 from pyknic.lib.io.clients.collection import __default_io_clients_registry__
+from pyknic.lib.io.read_fo import ReadFileObject
 from pyknic.lib.verify import verify_value
 
-# TODO: register client with registry!
 
-
-class _S3ClientSyncImplementation:
+@register_api(__default_io_clients_registry__, "s3s")
+@register_api(__default_io_clients_registry__, "s3")
+class S3Client(VirtualDirectoryClient):
+    """ This is a S3 client implementation.
+    """
 
     @verify_value(uri=lambda x: x.hostname is not None)
     @verify_value(uri=lambda x: x.query is not None)
-    def __init__(self, uri: URI, vd_client: VirtualDirectoryClient):
+    def __init__(self, uri: URI):
+        """Create a new client
+
+        :param uri: URI with which this client should be created. If uri has the "path" attribute, then this path
+        will be used as a start point
+        """
+        VirtualDirectoryClient.__init__(self, uri)
 
         self.__uri = uri
-        self.__vd_client = vd_client
         self.__client: typing.Optional[minio.Minio] = None
         self.__block_size = 4096
 
@@ -124,11 +132,11 @@ class _S3ClientSyncImplementation:
 
     def change_directory(self, path: str) -> str:
         if path in ('.', ''):
-            return path_to_str(self.__vd_client.session_path())
+            return path_to_str(self.session_path())
 
         posix_path = pathlib.PosixPath(path)
         if not posix_path.is_absolute():
-            posix_path = self.__vd_client.session_path() / posix_path
+            posix_path = self.session_path() / posix_path
 
         posix_path = pathlib.PosixPath(path_to_str(posix_path))
 
@@ -136,13 +144,13 @@ class _S3ClientSyncImplementation:
             if not self.__has_entry(posix_path, True):
                 raise NotADirectoryError(f'There is no such directory: {path}')
 
-        return path_to_str(self.__vd_client.session_path(posix_path))
+        return path_to_str(self.session_path(posix_path))
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def make_directory(self, directory_name: str) -> None:
         assert(self.__client is not None)
 
-        new_dir_path = self.__vd_client.entry_path(directory_name)
+        new_dir_path = self.entry_path(directory_name)
 
         if self.__has_entry(new_dir_path, False) or self.__has_entry(new_dir_path, True):
             raise FileExistsError(f'Object {path_to_str(new_dir_path)} already exists')
@@ -155,7 +163,7 @@ class _S3ClientSyncImplementation:
     def remove_directory(self, directory_name: str) -> None:
         assert(self.__client is not None)
 
-        rm_dir_path = self.__vd_client.entry_path(directory_name)
+        rm_dir_path = self.entry_path(directory_name)
 
         if not self.__has_entry(rm_dir_path, True):
             raise FileNotFoundError(f'There is no such directory {path_to_str(rm_dir_path)}')
@@ -191,18 +199,13 @@ class _S3ClientSyncImplementation:
                 yield next_item.rstrip('/')
 
     def list_directory(self) -> typing.Tuple[str, ...]:
-        return tuple(self.__list_generator(self.__vd_client.session_path()))
+        return tuple(self.__list_generator(self.session_path()))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    @verify_value(local_file_obj=lambda x: x.seekable())
-    def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
+    def upload_file(self, remote_file_name: str, source: IOProducer, source_size: int) -> None:
         assert(self.__client is not None)
 
-        local_file_obj.seek(0)
-        data_length = local_file_obj.seek(0, os.SEEK_END)
-        local_file_obj.seek(0)
-
-        new_file_path = self.__vd_client.entry_path(remote_file_name)
+        new_file_path = self.entry_path(remote_file_name)
 
         if self.__has_entry(new_file_path, False) or self.__has_entry(new_file_path, True):
             raise FileExistsError(f'Object {path_to_str(new_file_path)} already exists')
@@ -210,15 +213,15 @@ class _S3ClientSyncImplementation:
         self.__client.put_object(
             self.__bucket_name,
             path_to_str(new_file_path, relative_path=True),
-            local_file_obj,  # type: ignore[arg-type]  # mypy issue
-            data_length
+            ReadFileObject(source),  # type: ignore[arg-type]
+            source_size
         )
 
     @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def remove_file(self, file_name: str) -> None:
         assert(self.__client is not None)
 
-        rm_file_path = self.__vd_client.entry_path(file_name)
+        rm_file_path = self.entry_path(file_name)
 
         entry = self.__has_entry(rm_file_path, False)
         if entry is None:
@@ -227,13 +230,10 @@ class _S3ClientSyncImplementation:
         self.__client.remove_object(self.__bucket_name, path_to_str(rm_file_path, relative_path=True))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    @verify_value(local_file_obj=lambda x: x.seekable())
-    def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
+    def receive_file(self, remote_file_name: str) -> IOGenerator:
         assert(self.__client is not None)
 
-        local_file_obj.seek(0)
-        local_file_obj.truncate()
-        file_path = self.__vd_client.entry_path(remote_file_name)
+        file_path = self.entry_path(remote_file_name)
 
         if not self.__has_entry(file_path, False):
             raise FileNotFoundError(f'There is no such file {path_to_str(file_path)}')
@@ -244,14 +244,14 @@ class _S3ClientSyncImplementation:
 
         data = http_request.read(self.__block_size)
         while data != b'':
-            local_file_obj.write(data)
+            yield data
             data = http_request.read(self.__block_size)
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def file_size(self, remote_file_name: str) -> int:
         assert(self.__client is not None)
 
-        file_path = self.__vd_client.entry_path(remote_file_name)
+        file_path = self.entry_path(remote_file_name)
 
         if not self.__has_entry(file_path, False):
             raise FileNotFoundError(f'There is no such file {path_to_str(file_path)}')
@@ -259,33 +259,3 @@ class _S3ClientSyncImplementation:
         result = self.__client.stat_object(self.__bucket_name, path_to_str(file_path, relative_path=True))
         assert(result.size is not None)
         return result.size
-
-
-@register_api(__default_io_clients_registry__, "s3s")
-@register_api(__default_io_clients_registry__, "s3")
-class S3Client(VirtualDirectoryClient):
-
-    def __init__(self, uri: URI) -> None:
-        """Create a new client
-
-        :param uri: URI with which this client should be created. If uri has the "path" attribute, then this path
-        will be used as a start point
-        """
-
-        VirtualDirectoryClient.__init__(self, uri)
-        self.__i12n = _S3ClientSyncImplementation(uri, self)
-
-        self._wrap_capability(self.__i12n, 'connect')
-        self._wrap_capability(self.__i12n, 'disconnect')
-        self._wrap_capability(self.__i12n, 'change_directory')
-        self._wrap_capability(self.__i12n, 'list_directory')
-        self._wrap_capability(self.__i12n, 'make_directory')
-        self._wrap_capability(self.__i12n, 'remove_directory')
-        self._wrap_capability(self.__i12n, 'upload_file')
-        self._wrap_capability(self.__i12n, 'remove_file')
-        self._wrap_capability(self.__i12n, 'receive_file')
-        self._wrap_capability(self.__i12n, 'file_size')
-
-    def current_directory(self) -> str:
-        """The :meth:`.IOClientProto.current_directory` method implementation."""
-        return str(self.session_path())

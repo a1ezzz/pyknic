@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
+import functools
 import pathlib
 import typing
 
@@ -27,25 +27,28 @@ import paramiko
 
 from pyknic.lib.registry import register_api
 from pyknic.lib.uri import URI, URIQuery
+from pyknic.lib.io import IOProducer, IOGenerator
 from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient, path_to_str
 from pyknic.lib.io.clients.collection import __default_io_clients_registry__
+from pyknic.lib.io.read_fo import ReadFileObject
+from pyknic.lib.io.write_fo import WriteFileObject
 from pyknic.lib.verify import verify_value
 
 
-class _SFTPSyncImplementation:
-    """This is a blocking (synchronous) SFTP client implementation.
+@register_api(__default_io_clients_registry__, "sftp")
+class SFTPClient(VirtualDirectoryClient):
+    """ This is a SFTP client implementation.
     """
 
     @verify_value(uri=lambda x: x.hostname is not None)
-    def __init__(self, uri: URI, vd_client: VirtualDirectoryClient):
+    def __init__(self, uri: URI):
         """Create a new SFTP client.
 
         :param uri: URI to connect with
-        :param vd_client: original async client
         """
+        VirtualDirectoryClient.__init__(self, uri)
 
         self.__uri = uri
-        self.__vd_client = vd_client
         self.__ssh_client: typing.Optional[paramiko.SSHClient] = None
         self.__sftp_client: typing.Optional[paramiko.SFTPClient] = None
 
@@ -114,11 +117,11 @@ class _SFTPSyncImplementation:
         assert(self.__sftp_client is not None)
 
         if path in ('.', ''):
-            return path_to_str(self.__vd_client.session_path())
+            return path_to_str(self.session_path())
 
         posix_path = pathlib.PosixPath(path)
         if not posix_path.is_absolute():
-            posix_path = self.__vd_client.session_path() / posix_path
+            posix_path = self.session_path() / posix_path
 
         try:
             self.__sftp_client.chdir(path_to_str(posix_path))
@@ -126,14 +129,14 @@ class _SFTPSyncImplementation:
             self.__sftp_client.chdir('/')
 
         normalized_path = pathlib.PosixPath(path_to_str(posix_path))
-        return path_to_str(self.__vd_client.session_path(normalized_path))
+        return path_to_str(self.session_path(normalized_path))
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def make_directory(self, directory_name: str) -> None:
         """Synchronous implementation of the `.IOClientProto.make_directory` method
         """
         assert(self.__sftp_client is not None)
-        new_dir_path = self.__vd_client.entry_path(directory_name)
+        new_dir_path = self.entry_path(directory_name)
         self.__sftp_client.mkdir(str(new_dir_path))
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
@@ -141,7 +144,7 @@ class _SFTPSyncImplementation:
         """Synchronous implementation of the `.IOClientProto.remove_directory` method
         """
         assert(self.__sftp_client is not None)
-        rm_dir_path = self.__vd_client.entry_path(directory_name)
+        rm_dir_path = self.entry_path(directory_name)
         self.__sftp_client.rmdir(str(rm_dir_path))
 
     def list_directory(self) -> typing.Tuple[str, ...]:
@@ -149,43 +152,41 @@ class _SFTPSyncImplementation:
         """
         assert(self.__sftp_client is not None)
 
-        dir_to_list = path_to_str(self.__vd_client.session_path())
+        dir_to_list = path_to_str(self.session_path())
         return tuple(self.__sftp_client.listdir(dir_to_list))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    @verify_value(local_file_obj=lambda x: x.seekable())
-    def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
+    def upload_file(self, remote_file_name: str, source: IOProducer, source_size: int) -> None:
         """Synchronous implementation of the `.IOClientProto.upload_file` method
         """
         assert(self.__sftp_client is not None)
 
-        local_file_obj.seek(0)
-        data_length = local_file_obj.seek(0, os.SEEK_END)
-        local_file_obj.seek(0)
-
-        new_file_path = self.__vd_client.entry_path(remote_file_name)
-        self.__sftp_client.putfo(local_file_obj, str(new_file_path), file_size=data_length)
+        new_file_path = self.entry_path(remote_file_name)
+        self.__sftp_client.putfo(
+            ReadFileObject(source), str(new_file_path), file_size=source_size  # type: ignore[arg-type]
+        )
 
     @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def remove_file(self, file_name: str) -> None:
         """Synchronous implementation of the `.IOClientProto.remove_file` method
         """
         assert(self.__sftp_client is not None)
-        rm_file_path = self.__vd_client.entry_path(file_name)
+        rm_file_path = self.entry_path(file_name)
         self.__sftp_client.remove(str(rm_file_path))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    @verify_value(local_file_obj=lambda x: x.seekable())
-    def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
+    def receive_file(self, remote_file_name: str) -> IOGenerator:
         """Synchronous implementation of the `.IOClientProto.receive_file` method
         """
         assert(self.__sftp_client is not None)
 
-        local_file_obj.seek(0)
-        local_file_obj.truncate()
-        file_path = self.__vd_client.entry_path(remote_file_name)
+        file_path = self.entry_path(remote_file_name)
 
-        self.__sftp_client.getfo(str(file_path), local_file_obj)
+        wfo = WriteFileObject(
+            functools.partial(self.__sftp_client.getfo, str(file_path))
+        )
+
+        yield from wfo()
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def file_size(self, remote_file_name: str) -> int:
@@ -193,39 +194,10 @@ class _SFTPSyncImplementation:
         """
         assert(self.__sftp_client is not None)
 
-        file_path = self.__vd_client.entry_path(remote_file_name)
+        file_path = self.entry_path(remote_file_name)
         stat = self.__sftp_client.stat(str(file_path))
 
         if stat.st_size is not None:
             return stat.st_size
 
         raise IOError('File size not available')
-
-
-@register_api(__default_io_clients_registry__, "sftp")
-class SFTPClient(VirtualDirectoryClient):
-    """This is an asynced SFTP client.
-    """
-
-    def __init__(self, uri: URI) -> None:
-        """Create a new SFTP client.
-
-        :param uri: URI to connect with
-        """
-        VirtualDirectoryClient.__init__(self, uri)
-        self.__i12n = _SFTPSyncImplementation(uri, self)
-
-        self._wrap_capability(self.__i12n, 'connect')
-        self._wrap_capability(self.__i12n, 'disconnect')
-        self._wrap_capability(self.__i12n, 'change_directory')
-        self._wrap_capability(self.__i12n, 'list_directory')
-        self._wrap_capability(self.__i12n, 'make_directory')
-        self._wrap_capability(self.__i12n, 'remove_directory')
-        self._wrap_capability(self.__i12n, 'upload_file')
-        self._wrap_capability(self.__i12n, 'remove_file')
-        self._wrap_capability(self.__i12n, 'receive_file')
-        self._wrap_capability(self.__i12n, 'file_size')
-
-    def current_directory(self) -> str:
-        """The :meth:`.IOClientProto.current_directory` method implementation."""
-        return str(self.session_path())
