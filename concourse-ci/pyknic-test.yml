@@ -159,7 +159,7 @@ jobs:
                 repository: a1ezzz/pyknic-concourse-base-image
                 tag: py-alpine-((python_version))
             run:
-              path: /bin/sh
+              path: /bin/bash
               args:
                 - -ecx
                 - |
@@ -169,7 +169,9 @@ jobs:
                           -X POST \
                           "https://api.telegram.org/bot((tg_bot_token))/sendMessage" \
                           -d chat_id="((tg_chat))" \
-                          -d text='⚡ pytest failed on the "((branch))" branch: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
+                          -d text='⚡ pytest failed on the "((branch))" branch with the Python ((python_version)).
+                  Related PR is made from the branch (if any): ((pull_request_branch_name))
+                  Build details: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
                   fi
 
                   if [[ -n "((pull_request_branch_name))" ]]; then
@@ -193,7 +195,7 @@ jobs:
               repository: a1ezzz/pyknic-concourse-base-image
               tag: py-alpine-((python_version))
           run:
-            path: /bin/sh
+            path: /bin/bash
             args:
               - -ecx
               - |
@@ -203,7 +205,9 @@ jobs:
                         -X POST \
                         "https://api.telegram.org/bot((tg_bot_token))/sendMessage" \
                         -d chat_id="((tg_chat))" \
-                        -d text='☘ pytest succeeded on the "((branch))" branch: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
+                        -d text='☘ pytest succeeded on the "((branch))" branch with the Python ((python_version)).
+                Related PR is made from the branch (if any): ((pull_request_branch_name))
+                Build details: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
                 fi
 
                 if [[ -n "((pull_request_branch_name))" ]]; then
@@ -248,7 +252,7 @@ jobs:
                 repository: a1ezzz/pyknic-concourse-base-image
                 tag: py-alpine-((python_version))
             run:
-              path: /bin/sh
+              path: /bin/bash
               args:
                 - -ecx
                 - |
@@ -258,7 +262,9 @@ jobs:
                           -X POST \
                           "https://api.telegram.org/bot((tg_bot_token))/sendMessage" \
                           -d chat_id="((tg_chat))" \
-                          -d text='⚡ mypy failed on the "((branch))" branch: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
+                          -d text='⚡ mypy failed on the "((branch))" branch with the Python ((python_version)).
+                  Related PR is made from the branch (if any): ((pull_request_branch_name))
+                  Build details: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
                   fi
                               
                   if [[ -n "((pull_request_branch_name))" ]]; then
@@ -282,7 +288,7 @@ jobs:
               repository: a1ezzz/pyknic-concourse-base-image
               tag: py-alpine-((python_version))
           run:
-            path: /bin/sh
+            path: /bin/bash
             args:
               - -ecx
               - |
@@ -292,7 +298,10 @@ jobs:
                         -X POST \
                         "https://api.telegram.org/bot((tg_bot_token))/sendMessage" \
                         -d chat_id="((tg_chat))" \
-                        -d text='☘ mypy succeeded on the "((branch))" branch: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
+                        -d text='☘ mypy succeeded on the "((branch))" branch with the Python ((python_version)).
+                Related PR is made from the branch (if any): ((pull_request_branch_name))
+                Build details: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
+
                 fi
               
                 if [[ -n "((pull_request_branch_name))" ]]; then
