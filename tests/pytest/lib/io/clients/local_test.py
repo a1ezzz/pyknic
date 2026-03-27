@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import asyncio
-import io
 import pathlib
 
 import pytest
@@ -12,8 +10,6 @@ from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
 from pyknic.lib.io.clients.local import LocalClient
 from pyknic.lib.capability import iscapable
 from pyknic.lib.io.clients.proto import IOClientProto
-
-from fixtures.asyncio import pyknic_async_test
 
 
 class TestLocalClient:
@@ -54,16 +50,14 @@ class TestLocalClient:
         # TODO: check block_size in a real life!
         _ = LocalClient.create_client(URI.parse('?block_size=10000'))
 
-    @pyknic_async_test
-    async def test_change_directory(self, tmp_path: pathlib.Path, module_event_loop: asyncio.AbstractEventLoop) -> None:
+    def test_change_directory(self, tmp_path: pathlib.Path) -> None:
         client = LocalClient.create_client(URI())
         assert(client.current_directory() == '/')
 
-        assert(await client.change_directory(str(tmp_path)) == str(tmp_path))
+        assert(client.change_directory(str(tmp_path)) == str(tmp_path))
         assert(client.current_directory() == str(tmp_path))
 
-    @pyknic_async_test
-    async def test_list_directory(self, tmp_path: pathlib.Path, module_event_loop: asyncio.AbstractEventLoop) -> None:
+    def test_list_directory(self, tmp_path: pathlib.Path) -> None:
         dir_entries = ['dir1', 'dir2', 'dir3']
         file_entries = ['file1', 'file2', 'file3']
 
@@ -88,46 +82,37 @@ class TestLocalClient:
         sorted_entries.sort()
 
         client = LocalClient.create_client(URI.parse(str(tmp_path)))
-        listed_entries = list(await client.list_directory())
+        listed_entries = list(client.list_directory())
         listed_entries.sort()
         assert(sorted_entries == listed_entries)
 
-    @pyknic_async_test
-    async def test_make_remove_directory(
-        self, tmp_path: pathlib.Path, module_event_loop: asyncio.AbstractEventLoop
-    ) -> None:
+    def test_make_remove_directory(self, tmp_path: pathlib.Path) -> None:
         new_dir = tmp_path / 'new_dir'
         assert(not new_dir.exists())
 
         client = LocalClient.create_client(URI.parse(str(tmp_path)))
-        await client.make_directory('new_dir')
+        client.make_directory('new_dir')
         assert(new_dir.is_dir())
 
-        await client.remove_directory('new_dir')
+        client.remove_directory('new_dir')
         assert(not new_dir.exists())
 
-    @pyknic_async_test
-    async def test_upload_receive_remove_file(
-        self, tmp_path: pathlib.Path, module_event_loop: asyncio.AbstractEventLoop
-    ) -> None:
+    def test_upload_receive_remove_file(self, tmp_path: pathlib.Path) -> None:
         new_file = tmp_path / 'new_file'
         file_data = b'some test data'
         assert(not new_file.exists())
 
         client = LocalClient.create_client(URI.parse(str(tmp_path)))
-        await client.upload_file('new_file', io.BytesIO(file_data))
+        client.upload_file('new_file', [file_data], len(file_data))
         assert(new_file.is_file())
 
         fetched_data = open(str(new_file), 'rb').read()
         assert(fetched_data == file_data)
 
-        target_file = io.BytesIO()
-        await client.receive_file('new_file', target_file)
-        target_file.seek(0)
-        assert(target_file.read() == file_data)
+        assert(b''.join(client.receive_file('new_file')) == file_data)
 
-        assert(await client.file_size('new_file') == len(file_data))
+        assert(client.file_size('new_file') == len(file_data))
 
         assert(new_file.is_file())
-        await client.remove_file('new_file')
+        client.remove_file('new_file')
         assert(not new_file.exists())

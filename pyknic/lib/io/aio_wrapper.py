@@ -378,6 +378,34 @@ class IOThrottler:
             yield block
             await asyncio.sleep(throttler.pause())
 
+    @staticmethod
+    async def async_resender(source: IOAsyncGenerator, throttling: typing.Optional[int] = None) -> IOAsyncGenerator:
+        """ Just an optional async throttler
+
+        :param source: original data to resend with respect to a throttling argument
+        :param throttling: throttling setting (bytes per second)
+        """
+        throttler = IOThrottler(throttling=throttling)
+        throttler.start()
+        async for chunk in source:
+            yield chunk
+            throttler += len(chunk)
+            await asyncio.sleep(throttler.pause())
+
+    @staticmethod
+    def sync_resender(source: IOProducer, throttling: typing.Optional[int] = None) -> IOGenerator:
+        """ Just an optional throttler
+
+        :param source: original data to resend with respect to a throttling argument
+        :param throttling: throttling setting (bytes per second)
+        """
+        throttler = IOThrottler(throttling=throttling)
+        throttler.start()
+        for chunk in source:
+            yield chunk
+            throttler += len(chunk)
+            time.sleep(throttler.pause())
+
 
 def cg(source: IOGenerator) -> int:
     """Run over an IO generator and complete it.

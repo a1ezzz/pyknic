@@ -23,6 +23,7 @@ import pathlib
 import typing
 from abc import abstractmethod
 
+from pyknic.lib.io import IOGenerator, IOProducer
 from pyknic.lib.capability import CapabilitiesHolder, capability
 from pyknic.lib.uri import URI
 
@@ -39,7 +40,7 @@ class IOClientProto(CapabilitiesHolder):
     encoded as URI and :class:`.WCapabilitiesHolder` to use capabilities as different client requests
     """
 
-    # TODO: add basic async with usage, that will create, connect and disconnect client at the end
+    # TODO: add basic "with" usage, that will create, connect and disconnect client at the end
     # TODO: add signals that will notify about copying progress
 
     @classmethod
@@ -48,12 +49,12 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
-    async def connect(self) -> None:
+    def connect(self) -> None:
         """Connect to a source specified in URI."""
         raise NotImplementedError('This method is abstract')
 
     @capability
-    async def disconnect(self) -> None:
+    def disconnect(self) -> None:
         """Disconnect from a source."""
         raise NotImplementedError('This method is abstract')
 
@@ -68,7 +69,7 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
-    async def change_directory(self, path: str) -> str:
+    def change_directory(self, path: str) -> str:
         """Change current session directory to the specified one. If the path begins with directory separator
         then it may be treated as an absolute path.
 
@@ -77,13 +78,13 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
-    async def list_directory(self) -> typing.Tuple[str, ...]:
+    def list_directory(self) -> typing.Tuple[str, ...]:
         """List current session directory."""
         raise NotImplementedError('This method is abstract')
 
     @capability
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    async def make_directory(self, directory_name: str) -> None:
+    def make_directory(self, directory_name: str) -> None:
         """Create directory. A directory is created in a current session directory. And a name must not
         contain a directory separator.
 
@@ -93,7 +94,7 @@ class IOClientProto(CapabilitiesHolder):
 
     @capability
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    async def remove_directory(self, directory_name: str) -> None:
+    def remove_directory(self, directory_name: str) -> None:
         """Remove directory. A directory is removed from a current session directory. And a name must not
         contain a directory separator.
 
@@ -102,20 +103,20 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
-    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    @verify_value(local_file_obj=lambda x: x.seekable())
-    async def upload_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1, source_size=lambda x: x > 0)
+    def upload_file(self, remote_file_name: str, source: IOProducer, source_size: int) -> None:
         """Upload file. File will be uploaded to a current session directory. A name must not contain
         a directory separator
 
         :param remote_file_name: target file name
-        :param local_file_obj: source object to upload
+        :param source: data to upload
+        :param source_size: size of data to upload (some API require data size)
         """
         raise NotImplementedError('This method is abstract')
 
     @capability
     @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    async def remove_file(self, file_name: str) -> None:
+    def remove_file(self, file_name: str) -> None:
         """Remove file. File will be removed from a current session directory. A name must not contain
         a directory separator
 
@@ -125,18 +126,16 @@ class IOClientProto(CapabilitiesHolder):
 
     @capability
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    @verify_value(local_file_obj=lambda x: x.seekable())
-    async def receive_file(self, remote_file_name: str, local_file_obj: typing.IO[bytes]) -> None:
+    def receive_file(self, remote_file_name: str) -> IOGenerator:
         """Fetch/download a file. A remote file name must not contain a directory separator
 
         :param remote_file_name: file to fetch
-        :param local_file_obj: a file where data should be stored
         """
         raise NotImplementedError('This method is abstract')
 
     @capability
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    async def file_size(self, remote_file_name: str) -> int:
+    def file_size(self, remote_file_name: str) -> int:
         """Return size of file in bytes.
 
         :param remote_file_name: file to check

@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import types
 import typing
 
 from pyknic.lib.capability import iscapable
@@ -32,9 +33,46 @@ __default_io_clients_registry__ = APIRegistry()
 
 
 class IOVirtualClient(IOClientProto):
+    """ Virtual client that hides implementation
+    """
+
+    class ClientContext:
+        """ Context manager for a client connect/disconnect routine
+        """
+
+        def __init__(self, client: IOClientProto):
+            """ Create a new context
+
+            :param client: client to connect/disconnect
+            """
+            self.__client = client
+
+        def __enter__(self) -> 'IOVirtualClient.ClientContext':
+            """ Enter the context (client connects)
+            """
+
+            if iscapable(self.__client, IOClientProto.connect):
+                self.__client.connect()
+            return self
+
+        def __exit__(
+            self,
+            exc_type: typing.Optional[typing.Type[BaseException]],
+            exc_val: typing.Optional[BaseException],
+            exc_tb: typing.Optional[types.TracebackType]
+        ) -> None:
+            """ Exit the context (client disconnects)
+            """
+            if iscapable(self.__client, IOClientProto.disconnect):
+                self.__client.disconnect()
 
     @verify_value(uri=lambda x: x.scheme is not None)
     def __init__(self, uri: URI, registry: typing.Optional[APIRegistry] = None) -> None:
+        """ Create a new client
+
+        :param uri: URI that defines client
+        :param registry: registry from which client will be derived (if not defined then the default one is used)
+        """
         IOClientProto.__init__(self)
 
         self.__uri = uri
@@ -60,8 +98,19 @@ class IOVirtualClient(IOClientProto):
             self.append_capability(cap, getattr(self.__client, method_name))
 
     @classmethod
-    def create_client(cls, uri: URI) -> 'IOClientProto':
+    def create_client(cls, uri: URI) -> 'IOVirtualClient':
+        """ Create a new client
+
+        :param uri: URI that defines client
+        """
         return cls(uri, registry=__default_io_clients_registry__)
 
     def uri(self) -> URI:
+        """ Return URI with which client is created
+        """
         return self.__uri
+
+    def open(self) -> 'IOVirtualClient.ClientContext':
+        """ Create a context which helps to connect and disconnect
+        """
+        return IOVirtualClient.ClientContext(self.__client)

@@ -36,6 +36,7 @@ from pyknic.lib.thread import CriticalResource
 class ThreadedTask(TaskProto, CriticalResource):
     """ This class helps to run a task in a separate thread
     """
+    # TODO: make it with the 'with'-clause. When we start/wait+join thread with it
 
     thread_ready = Signal(TaskProto)  # signal is emitted when a thread is ready to join
     thread_joined = Signal(TaskProto)  # signal is emitted when a thread joined
