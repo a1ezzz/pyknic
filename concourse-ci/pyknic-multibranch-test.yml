@@ -59,3 +59,5 @@ jobs:
                 github-access-token: ""
                 pull_request_branch_name: ""
                 python_version: ((.:python_version))
+                tg_bot_token: ((tg_bot_token))
+                tg_chat: ((tg_chat))
