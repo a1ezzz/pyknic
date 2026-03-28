@@ -1,0 +1,7 @@
+
+supported_python_version:
+  - "3.14"
+  - "3.13"
+  - "3.12"
+  - "3.11"
+  # - "3.10"  # fails with the "AttributeError: module 'typing' has no attribute 'Self'"

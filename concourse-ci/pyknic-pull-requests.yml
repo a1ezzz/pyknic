@@ -1,6 +1,4 @@
 
-# TODO: set main python version (3.11) as a var
-
 resources:
 
   - name: ci-code
@@ -10,18 +8,19 @@ resources:
       uri: https://github.com/a1ezzz/pyknic
       branch: main
 
-  - name: trigger-every-minute
+  - name: timer-trigger
     type: time
     source:
-      interval: 1m
+      interval: 3m
 
 jobs:
   - name: pyknic-pr
+    serial: true
     build_log_retention:
       builds: 20
     plan:
 
-      - get: trigger-every-minute
+      - get: timer-trigger
         trigger: true
 
       - get: ci-code
@@ -72,7 +71,7 @@ jobs:
                 type: registry-image
                 source:
                   repository: a1ezzz/pyknic-concourse-base-image
-                  tag: py-alpine-3.11
+                  tag: py-alpine-3.14
               outputs:
                 - name: pull-request-details
                   path: /pull-request-details
@@ -127,6 +126,7 @@ jobs:
               branch: ((.:pull_request_base_name))
               commit: ((.:pull_request_head_sha))
               github-access-token: ((github-access-token))
+              pull_request_id: ((.:pull_request_id))
               pull_request_branch_name: ((.:pull_request_head_name))
               python_version: ((.:python_version))
               tg_bot_token: ((tg_bot_token))
