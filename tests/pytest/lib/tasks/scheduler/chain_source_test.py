@@ -8,10 +8,6 @@ import uuid
 
 from datetime import datetime, timezone
 
-if typing.TYPE_CHECKING:
-    # noinspection PyUnresolvedReferences
-    from conftest import SampleTasks
-
 from pyknic.lib.registry import APIRegistry, register_api
 from pyknic.lib.datalog.proto import DatalogProto
 from pyknic.lib.datalog.datalog import Datalog
@@ -23,6 +19,9 @@ from pyknic.lib.tasks.scheduler.scheduler import Scheduler
 from pyknic.lib.tasks.scheduler.plain_sources import InstantTaskSource
 from pyknic.lib.tasks.proto import TaskResult, SchedulerProto, SchedulerFeedback
 from pyknic.lib.tasks.threaded_task import ThreadedTask
+
+from fixtures.tasks import SampleTasks
+from fixtures.callbacks_n_signals import SignalWatcher
 
 
 class SourceTestHelper:
@@ -182,10 +181,15 @@ class TestChainedTasksSource:
         source_thread.join()
 
     @pytest.mark.parametrize("repeats", range(100))
-    def test_dependent_start(self, source_helper: SourceTestHelper, repeats: int) -> None:
+    def test_dependent_start(
+        self, signal_watcher: SignalWatcher, source_helper: SourceTestHelper, repeats: int
+    ) -> None:
         source = ChainedTasksSource(registry=source_helper.api_registry)
+        source.callback(ChainedTasksSource.source_initialized, signal_watcher)
         source_thread = ThreadedTask(source)
         source_thread.start()
+
+        signal_watcher.wait(100)
 
         @register_api(source_helper.api_registry, 'test-task1')
         class TestClass1(TestChainedTasksSource.Task):
@@ -205,8 +209,11 @@ class TestChainedTasksSource:
             def dependencies(cls) -> typing.Optional[typing.Set[str]]:
                 return {'test-task2'}
 
-        source_helper.scheduler.subscribe(source)
-        source.execute('test-task1')
+        source_helper.scheduler.subscribe(source)  # Fails:
+        # pyknic.lib.signals.proxy.QueueProxyStateError: The "exec" method of the QueueProxy class may be called only if the QueueProxy is running
+        # /sandbox/venv/lib/python3.14/site-packages/pyknic/lib/signals/proxy.py:194
+        source.execute('test-task1')   # TODO: Fails with error:
+        # pyknic.lib.signals.proxy.QueueProxyStateError: The "exec" method of the QueueProxy class may be called only if the QueueProxy is running
         source.execute('test-task3')
 
         assert(source.started_task('test-task1') is not None)

@@ -36,7 +36,7 @@ from pyknic.lib.datalog.datalog import Datalog
 from pyknic.lib.registry import APIRegistryProto, APIRegistry
 from pyknic.lib.signals.proto import SignalSourceProto, Signal
 from pyknic.lib.signals.proxy import QueueProxy, QueueCallbackException
-from pyknic.lib.signals.extra import SignalWaiter, BoundedCallback, ReceivedSignal
+from pyknic.lib.signals.extra import SignalWaiter, BoundedCallback, ReceivedSignal, SignalResender
 from pyknic.lib.tasks.proto import ScheduleSourceProto, TaskProto, TaskResult, ScheduledTaskPostponePolicy
 from pyknic.lib.tasks.proto import ScheduleRecordProto
 from pyknic.lib.tasks.proto import SchedulerFeedback, SchedulerProto
@@ -146,6 +146,9 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
     """ This is a source for a scheduler that may start tasks and theirs dependencies
     """
 
+    # TODO: check usage!
+    source_initialized = Signal()  # this signal is sent, when this source is ready to work
+
     def __init__(
         self,
         datalog: typing.Optional[DatalogProto] = None,
@@ -160,6 +163,9 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
         TaskProto.__init__(self)
 
         self.__queue_proxy = QueueProxy()
+        self.__readiness_resender = SignalResender(self, ChainedTasksSource.source_initialized)
+        self.__queue_proxy.callback(QueueProxy.queue_initialized, self.__readiness_resender)
+
         self.__source_uid = str(uuid.uuid4())
 
         self.__registry = registry if registry else __default_chained_tasks_registry__

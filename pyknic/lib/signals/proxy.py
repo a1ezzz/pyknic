@@ -80,6 +80,9 @@ class QueueProxy(SignalProxy, TaskProto):
     """ This "proxy" helps to execute "proxified" callbacks in a dedicated thread
     """
 
+    # TODO: check usage!
+    queue_initialized = Signal()  # this signal is sent, when this queue is ready to process events
+
     class Item:
         """ This class represent a single callable item in a queue
         """
@@ -237,6 +240,8 @@ class QueueProxy(SignalProxy, TaskProto):
             if self.__started_thread is not None:
                 raise QueueProxyStateError("Unable to start QueueProxy twice")
             self.__started_thread = threading.current_thread()
+
+        self.emit(QueueProxy.queue_initialized)
 
         while not self.__stop_event.is_set():
             next_callback = self.__queue.get()
