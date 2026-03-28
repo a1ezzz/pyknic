@@ -12,3 +12,5 @@ FROM python:${BASE_PYTHON_VERSION}-alpine
 RUN apk add --no-cache curl git bash jq
 
 COPY --from=builder /pip-cache /pip-cache
+
+COPY test-feedback.sh /scripts/test-feedback.sh
