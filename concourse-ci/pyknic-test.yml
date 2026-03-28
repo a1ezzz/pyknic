@@ -1,18 +1,20 @@
 
 # input vars:
 #   branch -- a name of a git branch this pipeline is running on
-#   commit -- a commit a PR is related to
 #   github-access-token -- a token for PR status updates
+#   pull_request_id -- a number of PR
+#   commit -- a commit a PR is related to
 #   pull_request_branch_name -- if defined then it is a name of a source branch, that PR is related to
 #   python_version -- a version of CPython that is used within the code
 #   tg_bot_token -- access token to Telegram bot
 #   tg_chat -- target chat id to notify
+#   ---
+#   pytest_s3_test_uri -- enables some tests
 
-# TODO: replace docker image with more suitable one
-# TODO: simplify github routine
-# TODO: hide shell-code in a dedicated file in git?
+# TODO: get rid off build-metadata-resource
 
 resource_types:
+
   - name: build-metadata
     type: docker-image
     source:
@@ -74,7 +76,7 @@ jobs:
               - -ecx
               - |
 
-                if [[ -n "((pull_request_branch_name))" ]]; then
+                if [[ -n "((pull_request_id))" ]]; then
 
                     git config user.email "john-doe@concourse-ci"
                     git config user.name "John Doe-Concourse"
@@ -124,8 +126,12 @@ jobs:
             args:
               - -ecx
               - |
+                pip cache info --cache-dir /pip-cache
+                echo
+
                 source /sandbox/venv/bin/activate
                 /sandbox/venv/bin/pip3 --cache-dir /pip-cache install '.[all]'
+
                 echo
                 pip cache info --cache-dir /pip-cache
 
@@ -148,6 +154,11 @@ jobs:
               - -ecx
               - |
                 source /sandbox/venv/bin/activate
+
+                if [[ -n "((pytest_s3_test_uri))" ]]; then
+                  export S3_TEST_URI="((pytest_s3_test_uri))"
+                fi
+
                 pytest -v
         on_failure:
           task: set_pytest_status_as_failed
@@ -158,33 +169,24 @@ jobs:
               source:
                 repository: a1ezzz/pyknic-concourse-base-image
                 tag: py-alpine-((python_version))
+            inputs:
+              - name: code
             run:
+              dir: code
               path: /bin/bash
               args:
                 - -ecx
                 - |
 
-                  if [[ -n "((tg_bot_token))" && -n "((tg_chat))" ]]; then
-                      curl \
-                          -X POST \
-                          "https://api.telegram.org/bot((tg_bot_token))/sendMessage" \
-                          -d chat_id="((tg_chat))" \
-                          -d text='⚡ pytest failed on the "((branch))" branch with the Python ((python_version)).
-                  Related PR is made from the branch (if any): ((pull_request_branch_name))
-                  Build details: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
-                  fi
-
-                  if [[ -n "((pull_request_branch_name))" ]]; then
-
-                      curl \
-                          -L \
-                          -X POST \
-                          -H "Accept: application/vnd.github+json" \
-                          -H "Authorization: Bearer ((github-access-token))" \
-                          -H "X-GitHub-Api-Version: 2022-11-28" \
-                          "https://api.github.com/repos/a1ezzz/pyknic/statuses/((commit))" \
-                          -d '{"state":"failure","target_url":"https://concourse-ci.binblob.com/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-pytest"}'
-                  fi
+                  TEST_NAME="py-((python_version))-pytest" \
+                  BUILD_URL="https://concourse-ci.binblob.com/builds/((.:metadata_build_id))" \
+                  BUILD_BRANCH="((branch))" \
+                  BUILD_COMMIT="$(git rev-parse $( [[ -n "((pull_request_id))" ]] && echo "((pull_request_branch_name))" || echo "HEAD" ))" \
+                  TG_BOT_TOKEN="((tg_bot_token))" \
+                  TG_CHAT_ID="((tg_chat))" \
+                  GITHUB_PULL_REQUEST_ID="((pull_request_id))" \
+                  GITHUB_ACCESS_TOKEN="((github-access-token))" \
+                  /scripts/test-feedback.sh failure
 
       - task: set_pytest_status_as_succeeded
         config:
@@ -194,32 +196,24 @@ jobs:
             source:
               repository: a1ezzz/pyknic-concourse-base-image
               tag: py-alpine-((python_version))
+          inputs:
+            - name: code
           run:
+            dir: code
             path: /bin/bash
             args:
               - -ecx
               - |
 
-                if [[ -n "((tg_bot_token))" && -n "((tg_chat))" ]]; then
-                    curl \
-                        -X POST \
-                        "https://api.telegram.org/bot((tg_bot_token))/sendMessage" \
-                        -d chat_id="((tg_chat))" \
-                        -d text='☘ pytest succeeded on the "((branch))" branch with the Python ((python_version)).
-                Related PR is made from the branch (if any): ((pull_request_branch_name))
-                Build details: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
-                fi
-
-                if [[ -n "((pull_request_branch_name))" ]]; then
-                    curl \
-                        -L \
-                        -X POST \
-                        -H "Accept: application/vnd.github+json" \
-                        -H "Authorization: Bearer ((github-access-token))" \
-                        -H "X-GitHub-Api-Version: 2022-11-28" \
-                        "https://api.github.com/repos/a1ezzz/pyknic/statuses/((commit))" \
-                        -d '{"state":"success","target_url":"https://concourse-ci.binblob.com/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-pytest"}'
-                fi
+                  TEST_NAME="py-((python_version))-pytest" \
+                  BUILD_URL="https://concourse-ci.binblob.com/builds/((.:metadata_build_id))" \
+                  BUILD_BRANCH="((branch))" \
+                  BUILD_COMMIT="$(git rev-parse $( [[ -n "((pull_request_id))" ]] && echo "((pull_request_branch_name))" || echo "HEAD" ))" \
+                  TG_BOT_TOKEN="((tg_bot_token))" \
+                  TG_CHAT_ID="((tg_chat))" \
+                  GITHUB_PULL_REQUEST_ID="((pull_request_id))" \
+                  GITHUB_ACCESS_TOKEN="((github-access-token))" \
+                  /scripts/test-feedback.sh success
 
       - task: run_mypy
         config:
@@ -251,33 +245,24 @@ jobs:
               source:
                 repository: a1ezzz/pyknic-concourse-base-image
                 tag: py-alpine-((python_version))
+            inputs:
+              - name: code
             run:
+              dir: code
               path: /bin/bash
               args:
                 - -ecx
                 - |
 
-                  if [[ -n "((tg_bot_token))" && -n "((tg_chat))" ]]; then
-                      curl \
-                          -X POST \
-                          "https://api.telegram.org/bot((tg_bot_token))/sendMessage" \
-                          -d chat_id="((tg_chat))" \
-                          -d text='⚡ mypy failed on the "((branch))" branch with the Python ((python_version)).
-                  Related PR is made from the branch (if any): ((pull_request_branch_name))
-                  Build details: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
-                  fi
-                              
-                  if [[ -n "((pull_request_branch_name))" ]]; then
-
-                      curl \
-                          -L \
-                          -X POST \
-                          -H "Accept: application/vnd.github+json" \
-                          -H "Authorization: Bearer ((github-access-token))" \
-                          -H "X-GitHub-Api-Version: 2022-11-28" \
-                          "https://api.github.com/repos/a1ezzz/pyknic/statuses/((commit))" \
-                          -d '{"state":"failure","target_url":"https://concourse-ci.binblob.com/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-mypy"}'
-                  fi
+                  TEST_NAME="py-((python_version))-mypy" \
+                  BUILD_URL="https://concourse-ci.binblob.com/builds/((.:metadata_build_id))" \
+                  BUILD_BRANCH="((branch))" \
+                  BUILD_COMMIT="$(git rev-parse $( [[ -n "((pull_request_id))" ]] && echo "((pull_request_branch_name))" || echo "HEAD" ))" \
+                  TG_BOT_TOKEN="((tg_bot_token))" \
+                  TG_CHAT_ID="((tg_chat))" \
+                  GITHUB_PULL_REQUEST_ID="((pull_request_id))" \
+                  GITHUB_ACCESS_TOKEN="((github-access-token))" \
+                  /scripts/test-feedback.sh failure
 
       - task: set_mypy_status_as_succeeded
         config:
@@ -287,31 +272,21 @@ jobs:
             source:
               repository: a1ezzz/pyknic-concourse-base-image
               tag: py-alpine-((python_version))
+          inputs:
+            - name: code
           run:
+            dir: code
             path: /bin/bash
             args:
               - -ecx
               - |
 
-                if [[ -n "((tg_bot_token))" && -n "((tg_chat))" ]]; then
-                    curl \
-                        -X POST \
-                        "https://api.telegram.org/bot((tg_bot_token))/sendMessage" \
-                        -d chat_id="((tg_chat))" \
-                        -d text='☘ mypy succeeded on the "((branch))" branch with the Python ((python_version)).
-                Related PR is made from the branch (if any): ((pull_request_branch_name))
-                Build details: https://concourse-ci.binblob.com/builds/((.:metadata_build_id))'
-
-                fi
-              
-                if [[ -n "((pull_request_branch_name))" ]]; then
-
-                    curl \
-                        -L \
-                        -X POST \
-                        -H "Accept: application/vnd.github+json" \
-                        -H "Authorization: Bearer ((github-access-token))" \
-                        -H "X-GitHub-Api-Version: 2022-11-28" \
-                        "https://api.github.com/repos/a1ezzz/pyknic/statuses/((commit))" \
-                        -d '{"state":"success","target_url":"https://concourse-ci.binblob.com/builds/((.:metadata_build_id))","context":"concourse-ci/py-((python_version))-mypy"}'
-                fi
+                  TEST_NAME="py-((python_version))-mypy" \
+                  BUILD_URL="https://concourse-ci.binblob.com/builds/((.:metadata_build_id))" \
+                  BUILD_BRANCH="((branch))" \
+                  BUILD_COMMIT="$(git rev-parse $( [[ -n "((pull_request_id))" ]] && echo "((pull_request_branch_name))" || echo "HEAD" ))" \
+                  TG_BOT_TOKEN="((tg_bot_token))" \
+                  TG_CHAT_ID="((tg_chat))" \
+                  GITHUB_PULL_REQUEST_ID="((pull_request_id))" \
+                  GITHUB_ACCESS_TOKEN="((github-access-token))" \
+                  /scripts/test-feedback.sh success
