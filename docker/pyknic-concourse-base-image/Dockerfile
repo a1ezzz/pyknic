@@ -9,8 +9,6 @@ RUN mkdir -p /pip-cache && pip3 --cache-dir /pip-cache install virtualenv mypy p
 
 FROM python:${BASE_PYTHON_VERSION}-alpine
 
-RUN apk update && apk add --no-cache curl git bash
+RUN apk add --no-cache curl git bash jq
 
 COPY --from=builder /pip-cache /pip-cache
-
-COPY github-pr-hook.sh /scripts/github-pr-hook.sh
