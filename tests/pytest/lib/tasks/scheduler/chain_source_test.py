@@ -210,7 +210,8 @@ class TestChainedTasksSource:
                 return {'test-task2'}
 
         source_helper.scheduler.subscribe(source)
-        source.execute('test-task1')source.execute('test-task3')
+        source.execute('test-task1')
+        source.execute('test-task3')
 
         assert(source.started_task('test-task1') is not None)
         assert(source.started_task('test-task2') is not None)
