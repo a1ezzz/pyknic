@@ -209,12 +209,8 @@ class TestChainedTasksSource:
             def dependencies(cls) -> typing.Optional[typing.Set[str]]:
                 return {'test-task2'}
 
-        source_helper.scheduler.subscribe(source)  # Fails:
-        # pyknic.lib.signals.proxy.QueueProxyStateError: The "exec" method of the QueueProxy class may be called only if the QueueProxy is running
-        # /sandbox/venv/lib/python3.14/site-packages/pyknic/lib/signals/proxy.py:194
-        source.execute('test-task1')   # TODO: Fails with error:
-        # pyknic.lib.signals.proxy.QueueProxyStateError: The "exec" method of the QueueProxy class may be called only if the QueueProxy is running
-        source.execute('test-task3')
+        source_helper.scheduler.subscribe(source)
+        source.execute('test-task1')source.execute('test-task3')
 
         assert(source.started_task('test-task1') is not None)
         assert(source.started_task('test-task2') is not None)
