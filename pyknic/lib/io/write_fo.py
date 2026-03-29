@@ -19,16 +19,13 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: write tests for the code
-
 import io
 import os
 import typing
 
 from pyknic.lib.io import IOGenerator
 from pyknic.lib.io.aio_wrapper import IOThrottler
-from pyknic.lib.tasks.plain_task import PlainTask
-from pyknic.lib.tasks.threaded_task import ThreadedTask
+from pyknic.lib.tasks.threaded_task import ThreadRunner
 
 
 class WriteFileObject(io.RawIOBase):
@@ -55,11 +52,6 @@ class WriteFileObject(io.RawIOBase):
             with os.fdopen(write_fd_int, 'wb') as f:
                 self.__command(f)
 
-        threaded_task = ThreadedTask(PlainTask(writer_fn))
-        threaded_task.start()
-
-        read_fd_obj = os.fdopen(read_fd_int, 'rb')
-        yield from IOThrottler.sync_reader(read_fd_obj)
-
-        threaded_task.wait()  # it must be almost immediately
-        threaded_task.join()
+        with ThreadRunner.task(writer_fn):
+            read_fd_obj = os.fdopen(read_fd_int, 'rb')
+            yield from IOThrottler.sync_reader(read_fd_obj)
