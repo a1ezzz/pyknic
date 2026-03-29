@@ -7,15 +7,13 @@ import threading
 import time
 import typing
 
-if typing.TYPE_CHECKING:
-    # noinspection PyUnresolvedReferences
-    from conftest import SignalsRegistry, SampleTasks
-
 from pyknic.lib.tasks.plain_task import PlainTask
 from pyknic.lib.tasks.proto import TaskProto, TaskResult, TaskStartError
-from pyknic.lib.tasks.threaded_task import ThreadedTask
+from pyknic.lib.tasks.threaded_task import ThreadedTask, ThreadRunner
 
 from fixtures.asyncio import pyknic_async_test
+from fixtures.callbacks_n_signals import SignalsRegistry
+from fixtures.tasks import SampleTasks
 
 
 def sample_function(event: threading.Event, start_event: typing.Optional[threading.Event] = None) -> threading.Event:
@@ -87,7 +85,7 @@ class TestThreadTask:
 
         assert(task.join() is True)
 
-    def test_start_event(self, signals_registry: 'SignalsRegistry') -> None:
+    def test_start_event(self, signals_registry: SignalsRegistry) -> None:
         event = threading.Event()
         task = ThreadedTask.plain_task(functools.partial(sample_function, event))
         task.callback(TaskProto.task_started, signals_registry)
@@ -100,7 +98,7 @@ class TestThreadTask:
             (task, TaskProto.task_started, None),
         ])
 
-    def test_fin_event(self, signals_registry: 'SignalsRegistry') -> None:
+    def test_fin_event(self, signals_registry: SignalsRegistry) -> None:
         plain_task = PlainTask(lambda: None)
         task = ThreadedTask(plain_task)
         task.callback(TaskProto.task_completed, signals_registry)
@@ -116,13 +114,13 @@ class TestThreadTask:
             (task, ThreadedTask.thread_joined, plain_task)
         ])
 
-    def test_stop(self, sample_tasks: 'SampleTasks') -> None:
+    def test_stop(self, sample_tasks: SampleTasks) -> None:
         task = ThreadedTask(sample_tasks.LongRunningTask(terminate_method=False))
         task.start()
         task.stop()
         task.wait()
 
-    def test_terminate(self, sample_tasks: 'SampleTasks') -> None:
+    def test_terminate(self, sample_tasks: SampleTasks) -> None:
         task = ThreadedTask(sample_tasks.LongRunningTask(stop_method=False))
         task.start()
         task.terminate()
@@ -139,7 +137,7 @@ class TestThreadTask:
         event.set()
         task.wait()
 
-    def test_task_result(self, signals_registry: 'SignalsRegistry') -> None:
+    def test_task_result(self, signals_registry: SignalsRegistry) -> None:
         event = threading.Event()
         task = ThreadedTask.plain_task(functools.partial(sample_function, event))
         task.callback(TaskProto.task_completed, signals_registry)
@@ -152,7 +150,7 @@ class TestThreadTask:
             (task, TaskProto.task_completed, TaskResult()),
         ])
 
-    def test_task_exception(self, signals_registry: 'SignalsRegistry') -> None:
+    def test_task_exception(self, signals_registry: SignalsRegistry) -> None:
         class Task(TaskProto):
 
             def __init__(self, exc: BaseException) -> None:
@@ -176,3 +174,13 @@ class TestThreadTask:
             (task, ThreadedTask.thread_ready, original_task),
             (task, TaskProto.task_completed, TaskResult(exception=task_exception)),
         ])
+
+
+class TestThreadRunner:
+
+    def test(self) -> None:
+        event = threading.Event()
+        with ThreadRunner.task(event.set):
+            pass
+
+        assert(event.is_set())
