@@ -146,9 +146,6 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
     """ This is a source for a scheduler that may start tasks and theirs dependencies
     """
 
-    # TODO: check usage!
-    source_initialized = Signal()  # this signal is sent, when this source is ready to work
-
     def __init__(
         self,
         datalog: typing.Optional[DatalogProto] = None,
@@ -163,8 +160,6 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
         TaskProto.__init__(self)
 
         self.__queue_proxy = QueueProxy()
-        self.__readiness_resender = SignalResender(self, ChainedTasksSource.source_initialized)
-        self.__queue_proxy.callback(QueueProxy.queue_initialized, self.__readiness_resender)
 
         self.__source_uid = str(uuid.uuid4())
 
@@ -346,3 +341,8 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
         """ Stop this source
         """
         self.__queue_proxy.stop()
+
+    def wait_initialization(self, timeout: typing.Optional[typing.Union[int, float]] = None) -> None:
+        """ Wait for this task readiness
+        """
+        self.__queue_proxy.wait_initialization(timeout=timeout)

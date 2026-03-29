@@ -5,16 +5,14 @@ import pytest
 import threading
 import typing
 
-if typing.TYPE_CHECKING:
-    # noinspection PyUnresolvedReferences
-    from conftest import SignalsRegistry, CallbackRegistry
-
 from pyknic.lib.signals.extra import CallbackWrapper
 from pyknic.lib.signals.proto import Signal, SignalCallbackType, SignalSourceProto, SignalProxyProto
 from pyknic.lib.signals.source import SignalSource
-from pyknic.lib.tasks.threaded_task import ThreadedTask
+from pyknic.lib.tasks.threaded_task import ThreadedTask, ThreadRunner
 
 from pyknic.lib.signals.proxy import SignalProxy, QueueProxy, QueueProxyStateError, QueueCallbackException
+
+from fixtures.callbacks_n_signals import SignalsRegistry, CallbackRegistry
 
 
 def test_exceptions() -> None:
@@ -24,7 +22,7 @@ def test_exceptions() -> None:
 
 class TestSignalProxy:
 
-    def test(self, signals_registry: 'SignalsRegistry') -> None:
+    def test(self, signals_registry: SignalsRegistry) -> None:
         class Source(SignalSource):
             signal1 = Signal()
 
@@ -41,7 +39,7 @@ class TestSignalProxy:
         source.emit(Source.signal1)
         assert(signals_registry.dump(True) == [])
 
-    def test_default_wrapper(self, signals_registry: 'SignalsRegistry') -> None:
+    def test_default_wrapper(self, signals_registry: SignalsRegistry) -> None:
         class Source(SignalSource):
             signal1 = Signal()
 
@@ -65,7 +63,7 @@ class TestSignalProxy:
         source.emit(Source.signal1)
         assert(signals_registry.dump(True) == [])  # since signal_proxy is collected
 
-    def test_custom_wrapper(self, signals_registry: 'SignalsRegistry', callbacks_registry: 'CallbackRegistry') -> None:
+    def test_custom_wrapper(self, signals_registry: SignalsRegistry, callbacks_registry: CallbackRegistry) -> None:
 
         class Source(SignalSource):
             signal1 = Signal()
@@ -99,19 +97,12 @@ class TestQueueProxy:
 
     def test_plain(self) -> None:
         queue_proxy = QueueProxy()
-        threaded_task = ThreadedTask(queue_proxy)
-
-        threaded_task.start()
-        threaded_task.stop()
-        threaded_task.join()
+        with ThreadRunner.task(queue_proxy):
+            pass
 
         assert(isinstance(queue_proxy, SignalProxyProto))
 
     def test_signals(self) -> None:
-        queue_proxy = QueueProxy()
-        threaded_task = ThreadedTask(queue_proxy)
-        threaded_task.start()
-
         class Source(SignalSource):
             signal1 = Signal()
             signal2 = Signal(int)
@@ -124,20 +115,21 @@ class TestQueueProxy:
             with lock:
                 results.append((source, signal, value))
 
-        source1 = Source()
-        source2 = Source()
+        queue_proxy = QueueProxy()
 
-        source1.callback(Source.signal1, queue_proxy.proxy(callback))
-        source1.callback(Source.signal2, queue_proxy.proxy(callback))
-        source2.callback(Source.signal1, queue_proxy.proxy(callback))
+        with ThreadRunner.task(queue_proxy):
 
-        source1.emit(Source.signal1)
-        source1.emit(Source.signal2, 0)
-        source2.emit(Source.signal1)
-        source2.emit(Source.signal2, 1)
+            source1 = Source()
+            source2 = Source()
 
-        threaded_task.stop()
-        threaded_task.join()
+            source1.callback(Source.signal1, queue_proxy.proxy(callback))
+            source1.callback(Source.signal2, queue_proxy.proxy(callback))
+            source2.callback(Source.signal1, queue_proxy.proxy(callback))
+
+            source1.emit(Source.signal1)
+            source1.emit(Source.signal2, 0)
+            source2.emit(Source.signal1)
+            source2.emit(Source.signal2, 1)
 
         assert(results == [
             (source1, Source.signal1, None),
@@ -147,60 +139,49 @@ class TestQueueProxy:
 
     def test_exec(self) -> None:
         queue_proxy = QueueProxy()
-        threaded_task = ThreadedTask(queue_proxy)
+        assert (queue_proxy.is_running() is False)
         clbk_event = threading.Event()
 
-        assert(queue_proxy.is_running() is False)
+        with ThreadRunner.task(queue_proxy):
 
-        threaded_task.start()
+            def callback() -> None:
+                nonlocal clbk_event  # noqa: F824
+                clbk_event.set()
 
-        def callback() -> None:
-            nonlocal clbk_event  # noqa: F824
-            clbk_event.set()
+            queue_proxy.exec(callback)
+            clbk_event.wait()
+            assert(queue_proxy.is_running() is True)
 
-        queue_proxy.exec(callback)
-        clbk_event.wait()
-        assert(queue_proxy.is_running() is True)
-
-        threaded_task.stop()
-        threaded_task.join()
         assert(queue_proxy.is_running() is False)
 
     def test_exec_wait(self) -> None:
         queue_proxy = QueueProxy()
         callback_result = object()
-        threaded_task = ThreadedTask(queue_proxy)
-        threaded_task.start()
 
-        def callback() -> object:
-            nonlocal callback_result  # noqa: F824
-            return callback_result
+        with ThreadRunner.task(queue_proxy):
 
-        assert(queue_proxy.exec(callback, blocking=True) is callback_result)
+            def callback() -> object:
+                nonlocal callback_result  # noqa: F824
+                return callback_result
 
-        threaded_task.stop()
-        threaded_task.join()
+            assert(queue_proxy.exec(callback, blocking=True) is callback_result)
 
     def test_exec_wait_exception(self) -> None:
         queue_proxy = QueueProxy()
-        callback_exception = ValueError('!')
-        threaded_task = ThreadedTask(queue_proxy)
-        threaded_task.start()
+        with ThreadRunner.task(queue_proxy):
+            callback_exception = ValueError('!')
 
-        def callback() -> None:
-            nonlocal callback_exception  # noqa: F824
-            raise callback_exception
+            def callback() -> None:
+                nonlocal callback_exception  # noqa: F824
+                raise callback_exception
 
-        with pytest.raises(QueueCallbackException):
-            queue_proxy.exec(callback, blocking=True)
+            with pytest.raises(QueueCallbackException):
+                queue_proxy.exec(callback, blocking=True)
 
-        try:
-            queue_proxy.exec(callback, blocking=True)
-        except QueueCallbackException as e:
-            assert(e.__cause__ is callback_exception)
-
-        threaded_task.stop()
-        threaded_task.join()
+            try:
+                queue_proxy.exec(callback, blocking=True)
+            except QueueCallbackException as e:
+                assert(e.__cause__ is callback_exception)
 
     def test_state_exception(self) -> None:
         queue_proxy = QueueProxy()
@@ -231,15 +212,11 @@ class TestQueueProxy:
 
     def test_is_inside(self) -> None:
         queue_proxy = QueueProxy()
-        threaded_task = ThreadedTask(queue_proxy)
-        threaded_task.start()
+        with ThreadRunner.task(queue_proxy):
 
-        def callback() -> object:
-            nonlocal queue_proxy  # noqa: F824
-            return queue_proxy.is_inside()
+            def callback() -> object:
+                nonlocal queue_proxy  # noqa: F824
+                return queue_proxy.is_inside()
 
-        assert(queue_proxy.exec(callback, blocking=True) is True)
-        assert(callback() is False)
-
-        threaded_task.stop()
-        threaded_task.join()
+            assert(queue_proxy.exec(callback, blocking=True) is True)
+            assert(callback() is False)

@@ -3,17 +3,13 @@
 import asyncio
 import pytest
 import time
-import threading
-import typing
-
-if typing.TYPE_CHECKING:
-    # noinspection PyUnresolvedReferences
-    from conftest import SampleTasks
 
 from pyknic.lib.tasks.thread_executor import ThreadExecutor, NoFreeSlotError
 from pyknic.lib.tasks.proto import TaskExecutorProto, NoSuchTaskError, TaskStartError
 
 from fixtures.asyncio import pyknic_async_test
+from fixtures.tasks import SampleTasks
+from pyknic.lib.tasks.threaded_task import ThreadRunner
 
 
 def test_exceptions() -> None:
@@ -29,7 +25,7 @@ class TestThreadExecutor:
         assert(set(executor.tasks()) == set())
 
     @pyknic_async_test
-    async def test_exceptions(self, sample_tasks: 'SampleTasks', module_event_loop: asyncio.AbstractEventLoop) -> None:
+    async def test_exceptions(self, sample_tasks: SampleTasks, module_event_loop: asyncio.AbstractEventLoop) -> None:
         executor = ThreadExecutor()
 
         with pytest.raises(NoSuchTaskError):
@@ -38,7 +34,7 @@ class TestThreadExecutor:
         with pytest.raises(NoSuchTaskError):
             executor.wait_task(sample_tasks.LongRunningTask(terminate_method=False))
 
-    def test_join(self, sample_tasks: 'SampleTasks') -> None:
+    def test_join(self, sample_tasks: SampleTasks) -> None:
         task = sample_tasks.LongRunningTask(terminate_method=False)
         executor = ThreadExecutor()
         assert(executor.submit_task(task) is True)
@@ -48,7 +44,7 @@ class TestThreadExecutor:
             time.sleep(0.1)
 
     @pytest.mark.filterwarnings("ignore")  # the PytestUnhandledThreadExceptionWarning is a part of the test
-    def test_awaited_join(self, sample_tasks: 'SampleTasks') -> None:
+    def test_awaited_join(self, sample_tasks: SampleTasks) -> None:
         task = sample_tasks.DummyTask()
         executor = ThreadExecutor()
         assert(executor.submit_task(task) is True)
@@ -58,31 +54,23 @@ class TestThreadExecutor:
             time.sleep(0.5)
             task.stop()
 
-        thread = threading.Thread(target=thread_fn)
-        thread.start()
+        with ThreadRunner.task(thread_fn):
+            executor.wait_task(task)
+            executor.complete_task(task)
 
-        executor.wait_task(task)
-        executor.complete_task(task)
-
-        thread.join()
-
-    def test_awaited_w_timeout_join(self, sample_tasks: 'SampleTasks') -> None:
+    def test_awaited_w_timeout_join(self, sample_tasks: SampleTasks) -> None:
         task = sample_tasks.LongRunningTask(terminate_method=False)
         executor = ThreadExecutor()
-        assert (executor.submit_task(task) is True)
+        assert(executor.submit_task(task) is True)
 
         def thread_fn() -> None:
             nonlocal task  # noqa: F824
             time.sleep(0.5)
             task.stop()
 
-        thread = threading.Thread(target=thread_fn)
-        thread.start()
-
-        executor.wait_task(task, timeout=100)
-        executor.complete_task(task)
-
-        thread.join()
+        with ThreadRunner.task(thread_fn):
+            executor.wait_task(task, timeout=100)
+            executor.complete_task(task)
 
     @pyknic_async_test
     async def test_async_awaited_join(
@@ -98,15 +86,11 @@ class TestThreadExecutor:
             time.sleep(0.5)
             task.stop()
 
-        thread = threading.Thread(target=thread_fn)
-        thread.start()
+        with ThreadRunner.task(thread_fn):
+            await executor.start_async(task)
+            executor.complete_task(task)
 
-        await executor.start_async(task)
-        executor.complete_task(task)
-
-        thread.join()
-
-    def test_threads_number(self, sample_tasks: 'SampleTasks') -> None:
+    def test_threads_number(self, sample_tasks: SampleTasks) -> None:
         task1 = sample_tasks.LongRunningTask(terminate_method=False)
         task2 = sample_tasks.LongRunningTask(terminate_method=False)
         task3 = sample_tasks.LongRunningTask(terminate_method=False)
@@ -134,7 +118,7 @@ class TestThreadExecutor:
 
         assert(set(executor.tasks()) == set())
 
-    def test_context(self, sample_tasks: 'SampleTasks') -> None:
+    def test_context(self, sample_tasks: SampleTasks) -> None:
         task1 = sample_tasks.LongRunningTask(terminate_method=False)
         task2 = sample_tasks.LongRunningTask(terminate_method=False)
 

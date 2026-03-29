@@ -80,9 +80,6 @@ class QueueProxy(SignalProxy, TaskProto):
     """ This "proxy" helps to execute "proxified" callbacks in a dedicated thread
     """
 
-    # TODO: check usage!
-    queue_initialized = Signal()  # this signal is sent, when this queue is ready to process events
-
     class Item:
         """ This class represent a single callable item in a queue
         """
@@ -177,6 +174,7 @@ class QueueProxy(SignalProxy, TaskProto):
         self.__start_once_lock = threading.Lock()
         self.__stop_once_lock = threading.Lock()
         self.__started_thread: typing.Optional[threading.Thread] = None
+        self.__ready_event = threading.Event()
         self.__stop_event = threading.Event()
         self.__flash_flush = flash_flush
 
@@ -233,6 +231,12 @@ class QueueProxy(SignalProxy, TaskProto):
         """
         return self.__started_thread is not None and not self.__stop_event.is_set()
 
+    def wait_initialization(self, timeout: typing.Optional[typing.Union[int, float]] = None) -> None:
+        """ The :meth:`.TaskProto.wait_initialization` method implementation
+        """
+        if not self.__ready_event.wait(timeout):
+            raise TimeoutError('Unable to initialize QueueProxy in time')
+
     def start(self) -> None:
         """ The :meth:`.TaskProto.start` method implementation
         """
@@ -241,7 +245,7 @@ class QueueProxy(SignalProxy, TaskProto):
                 raise QueueProxyStateError("Unable to start QueueProxy twice")
             self.__started_thread = threading.current_thread()
 
-        self.emit(QueueProxy.queue_initialized)
+        self.__ready_event.set()
 
         while not self.__stop_event.is_set():
             next_callback = self.__queue.get()

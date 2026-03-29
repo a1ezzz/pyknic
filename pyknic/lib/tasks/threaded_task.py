@@ -184,17 +184,25 @@ class ThreadRunner:
         - :meth:`.ThreadedTask.start`
         - :meth:`.ThreadedTask.wait_initialization` (if available)
         - :meth:`.ThreadedTask.stop` (if available)
+        - :meth:`.ThreadedTask.wait`
         - :meth:`.ThreadedTask.join`
     """
 
-    def __init__(self, threaded_task: ThreadedTask, init_timeout: typing.Union[int, float, None] = None) -> None:
+    def __init__(
+        self,
+        threaded_task: ThreadedTask,
+        init_timeout: typing.Union[int, float, None] = None,
+        wait_timeout: typing.Union[int, float, None] = None,
+    ) -> None:
         """ Create a runner
 
         :param threaded_task: a thread to start
         :param init_timeout: a timeout that will be passed to the :meth:`.ThreadedTask.wait_initialization` method
+        :param wait_timeout: a timeout that will be passed to the :meth:`.ThreadedTask.wait` method
         """
         self.__threaded_task = threaded_task
         self.__init_timeout = init_timeout
+        self.__wait_timeout = wait_timeout
 
     def __enter__(self) -> 'ThreadRunner':
         """ "Enter" the runner (start and wait for readiness)
@@ -215,6 +223,7 @@ class ThreadRunner:
         """
         if iscapable(self.__threaded_task, TaskProto.stop):
             self.__threaded_task.stop()
+        self.__threaded_task.wait(self.__wait_timeout)
         self.__threaded_task.join()
 
     @staticmethod

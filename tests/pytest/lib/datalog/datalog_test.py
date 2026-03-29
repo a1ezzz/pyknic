@@ -7,13 +7,11 @@ import pytest
 
 from dataclasses import dataclass
 
-if typing.TYPE_CHECKING:
-    # noinspection PyUnresolvedReferences
-    from conftest import SignalsRegistry
-
 from pyknic.lib.datalog.proto import DatalogProto
 from pyknic.lib.datalog.datalog_py import DatalogPy
 from pyknic.lib.datalog.datalog import Datalog
+
+from fixtures.callbacks_n_signals import SignalsRegistry
 
 
 class TestDatalog:
@@ -108,7 +106,7 @@ class TestDatalog:
             Datalog
         ]
     )
-    def test_signal(self, test_cls: typing.Type[DatalogProto], signals_registry: 'SignalsRegistry') -> None:
+    def test_signal(self, test_cls: typing.Type[DatalogProto], signals_registry: SignalsRegistry) -> None:
         log = test_cls()
 
         log.callback(DatalogProto.new_entry, signals_registry)

@@ -149,6 +149,11 @@ class Scheduler(SchedulerProto, TaskProto):
         """
         self.__executor.queue_proxy().start()
 
+    def wait_initialization(self, timeout: typing.Optional[typing.Union[int, float]] = None) -> None:
+        """ Wait for this scheduler initialization
+        """
+        self.__executor.queue_proxy().wait_initialization(timeout=timeout)
+
     def __unsubscribe_all(self) -> None:
         """ Unsubscribe all sources as a part of stopping procedure
         """
