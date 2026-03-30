@@ -36,7 +36,7 @@ from pyknic.lib.datalog.datalog import Datalog
 from pyknic.lib.registry import APIRegistryProto, APIRegistry
 from pyknic.lib.signals.proto import SignalSourceProto, Signal
 from pyknic.lib.signals.proxy import QueueProxy, QueueCallbackException
-from pyknic.lib.signals.extra import SignalWaiter, BoundedCallback, ReceivedSignal, SignalResender
+from pyknic.lib.signals.extra import SignalWaiter, BoundedCallback, ReceivedSignal
 from pyknic.lib.tasks.proto import ScheduleSourceProto, TaskProto, TaskResult, ScheduledTaskPostponePolicy
 from pyknic.lib.tasks.proto import ScheduleRecordProto
 from pyknic.lib.tasks.proto import SchedulerFeedback, SchedulerProto
