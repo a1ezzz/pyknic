@@ -244,6 +244,7 @@ class QueueProxy(SignalProxy, TaskProto):
             if self.__started_thread is not None:
                 raise QueueProxyStateError("Unable to start QueueProxy twice")
             self.__started_thread = threading.current_thread()
+            assert(self.__started_thread)  # there is some flaky test and this assert may help to resolve it
 
         self.__ready_event.set()
 
