@@ -64,6 +64,7 @@ class TestTaskProto:
         task = sample_tasks.DummyTask()
         pytest.raises(NotImplementedError, task.stop)
         pytest.raises(NotImplementedError, task.terminate)
+        pytest.raises(NotImplementedError, task.wait_initialization)
 
         assert(iscapable(task, TaskProto.stop) is False)
         assert(iscapable(task, TaskProto.terminate) is False)

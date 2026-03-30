@@ -65,7 +65,9 @@ class App(TaskProto):
         self.__set_config_vars()
 
         self.__scheduler_thread.start()
+        self.__scheduler_thread.wait_initialization(60)
         self.__main_source_thread.start()
+        self.__main_source_thread.wait_initialization(60)
 
         self.__scheduler.subscribe(self.__main_source)
         self.__main_source.execute('log_task')

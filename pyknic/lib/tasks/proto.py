@@ -65,6 +65,8 @@ class TaskResult:
 class TaskProto(CapabilitiesAndSignals):
     """ Basic task prototype. Derived classes must implement the only thing - :meth:`TaskProto.start`
     """
+    # TODO: think of readiness probe of a task. It may lead to some "with" usage when the task starts and waits for
+    #  readiness
 
     task_started = Signal()              # a task started
     task_completed = Signal(TaskResult)  # a task completed
@@ -88,6 +90,17 @@ class TaskProto(CapabilitiesAndSignals):
         """ Try to stop this task at all costs
 
         :raise NotImplementedError: if this task can not be terminated
+        """
+        raise NotImplementedError('The "terminate" method is not supported')
+
+    @capability
+    def wait_initialization(self, timeout: typing.Optional[typing.Union[int, float]] = None) -> None:
+        """ Wait for a task initialization. For tasks that run inside threads it is important to know whether
+        an internal task is ready for work.
+
+        :param timeout: timeout to wait (if timeout is expired then the TimeoutError is raised)
+
+        :note: it is better to avoid calling this method from the same thread that runs this task
         """
         raise NotImplementedError('The "terminate" method is not supported')
 

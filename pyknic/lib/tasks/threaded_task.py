@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # pyknic/lib/tasks/threaded_task.py
 #
-# Copyright (C) 2016-2024 the pyknic authors and contributors
+# Copyright (C) 2016-2026 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -22,6 +22,7 @@
 import asyncio
 import threading
 import traceback
+import types
 import typing
 
 from pyknic.lib.log import Logger
@@ -36,7 +37,6 @@ from pyknic.lib.thread import CriticalResource
 class ThreadedTask(TaskProto, CriticalResource):
     """ This class helps to run a task in a separate thread
     """
-    # TODO: make it with the 'with'-clause. When we start/wait+join thread with it
 
     thread_ready = Signal(TaskProto)  # signal is emitted when a thread is ready to join
     thread_joined = Signal(TaskProto)  # signal is emitted when a thread joined
@@ -65,6 +65,9 @@ class ThreadedTask(TaskProto, CriticalResource):
 
         if iscapable(self.__task, TaskProto.terminate):
             self.append_capability(TaskProto.terminate, self.__terminate)
+
+        if iscapable(self.__task, TaskProto.wait_initialization):
+            self.append_capability(TaskProto.terminate, self.__wait_initialization)
 
     @CriticalResource.critical_section
     def start(self) -> None:
@@ -108,6 +111,13 @@ class ThreadedTask(TaskProto, CriticalResource):
         capability
         """
         self.__task.terminate()
+
+    @CriticalResource.critical_section
+    def __wait_initialization(self, timeout: typing.Union[int, float, None] = None) -> None:
+        """ The :meth:`.TaskProto.wait_initialization` method implementation. Will be used if an original task has
+        the same capability
+        """
+        self.__task.wait_initialization(timeout=timeout)
 
     @CriticalResource.critical_section
     def join(self) -> bool:
@@ -167,3 +177,68 @@ class ThreadedTask(TaskProto, CriticalResource):
         # TODO: create a test for this (straightforward test implementation didn't work)
         if self.__thread:
             raise RuntimeError(f"A thread wasn't awaited (the task -- {self.__task_id()})")
+
+
+class ThreadRunner:
+    """ This class simplify the :class:`.ThreadedTask` routine by automatic calls of the:
+        - :meth:`.ThreadedTask.start`
+        - :meth:`.ThreadedTask.wait_initialization` (if available)
+        - :meth:`.ThreadedTask.stop` (if available)
+        - :meth:`.ThreadedTask.wait`
+        - :meth:`.ThreadedTask.join`
+    """
+
+    def __init__(
+        self,
+        threaded_task: ThreadedTask,
+        init_timeout: typing.Union[int, float, None] = None,
+        wait_timeout: typing.Union[int, float, None] = None,
+    ) -> None:
+        """ Create a runner
+
+        :param threaded_task: a thread to start
+        :param init_timeout: a timeout that will be passed to the :meth:`.ThreadedTask.wait_initialization` method
+        :param wait_timeout: a timeout that will be passed to the :meth:`.ThreadedTask.wait` method
+        """
+        self.__threaded_task = threaded_task
+        self.__init_timeout = init_timeout
+        self.__wait_timeout = wait_timeout
+
+    def __enter__(self) -> 'ThreadRunner':
+        """ "Enter" the runner (start and wait for readiness)
+        """
+        self.__threaded_task.start()
+        if iscapable(self.__threaded_task, TaskProto.wait_initialization):
+            self.__threaded_task.wait_initialization(timeout=self.__init_timeout)
+
+        return self
+
+    def __exit__(
+        self,
+        exc_type: typing.Optional[typing.Type[BaseException]],
+        exc_val: typing.Optional[BaseException],
+        exc_tb: typing.Optional[types.TracebackType]
+    ) -> None:
+        """ Finalize a :class:`.ThreadedTask` object
+        """
+        if iscapable(self.__threaded_task, TaskProto.stop):
+            self.__threaded_task.stop()
+        self.__threaded_task.wait(self.__wait_timeout)
+        self.__threaded_task.join()
+
+    @staticmethod
+    def task(
+        task: typing.Union[typing.Callable[[], typing.Any], TaskProto],
+        cr_timeout: typing.Union[int, float, None] = None,
+        init_timeout: typing.Union[int, float, None] = None
+    ) -> 'ThreadRunner':
+        """ Create the :class:`.ThreadedTask` and return a new :class:`.ThreadRunner` that will call that task
+
+        :param task: a TaskProto instance or a function that will be converted to the :class:`.PlainTask` object
+        :param cr_timeout: the same as 'cr_timeout' in the :meth:`.ThreadedTask.__init__` method
+        :param init_timeout: the same as 'init_timeout' in the :meth:`.ThreadRunner.__init__` method
+        """
+        task_obj = task if isinstance(task, TaskProto) else PlainTask(task)
+        thread_task = ThreadedTask(task_obj, cr_timeout)
+        runner = ThreadRunner(thread_task, init_timeout)
+        return runner
