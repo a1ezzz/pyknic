@@ -128,6 +128,7 @@ jobs:
               github-access-token: ((github-access-token))
               pull_request_id: ((.:pull_request_id))
               pull_request_branch_name: ((.:pull_request_head_name))
+              extra_branch: ((.:pull_request_head_name))
               python_version: ((.:python_version))
               tg_bot_token: ((tg_bot_token))
               tg_chat: ((tg_chat))

@@ -5,6 +5,7 @@
 #   pull_request_id -- a number of PR
 #   commit -- a commit a PR is related to
 #   pull_request_branch_name -- if defined then it is a name of a source branch, that PR is related to
+#   extra_branch -- the same as pull_request_branch_name (or the branch)
 #   python_version -- a version of CPython that is used within the code
 #   tg_bot_token -- access token to Telegram bot
 #   tg_chat -- target chat id to notify
@@ -29,6 +30,13 @@ resources:
       uri: https://github.com/a1ezzz/pyknic
       branch: ((branch))
 
+  - name: extra-branch
+    type: git
+    icon: github
+    source:
+      uri: https://github.com/a1ezzz/pyknic
+      branch: ((extra_branch))
+
   - name: pr-code
     type: git
     icon: github
@@ -46,6 +54,9 @@ jobs:
     plan:
 
       - get: code
+        trigger: true
+
+      - get: extra_branch
         trigger: true
 
       - get: pr-code
