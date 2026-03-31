@@ -21,7 +21,7 @@ from pyknic.lib.tasks.threaded_task import ThreadedTask
 
 class App(TaskProto):
 
-    __instance__ = None
+    __instance__: typing.Optional[ThreadedTask] = None
 
     @verify_value(log_level=lambda x: x >= 0)
     def __init__(

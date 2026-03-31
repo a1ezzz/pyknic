@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import contextlib
 import dataclasses
 import datetime
 import grp
@@ -34,7 +35,7 @@ from abc import ABCMeta, abstractmethod
 from pyknic.lib.verify import verify_value
 from pyknic.lib.io import IOGenerator, IOProducer
 from pyknic.lib.io.aio_wrapper import IOThrottler, cag
-from pyknic.lib.io.aligner import Aligner
+from pyknic.lib.io.aligner import ChunkReader
 
 
 MAX_DYNAMIC_FILE_SIZE = (2 ** 10) ** 7  # This is a maximum number of bytes (1 zebibyte) that may be saved "dynamically"
@@ -420,7 +421,7 @@ class _FilthyTarEntry:
     :class:`.DecentTarEntry`
     """
 
-    source: IOGenerator           # source of the data
+    source: ChunkReader           # source of the data
     binary_info: bytes            # original tar header (may be larger than tarfile.BLOCKSIZE when it is combined
     # from several extended entries)
     parsed_info: tarfile.TarInfo  # tar header
@@ -431,24 +432,26 @@ class _FilthyTarEntry:
         counter = self.parsed_info.size
 
         while counter > 0:
-            next_chunk = next(self.source)
-            assert(len(next_chunk) == tarfile.BLOCKSIZE)
-            counter -= tarfile.BLOCKSIZE
+            max_chunks = (counter // tarfile.BLOCKSIZE) + (0 if counter % tarfile.BLOCKSIZE == 0 else 1)
+            next_chunk = self.source.next_chunk(1, max_chunks)
+
+            assert((len(next_chunk) % tarfile.BLOCKSIZE) == 0)
             yield next_chunk
+            counter -= len(next_chunk)
 
 
 class DecentTarEntry:
     """This class helps to read tar entry in a safe way.
     """
 
-    def __init__(self, tar_info: tarfile.TarInfo, data_generator: IOGenerator) -> None:
+    def __init__(self, tar_info: tarfile.TarInfo, chunk_reader: ChunkReader) -> None:
         """Create new entry.
 
         :param tar_info: information about inner entry
-        :param data_generator: content of inner entry that must be read before the request for the next entry.
+        :param chunk_reader: content of inner entry that must be read before the request for the next entry.
         """
         self.__tar_info = tar_info
-        self.__data_generator = data_generator
+        self.__chunk_reader = chunk_reader
         self.__wasted = False
 
     def is_wasted(self) -> bool:
@@ -467,14 +470,17 @@ class DecentTarEntry:
         counter = self.__tar_info.size
 
         while counter > 0:
-            next_chunk = next(self.__data_generator)
-            assert(len(next_chunk) == tarfile.BLOCKSIZE)
+            max_chunks = (counter // tarfile.BLOCKSIZE) + (0 if counter % tarfile.BLOCKSIZE == 0 else 1)
+            next_chunk = self.__chunk_reader.next_chunk(1, max_chunks)
 
-            if counter >= tarfile.BLOCKSIZE:
-                yield next_chunk
-            else:
+            assert((len(next_chunk) % tarfile.BLOCKSIZE) == 0)
+
+            if len(next_chunk) > counter:
                 yield next_chunk[:counter]
-            counter -= tarfile.BLOCKSIZE
+                counter = 0
+            else:
+                counter -= len(next_chunk)
+                yield next_chunk
 
         self.__wasted = True
 
@@ -483,6 +489,8 @@ class _TarReader:
     """This class helps to read data from a tar archive. Since it scans through all the data it may be unacceptable
     slowly. Use it on you own risk
     """
+
+    zero_block = b'\x00' * tarfile.BLOCKSIZE
 
     # noinspection PyMethodMayBeStatic
     def _is_regular_entry(self, entry: tarfile.TarInfo) -> bool:
@@ -526,76 +534,68 @@ class _TarReader:
         return entry.type in extended_head_types
 
     # noinspection PyMethodMayBeStatic
-    def _iterate_raw_entries(self, source: IOProducer) -> typing.Generator[_FilthyTarEntry, None, None]:
+    def _next_raw_entries(self, chunk_reader: ChunkReader) -> _FilthyTarEntry:
         """Iterate over all entries in source. Extended headers will be split and yielded independently
         """
 
-        zero_block = b'\x00' * tarfile.BLOCKSIZE
-        aligner = Aligner(tarfile.BLOCKSIZE, strict_mode=True)
+        next_chunk = chunk_reader.next_chunk(1, 1)
+        while next_chunk == self.zero_block:
+            next_chunk = chunk_reader.next_chunk(1, 1)
 
-        next_entry_size = 0
-        aligner_generator = aligner.iterate_data(source)
-        for chunk in aligner_generator:
-            next_entry_size -= len(chunk)
+        head = tarfile.TarInfo.frombuf(next_chunk, tarfile.ENCODING, 'strict')  # read the
+        # https://docs.python.org/3/library/codecs.html#error-handlers
+        return _FilthyTarEntry(chunk_reader, next_chunk, head)
 
-            if chunk == zero_block:
-                continue
-
-            head = tarfile.TarInfo.frombuf(chunk, tarfile.ENCODING, 'strict')  # read the
-            # https://docs.python.org/3/library/codecs.html#error-handlers
-            yield _FilthyTarEntry(aligner_generator, chunk, head)
-
-    def _iterate_extended_entries(self, source: IOProducer) -> typing.Generator[_FilthyTarEntry, None, None]:
+    def _next_extended_entry(self, chunk_reader: ChunkReader) -> _FilthyTarEntry:
         """Iterate over all entries in source. Extended headers will be combined and only "regular" entries will be
         yielded.
         """
-        raw_entries_generator = self._iterate_raw_entries(source)
-        for tar_entry in raw_entries_generator:
-            tar_head = tar_entry.parsed_info
 
-            if self._is_regular_entry(tar_head):
-                yield tar_entry
-                continue
+        tar_entry = self._next_raw_entries(chunk_reader)
+        tar_head = tar_entry.parsed_info
 
-            if self._is_extended_head_entry(tar_head):
+        if self._is_regular_entry(tar_head):
+            return tar_entry
 
-                extended_head_data = tar_entry.binary_info
-                for chunk in tar_entry.data():
-                    extended_head_data += chunk
+        if self._is_extended_head_entry(tar_head):
+            extended_head_data = tar_entry.binary_info
+            for chunk in tar_entry.data():
+                extended_head_data += chunk
 
-                next_entry = next(raw_entries_generator)
-                while not self._is_regular_entry(next_entry.parsed_info):
-                    if not self._is_extended_head_entry(next_entry.parsed_info):
-                        raise ValueError(
-                            f'Unknown tar entry spotted -- {str(tar_head.type)} (file -- {str(tar_head.name)})'
-                        )
-
-                    extended_head_data += next_entry.binary_info
-                    for chunk in next_entry.data():
-                        extended_head_data += chunk
-
-                    next_entry = next(raw_entries_generator)
+            next_entry = self._next_raw_entries(chunk_reader)
+            while not self._is_regular_entry(next_entry.parsed_info):
+                if not self._is_extended_head_entry(next_entry.parsed_info):
+                    raise ValueError(
+                        f'Unknown tar entry spotted -- {str(tar_head.type)} (file -- {str(tar_head.name)})'
+                    )
 
                 extended_head_data += next_entry.binary_info
+                for chunk in next_entry.data():
+                    extended_head_data += chunk
 
-                combined_head = tarfile.TarFile(fileobj=io.BytesIO(extended_head_data)).next()
-                assert(combined_head is not None)
-                yield _FilthyTarEntry(next_entry.source, extended_head_data, combined_head)
-                continue
+                next_entry = self._next_raw_entries(chunk_reader)
 
-            raise ValueError(f'Unknown tar entry spotted -- {str(tar_head.type)} (file -- {str(tar_head.name)})')
+            extended_head_data += next_entry.binary_info
+
+            combined_head = tarfile.TarFile(fileobj=io.BytesIO(extended_head_data)).next()
+            assert(combined_head is not None)
+            return _FilthyTarEntry(next_entry.source, extended_head_data, combined_head)
+
+        raise ValueError(f'Unknown tar entry spotted -- {str(tar_head.type)} (file -- {str(tar_head.name)})')
 
     def iterate_entries(self, data: IOProducer) -> typing.Generator[DecentTarEntry, None, None]:
         """Yield information about inner files
         """
-        aligner = Aligner(tarfile.BLOCKSIZE, strict_mode=True)
 
-        for filthy_entry in self._iterate_extended_entries(aligner.iterate_data(data)):
-            previous_entry = DecentTarEntry(filthy_entry.parsed_info, filthy_entry.source)
-            yield previous_entry
+        with contextlib.suppress(StopIteration):
+            chunk_reader = ChunkReader(data, tarfile.BLOCKSIZE, strict_mode=True)
+            while True:
+                filthy_entry = self._next_extended_entry(chunk_reader)
+                previous_entry = DecentTarEntry(filthy_entry.parsed_info, chunk_reader)
+                yield previous_entry
 
-            if not previous_entry.is_wasted():
-                raise RuntimeError('You must read data from previous entry before requesting a next one')
+                if not previous_entry.is_wasted():
+                    raise RuntimeError('You must read data from previous entry before requesting a next one')
 
 
 class TarArchive(_TarPaddingGenerator):
