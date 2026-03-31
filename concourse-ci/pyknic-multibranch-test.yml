@@ -17,7 +17,7 @@ jobs:
   - name: set-pipelines
     serial: true
     build_log_retention:
-      builds: 15
+      builds: 10
     plan:
       - get: timer-trigger
         trigger: true
