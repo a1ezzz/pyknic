@@ -216,11 +216,15 @@ class PKCS7Padding(BlockPaddingProto):
 
             prev_block, next_block = next_block, aligner_block
 
+        if next_block is None:
+            raise RuntimeError('There is no data. It seams that this data was not padded')
+
         if prev_block is not None:
             yield prev_block
 
-        if next_block is None:
-            raise RuntimeError('There is no data. It seams that this data was not padded')
+        if len(next_block) > block_size:
+            yield next_block[:-block_size]
+            next_block = next_block[-block_size:]
 
         padded = next_block[-1]
         if padded == 0 or padded > block_size:

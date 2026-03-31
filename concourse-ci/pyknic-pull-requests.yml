@@ -17,7 +17,7 @@ jobs:
   - name: pyknic-pr
     serial: true
     build_log_retention:
-      builds: 20
+      builds: 10
     plan:
 
       - get: timer-trigger
