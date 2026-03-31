@@ -407,8 +407,10 @@ class ConfigOption(_ConfigStorage):
 
     @verify_type(value=(None, str, int, float, bool, _ConfigImplementation))
     @verify_value(
-        value=lambda x: x is not isinstance(x, _ConfigImplementation) or \
-            x.is_plain() or x.is_null()  # type: ignore[attr-defined]
+        value=lambda x:
+            x is not isinstance(x, _ConfigImplementation) or
+            x.is_plain() or  # type: ignore[attr-defined]
+            x.is_null()  # type: ignore[attr-defined]
     )
     def __init__(self, value: typing.Union[RawConfigPlainTypes, _ConfigImplementation]) -> None:
         """Create a plain option of configuration.
