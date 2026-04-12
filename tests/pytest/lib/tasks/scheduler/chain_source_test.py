@@ -32,6 +32,7 @@ class SourceTestHelper:
 
     def start(self) -> None:
         self.scheduler_thread.start()
+        self.scheduler_thread.wait_initialization()
 
     def stop(self) -> None:
         self.scheduler_thread.stop()

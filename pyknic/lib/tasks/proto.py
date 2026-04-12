@@ -102,7 +102,7 @@ class TaskProto(CapabilitiesAndSignals):
 
         :note: it is better to avoid calling this method from the same thread that runs this task
         """
-        raise NotImplementedError('The "terminate" method is not supported')
+        raise NotImplementedError('The "wait_initialization" method is not supported')
 
     def task_name(self) -> typing.Optional[str]:
         """ Return a task name that optionally identifies a task
