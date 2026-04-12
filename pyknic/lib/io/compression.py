@@ -32,6 +32,7 @@ from abc import ABCMeta, abstractmethod
 
 from pyknic.lib.registry import APIRegistry, register_api
 from pyknic.lib.io import __default_block_size__, IOGenerator, IOProducer
+from pyknic.lib.io.read_fo import ReadFileObject
 
 
 __default_io_compressors_registry__ = APIRegistry()
@@ -92,29 +93,14 @@ class NativeCompressor(CompressorProto):
 
     def decompress(self, source: IOProducer) -> IOGenerator:
         """The :meth:`.CompressorProto.decompress` method implementation."""
-        compress_buffer = io.BytesIO()
-        compressor = self._compressor(compress_buffer, 'rb')
 
-        for data in source:
-            compress_buffer.write(data)
-            compress_buffer.seek(0, os.SEEK_SET)
+        rfo = ReadFileObject(source)
+        compressor = self._compressor(rfo, 'rb')
 
-            try:
-                while True:
-                    pos = compressor.tell()
-                    chunk = compressor.peek(__default_block_size__)
-                    if not chunk:
-                        break
-                    yield chunk
-                    compressor.seek(pos + len(chunk), os.SEEK_SET)
-
-            except EOFError:
-                pass
-
-            compress_buffer.truncate(0)
-            compress_buffer.seek(0, os.SEEK_SET)
-
-        yield compressor.read()
+        chunk = compressor.read(__default_block_size__)
+        while chunk:
+            yield chunk
+            chunk = compressor.read(__default_block_size__)
 
 
 @register_api(__default_io_compressors_registry__, "gzip")

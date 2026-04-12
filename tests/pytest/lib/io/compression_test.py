@@ -128,3 +128,22 @@ class TestCompressor:
         compressed_data = list(compressor_cls().compress(original_data))  # type: ignore[operator]
         decompressed_data = list(decompressor_cls().decompress(compressed_data))
         assert (b''.join(decompressed_data) == b''.join(original_data))
+
+    @pytest.mark.parametrize(
+        "compressor_cls", [
+            GZipCompressor,
+            BZip2Compressor,
+            LZMACompressor
+        ]
+    )
+    def test_tail_bytes_decompression(self, compressor_cls: CompressorProto) -> None:
+        # checks errors like:
+        #   EOFError: Compressed file ended before the end-of-stream marker was reached
+
+        with open('/dev/random', 'rb') as f:
+            data = f.read(1024 * 1024)
+
+        comp = compressor_cls()  # type: ignore[operator]
+        compressed_data = b''.join(comp.compress([data]))
+
+        assert(b''.join(comp.decompress([compressed_data[:-2], compressed_data[-2:]])) == data)
