@@ -67,7 +67,7 @@ class ThreadedTask(TaskProto, CriticalResource):
             self.append_capability(TaskProto.terminate, self.__terminate)
 
         if iscapable(self.__task, TaskProto.wait_initialization):
-            self.append_capability(TaskProto.terminate, self.__wait_initialization)
+            self.append_capability(TaskProto.wait_initialization, self.__wait_initialization)
 
     @CriticalResource.critical_section
     def start(self) -> None:
