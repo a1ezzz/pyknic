@@ -95,7 +95,7 @@ class NativeCompressor(CompressorProto):
         """The :meth:`.CompressorProto.decompress` method implementation."""
 
         rfo = ReadFileObject(source)
-        compressor = self._compressor(rfo, 'rb')
+        compressor = self._compressor(rfo, 'rb')  # type: ignore[arg-type]
 
         chunk = compressor.read(__default_block_size__)
         while chunk:
