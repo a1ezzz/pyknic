@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # pyknic/lib/io/clients/virtual_dir.py
 #
-# Copyright (C) 2017-2025 the pyknic authors and contributors
+# Copyright (C) 2017-2026 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import pathlib
 import typing
 
@@ -27,8 +28,37 @@ from pyknic.lib.uri import URI, URIQuery
 from pyknic.lib.io import IOProducer, IOGenerator
 from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
 from pyknic.lib.io.clients.collection import __default_io_clients_registry__
+from pyknic.lib.io.clients.proto import PartsUploaderProto
+from pyknic.lib.io.clients.parts_uploader import BasePartsUploader
 from pyknic.lib.verify import verify_value
 from pyknic.lib.io.aio_wrapper import IOThrottler, cg
+
+
+class _LocalFilePartsUploader(BasePartsUploader):
+
+    def __init__(self, remote_file_name: str, part_size: int):
+        BasePartsUploader.__init__(self, part_size)
+
+        self.__part_size = part_size
+        self.__remote_file_name = remote_file_name
+        self.__opened_file: typing.Optional[typing.IO[bytes]] = None
+
+    def __enter__(self) -> BasePartsUploader:
+        assert(self.__opened_file is None)
+
+        self.__opened_file = open(self.__remote_file_name, 'wb')
+        return self
+
+    def _upload_part(self, data: bytes, part_number: int) -> None:
+        assert(self.__opened_file)
+
+        offset = part_number * self.__part_size
+        self.__opened_file.seek(offset, os.SEEK_SET)
+        self.__opened_file.write(data)
+
+    def _finalize(self, exc_val: typing.Optional[BaseException] = None) -> None:
+        assert(self.__opened_file)
+        self.__opened_file.close()
 
 
 @register_api(__default_io_clients_registry__, "file")
@@ -95,11 +125,35 @@ class LocalClient(VirtualDirectoryClient):
         path.rmdir()
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    def upload_file(self, remote_file_name: str, source: IOProducer, source_size: int) -> None:
+    def upload_file(self, remote_file_name: str, source: IOProducer) -> None:
         """The :meth:`.IOClientProto.upload_file` method implementation."""
         path = self.entry_path(remote_file_name)
         with open(str(path), mode='wb') as f_remote:
-            cg(IOThrottler().sync_writer(source, f_remote, write_size=source_size))
+            cg(IOThrottler().sync_writer(source, f_remote))
+
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def append_file(self, remote_file_name: str, source: IOProducer) -> None:
+        """The :meth:`.IOClientProto.append_file` method implementation."""
+
+        path = self.entry_path(remote_file_name)
+        with open(str(path), mode='ab') as f_remote:
+            cg(IOThrottler().sync_writer(source, f_remote))
+
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def update_file(self, remote_file_name: str, source: IOProducer, offset: int = 0) -> None:
+        """The :meth:`.IOClientProto.update_file` method implementation."""
+
+        path = self.entry_path(remote_file_name)
+        with open(str(path), mode='rb+') as f_remote:
+            f_remote.seek(offset, os.SEEK_SET)
+            cg(IOThrottler().sync_writer(source, f_remote))
+
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def truncate_file(self, remote_file_name: str, offset: int = 0) -> None:
+        """The :meth:`.IOClientProto.truncate_file` method implementation."""
+        path = self.entry_path(remote_file_name)
+        with open(str(path), mode='ab') as f_remote:
+            f_remote.truncate(offset)
 
     @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def remove_file(self, file_name: str) -> None:
@@ -114,7 +168,21 @@ class LocalClient(VirtualDirectoryClient):
         with open(path, mode='rb') as f_remote:
             yield from IOThrottler().sync_reader(f_remote)
 
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1, offset=lambda x: x >= 0)
+    @verify_value(length=lambda x: x is None or x >= 0)
+    def receive_file_with_offset(
+        self, remote_file_name: str, offset: int = 0, length: typing.Optional[int] = None
+    ) -> IOGenerator:
+        """The :meth:`.IOClientProto.receive_file_with_offset` method implementation."""
+        path = str(self.entry_path(remote_file_name))
+        with open(path, mode='rb') as f_remote:
+            f_remote.seek(offset, os.SEEK_SET)
+            yield from IOThrottler().sync_reader(f_remote, read_size=length)
+
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def file_size(self, remote_file_name: str) -> int:
         """The :meth:`.IOClientProto.file_size` method implementation."""
         return self.entry_path(remote_file_name).stat().st_size
+
+    def upload_by_part(self, remote_file_name: str, part_size: int) -> PartsUploaderProto:
+        return _LocalFilePartsUploader(str(self.entry_path(remote_file_name)), part_size)

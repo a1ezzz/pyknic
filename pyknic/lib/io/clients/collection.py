@@ -83,14 +83,20 @@ class IOVirtualClient(IOClientProto):
         self.__client = registry.get(uri.scheme).create_client(uri)
         self.__init_capability('connect')
         self.__init_capability('disconnect')
+        self.__init_capability('current_directory')
         self.__init_capability('change_directory')
         self.__init_capability('list_directory')
         self.__init_capability('make_directory')
         self.__init_capability('remove_directory')
         self.__init_capability('upload_file')
+        self.__init_capability('append_file')
+        self.__init_capability('update_file')
+        self.__init_capability('truncate_file')
         self.__init_capability('remove_file')
         self.__init_capability('receive_file')
+        self.__init_capability('receive_file_with_offset')
         self.__init_capability('file_size')
+        self.__init_capability('upload_by_part')
 
     def __init_capability(self, method_name: str) -> None:
         cap = getattr(IOClientProto, method_name)
@@ -104,6 +110,12 @@ class IOVirtualClient(IOClientProto):
         :param uri: URI that defines client
         """
         return cls(uri, registry=__default_io_clients_registry__)
+
+    @classmethod
+    def create_client_w_file_path(cls, uri: URI) -> typing.Tuple[str, 'IOVirtualClient']:
+        file_name, modified_uri = uri.get_file()
+        client = IOVirtualClient.create_client(modified_uri)
+        return file_name, client
 
     def uri(self) -> URI:
         """ Return URI with which client is created

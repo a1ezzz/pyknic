@@ -68,7 +68,27 @@ class SFTPFileHandler(paramiko.sftp_handle.SFTPHandle):
 
     @log_exceptions
     def chattr(self, attr: paramiko.SFTPAttributes) -> int:
-        raise NotImplementedError('To Be Implemented')
+        # The only working option is a size changing
+
+        if attr.st_uid is not None:
+            raise NotImplementedError('To Be Implemented')
+
+        if attr.st_gid is not None:
+            raise NotImplementedError('To Be Implemented')
+
+        if attr.st_mode is not None:
+            raise NotImplementedError('To Be Implemented')
+
+        if attr.st_atime is not None:
+            raise NotImplementedError('To Be Implemented')
+
+        if attr.st_mtime is not None:
+            raise NotImplementedError('To Be Implemented')
+
+        if attr.st_size is not None:
+            os.truncate(self.__file_int, attr.st_size)
+
+        return paramiko.sftp.SFTP_OK
 
     @log_exceptions
     def close(self) -> None:

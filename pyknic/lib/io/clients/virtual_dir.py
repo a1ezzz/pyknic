@@ -26,6 +26,7 @@ import typing
 from pyknic.lib.verify import verify_value
 from pyknic.lib.uri import URI
 from pyknic.lib.io.clients.proto import IOClientProto
+from pyknic.lib.path import normalize_path
 
 
 class VirtualDirectoryClient(IOClientProto):
@@ -75,7 +76,7 @@ class VirtualDirectoryClient(IOClientProto):
         :param path: If defined then this path will be used as a current session path
         """
         if path is not None:
-            if path != self.normalize_path(path):
+            if path != normalize_path(path):
                 raise ValueError(f'Path must be normalized before saving -- {path}')
             self.__session_path = path
 
@@ -88,27 +89,8 @@ class VirtualDirectoryClient(IOClientProto):
         :param entry: inner file/directory name
         """
         assert(self.__session_path.is_absolute())
-        return self.normalize_path(self.__session_path / entry)
+        return normalize_path(self.__session_path / entry)
 
     def current_directory(self) -> str:
         """The :meth:`.IOClientProto.current_directory` method implementation."""
         return str(self.session_path())
-
-    @staticmethod
-    @verify_value(path=lambda x: x.is_absolute())
-    def relative_path(path: pathlib.PosixPath) -> str:
-        """ Return relative path suitable for most clients
-        """
-        # TODO: test it!
-        # TODO: may be it is better to keep this method inside s3 client (it is the only client that uses this)
-
-        result = str(path.relative_to(pathlib.PosixPath('/')))
-        return '' if result == '.' else result
-
-    @staticmethod
-    @verify_value(path=lambda x: x.is_absolute())
-    def normalize_path(path: pathlib.PosixPath) -> pathlib.PosixPath:
-        """ Normalize the given path and remove unnecessary slashes, entries and so on
-        """
-        # TODO: test it!
-        return pathlib.PosixPath(os.path.normpath(path))

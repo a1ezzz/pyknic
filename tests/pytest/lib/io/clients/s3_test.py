@@ -150,3 +150,43 @@ class TestS3Client:
 
         client.change_directory('..')
         client.remove_directory(test_dir)
+
+    def test_receive_file_with_offset(self) -> None:
+        client = S3Client(URI.parse(os.environ[S3ConnectionEnvVar]))
+        client.connect()
+
+        test_dir = f'pytest-directory-{uuid.uuid4()}'
+        client.make_directory(test_dir)
+        client.change_directory(test_dir)
+
+        data = b'Test data'
+        client.upload_file('remote-file', [data], len(data))
+
+        received_data = b''.join(client.receive_file_with_offset('remote-file', offset=5))
+        assert(received_data == b'data')
+
+        client.remove_file('remote-file')
+        client.change_directory('..')
+        client.remove_directory(test_dir)
+
+    def test_upload_by_part(self) -> None:
+        client = S3Client(URI.parse(os.environ[S3ConnectionEnvVar]))
+        client.connect()
+
+        test_dir = f'pytest-directory-{uuid.uuid4()}'
+        client.make_directory(test_dir)
+        client.change_directory(test_dir)
+
+        part_size = 5 * (1024 ** 2)
+
+        with client.upload_by_part('new_file', part_size) as uploader:
+            uploader.upload_part(b'b' * part_size, 1)
+            uploader.upload_part(b'c' * 2, 2)
+            uploader.upload_part(b'a' * part_size, 0)
+
+        received_data = b''.join(client.receive_file('new_file'))
+        assert(received_data == (b'a' * part_size + b'b' * part_size + b'c' * 2))
+
+        client.remove_file('new_file')
+        client.change_directory('..')
+        client.remove_directory(test_dir)
