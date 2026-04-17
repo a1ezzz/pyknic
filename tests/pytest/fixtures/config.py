@@ -5,7 +5,7 @@ import pathlib
 import pytest
 
 from pyknic.lib.config import Config
-from pyknic.path import root_path
+from pyknic.lib.path import root_path
 
 
 @pytest.fixture

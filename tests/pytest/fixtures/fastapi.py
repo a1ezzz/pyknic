@@ -10,9 +10,9 @@ import uvicorn
 import pytest
 
 from pyknic.lib.fastapi.base import BaseFastAPIApp
-from pyknic.path import root_path
 from pyknic.lib.config import Config
 from pyknic.lib.gettext import GetTextWrapper
+from pyknic.lib.path import root_path
 
 from fixtures.asyncio import BaseAsyncFixture
 from fixtures.event_loop import EventLoopDescriptor
