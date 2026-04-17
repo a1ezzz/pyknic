@@ -24,16 +24,14 @@
 # TODO: make the remote LobbyCommandHandler command for copy
 # TODO: make it possible to copy when destination is a directory
 
-import copy
-import pathlib
 import typing
 
 import pydantic
+
 from pyknic.lib.capability import iscapable
 from pyknic.lib.io.aio_wrapper import IOThrottler
 from pyknic.lib.bellboy.app import BellBoyCommandHandler, register_bellboy_command
 from pyknic.lib.fastapi.models.lobby import LobbyCommandResult, LobbyStrFeedbackResult
-from pyknic.lib.io.clients import VirtualDirectoryClient
 from pyknic.lib.io.aio_wrapper import AsyncWrapper
 from pyknic.lib.io.clients import IOVirtualClient, IOClientProto
 from pyknic.lib.uri import URI
@@ -71,23 +69,8 @@ class BellBoyCopyCommand(BellBoyCommandHandler):
 
     def __client_by_uri(self, uri_str: str) -> typing.Tuple[IOVirtualClient, URI, str]:
         original_uri = URI.parse(uri_str)
-
-        if original_uri.path is None:
-            raise ValueError(f'File path must be in the URI -- {uri_str}')
-
-        uri_path = pathlib.PosixPath(original_uri.path)
-        assert (not uri_path.is_absolute())  # this the way URI works
-        uri_path = VirtualDirectoryClient.normalize_path(pathlib.PosixPath('/') / pathlib.Path(original_uri.path))
-
-        if uri_path == uri_path.parent:
-            # TODO: remove this when there will be possible to copy to a directory
-            raise ValueError(f'Root path is not suitable for copying -- {uri_path} (as a part of URI "{uri_str}")')
-
-        modified_uri = copy.deepcopy(original_uri)
-        modified_uri.path = str(uri_path.parent)
-
-        client = IOVirtualClient.create_client(modified_uri)
-        return client, original_uri, uri_path.name
+        file_name, client = IOVirtualClient.create_client_w_file_path(original_uri)
+        return client, original_uri, file_name
 
     def __copy(self) -> LobbyCommandResult:
         assert (isinstance(self._args, CopierCommandModel))
@@ -109,11 +92,9 @@ class BellBoyCopyCommand(BellBoyCommandHandler):
         with source_client.open():
             with destination_client.open():
 
-                file_size = source_client.file_size(source_file)
                 read_generator = source_client.receive_file(source_file)
                 sync_throttler = IOThrottler.sync_resender(read_generator, throttling=self._args.throttling)
-
-                destination_client.upload_file(destination_file, sync_throttler, file_size)
+                destination_client.upload_file(destination_file, sync_throttler)
 
                 return LobbyStrFeedbackResult(
                     str_result=f'File from the {self._args.source} copied successfully to the {self._args.destination}'

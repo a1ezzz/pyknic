@@ -19,10 +19,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import copy
+import os.path
+import pathlib
 import typing
 from urllib.parse import urlsplit, parse_qs, urlencode
 
 from pyknic.lib.property import TypedDescriptor
+from pyknic.lib.path import split_file, normalize_path
 
 
 URIQueryParameterType = typing.TypeVar('URIQueryParameterType')
@@ -102,6 +106,19 @@ class URI:
         fragment = prefixed_value(self.fragment, "#", "")
 
         return f'{scheme}{auth}{netloc}{path}{query}{fragment}'
+
+    def get_file(self) -> typing.Tuple[str, 'URI']:
+        if self.path is None:
+            raise ValueError(f'File path must be in the URI -- {str(self)}')
+
+        uri_path = pathlib.PosixPath(self.path)
+        assert(not uri_path.is_absolute())  # this the way URI works
+
+        file_name, parent_path = split_file(pathlib.PosixPath('/') / uri_path)
+
+        modified_uri = copy.deepcopy(self)
+        modified_uri.path = str(parent_path)
+        return file_name, modified_uri
 
     @classmethod
     def parse(cls, uri: str) -> 'URI':

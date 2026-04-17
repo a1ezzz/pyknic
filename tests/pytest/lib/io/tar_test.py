@@ -4,18 +4,25 @@ import asyncio
 import io
 import os
 import pathlib
-import typing
-
-import pytest
 import sys
 import tarfile
+import typing
+import uuid
+
+import pytest
 
 from pyknic.lib.io import IOGenerator
 from pyknic.lib.io.aio_wrapper import IOThrottler, cg
 from pyknic.lib.io.tar import StaticTarEntryProto, DynamicTarEntryProto
 from pyknic.lib.io.tar import TarInnerFileGenerator, TarInnerGenerator, TarArchive, TarInnerDynamicGenerator
+from pyknic.lib.io.tar import TarArchiveReaderProto, IOTarReader, URITarReader
+from pyknic.lib.io.clients.s3 import S3Client
+from pyknic.lib.uri import URI
 
 from fixtures.asyncio import pyknic_async_test
+
+
+S3ConnectionEnvVar = "S3_TEST_URI"
 
 
 def test_abstract() -> None:
@@ -24,6 +31,10 @@ def test_abstract() -> None:
 
     pytest.raises(TypeError, DynamicTarEntryProto)
     pytest.raises(NotImplementedError, DynamicTarEntryProto.entry, None, None)
+
+    pytest.raises(TypeError, TarArchiveReaderProto)
+    pytest.raises(NotImplementedError, TarArchiveReaderProto.entries, None)
+    pytest.raises(NotImplementedError, TarArchiveReaderProto.inner_descriptors, None)
 
 
 class TestTarArchive:
@@ -76,6 +87,7 @@ class TestTarArchive:
 
             # TODO: enable filter by default when python 3.11 support ends
             if sys.version_info >= (3, 12, 0):
+
                 tar.extract(sample1_info, tmp_path, filter='data')
                 tar.extract(sample2_info, tmp_path, filter='data')
             else:
@@ -84,15 +96,6 @@ class TestTarArchive:
 
             assert((tmp_path / sample1_file).open('rb').read() == test_data)
             assert((tmp_path / sample2_file).open('rb').read() == test_data)
-
-        with open(pyknic_tar_file, 'rb') as f:
-            reader = IOThrottler.sync_reader(f)
-            assert(
-                [x.name for x in TarArchive().inner_descriptors(reader)] == [
-                    str(sample1_file),
-                    str(sample2_file)
-                ]
-            )
 
     @pytest.mark.parametrize(
         "test_data",
@@ -156,7 +159,7 @@ class TestTarArchive:
             )
         ])
 
-        entries_gen = TarArchive.entries(arch_gen)
+        entries_gen = IOTarReader(arch_gen).entries()
 
         _ = next(entries_gen)
         with pytest.raises(RuntimeError):
@@ -179,7 +182,7 @@ class TestTarArchive:
             "record-aligned-data"
         ]
     )
-    async def test_dynamic(
+    async def test_dynamic_to_file(
         self, test_data: bytes, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path
     ) -> None:
         pyknic_tar_file = tmp_path / "pyknic-archive.tar"
@@ -190,13 +193,68 @@ class TestTarArchive:
         with pyknic_tar_file.open('wb') as f:
             tar_arch = TarArchive()
 
-            await tar_arch.dynamic_archive(
+            await tar_arch.dynamic_archive_to_file(
                 f,
                 [
                     TarInnerFileGenerator(str(tmp_path / "sample1")),
                     TarInnerDynamicGenerator([test_data], str((tmp_path / "sample2").relative_to('/')))
                 ]
             )
+
+        with pyknic_tar_file.open('rb') as f:
+            result = b''.join(
+                TarArchive.extract_from_file(f, str((tmp_path / "sample1").relative_to('/')))
+            )
+            assert(result == test_data)
+
+            result = b''.join(
+                TarArchive.extract_from_file(f, str((tmp_path / "sample2").relative_to('/')))
+            )
+            assert(result == test_data)
+
+    @pyknic_async_test
+    @pytest.mark.parametrize(
+        "test_data",
+        [
+            b'Test data',
+            b'',
+            b'1' * tarfile.BLOCKSIZE,
+            b'3' * tarfile.RECORDSIZE,
+        ],
+        ids=[
+            "small-data",
+            "null-data",
+            "blocksize-aligned-data",
+            "record-aligned-data"
+        ]
+    )
+    async def test_dynamic_to_uri(
+        self, test_data: bytes, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path
+    ) -> None:
+
+        with (tmp_path / "sample1").open('wb') as f:
+            f.write(test_data)
+
+        uri = URI.parse(f'file:///{tmp_path}/pyknic-archive.tar')
+        tar_arch = TarArchive()
+        await tar_arch.dynamic_archive_to_uri(
+            uri,
+            [
+                TarInnerFileGenerator(str(tmp_path / "sample1")),
+                TarInnerDynamicGenerator([test_data], str((tmp_path / "sample2").relative_to('/')))
+            ]
+        )
+
+        with (tmp_path / 'pyknic-archive.tar').open('rb') as f:
+            result = b''.join(
+                TarArchive.extract_from_file(f, str((tmp_path / "sample1").relative_to('/')))
+            )
+            assert(result == test_data)
+
+            result = b''.join(
+                TarArchive.extract_from_file(f, str((tmp_path / "sample2").relative_to('/')))
+            )
+            assert(result == test_data)
 
     @pytest.mark.parametrize(
         "test_data",
@@ -228,7 +286,7 @@ class TestTarArchive:
 
         with pyknic_tar_file.open('rb') as f:
             result = b''.join(
-                TarArchive.extract(f, str((tmp_path / "sample").relative_to('/')))
+                TarArchive.extract_from_file(f, str((tmp_path / "sample").relative_to('/')))
             )
 
             assert(result == test_data)
@@ -258,7 +316,7 @@ class TestTarArchive:
             TarInnerGenerator([test_data], len(test_data), inner_path)
         ])
 
-        unarchive_gen = TarArchive.entries(archive_gen)
+        unarchive_gen = IOTarReader(archive_gen).entries()
         next_entry = next(unarchive_gen)
         assert(next_entry.tar_info().name == inner_path)
         assert(next_entry.is_wasted() is False)
@@ -302,11 +360,46 @@ class TestTarArchive:
 
         with pyknic_tar_file.open('rb') as fr:
             reader = IOThrottler.sync_reader(fr)
-            entries = TarArchive.entries(reader)
+            entries = IOTarReader(reader).entries()
             next_entry = next(entries)
 
             assert(next_entry.tar_info().name == (str((tmp_path / link_name).relative_to('/'))))
             assert(next_entry.tar_info().linkname == destination)
+
+    @pyknic_async_test
+    async def test_huge_file(self, module_event_loop: asyncio.AbstractEventLoop) -> None:  # TODO: rename back
+        # this test check possibility to archive files that are over 8GB
+
+        class DummyIO(io.IOBase):
+
+            def seek(self, offset, whence=..., /):  # type: ignore[no-untyped-def]  # just a stub
+                return 0
+
+            def truncate(self, size=..., /):  # type: ignore[no-untyped-def]  # just a stub
+                return 0
+
+            def write(self, data):  # type: ignore[no-untyped-def]  # just a stub
+                return len(data)
+
+            def seekable(self) -> bool:
+                return True
+
+        dummy_io = DummyIO()
+        tar_arch = TarArchive()
+
+        def data_generator() -> IOGenerator:
+            for i in range(1024 * 9):
+                yield b'\x00' * (1024 * 1024)  # megabyte
+
+        await tar_arch.dynamic_archive_to_file(
+            dummy_io,  # type: ignore[arg-type]
+            [
+                TarInnerDynamicGenerator(data_generator(), "sample2")
+            ]
+        )
+
+
+class TestIOTarReader:
 
     @pytest.mark.parametrize(
         "test_data",
@@ -336,7 +429,7 @@ class TestTarArchive:
             TarInnerFileGenerator(str(tmp_path / "sample2")),
         ])
 
-        entries_gen = TarArchive.entries(arch_gen)
+        entries_gen = IOTarReader(arch_gen).entries()
 
         next_entry = next(entries_gen)
         assert(next_entry.tar_info().name == str((tmp_path / "sample1").relative_to('/')))
@@ -379,7 +472,7 @@ class TestTarArchive:
             TarInnerFileGenerator(str(tmp_path / "sample2")),
         ])
 
-        entries_gen = TarArchive.inner_descriptors(arch_gen)
+        entries_gen = IOTarReader(arch_gen).inner_descriptors()
 
         next_entry = next(entries_gen)
         assert(next_entry.name == str((tmp_path / "sample1").relative_to('/')))
@@ -390,34 +483,78 @@ class TestTarArchive:
         with pytest.raises(StopIteration):
             next(entries_gen)
 
-    @pyknic_async_test
-    async def test_huge_file(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
-        # this test check possibility to archive files that are over 8GB
 
-        class DummyIO(io.IOBase):
+class TestURITarReader:
 
-            def seek(self, offset, whence=..., /):  # type: ignore[no-untyped-def]  # just a stub
-                return 0
+    def test_entries(self, tmp_path: pathlib.Path) -> None:
+        test_data = b'Test data'
 
-            def truncate(self, size=..., /):  # type: ignore[no-untyped-def]  # just a stub
-                return 0
+        with (tmp_path / "sample1").open('wb') as f:
+            f.write(test_data)
 
-            def write(self, data):  # type: ignore[no-untyped-def]  # just a stub
-                return len(data)
+        with (tmp_path / "sample2").open('wb') as f:
+            f.write(test_data)
 
-            def seekable(self) -> bool:
-                return True
-
-        dummy_io = DummyIO()
         tar_arch = TarArchive()
+        arch_gen = tar_arch.static_archive([
+            TarInnerFileGenerator(str(tmp_path / "sample1")),
+            TarInnerFileGenerator(str(tmp_path / "sample2")),
+        ])
 
-        def data_generator() -> IOGenerator:
-            for i in range(1024 * 9):
-                yield b'\x00' * (1024 * 1024)  # megabyte
+        with (tmp_path / "archive.tar").open('wb') as f:
+            cg(IOThrottler.sync_writer(arch_gen, f))
 
-        await tar_arch.dynamic_archive(
-            dummy_io,  # type: ignore[arg-type]
-            [
-                TarInnerDynamicGenerator(data_generator(), "sample2")
-            ]
-        )
+        uri = URI.parse(f'file:///{tmp_path}/archive.tar')
+
+        entries_gen = URITarReader(uri).entries()
+
+        next_entry = next(entries_gen)
+        assert(next_entry.tar_info().name == str((tmp_path / "sample1").relative_to('/')))
+        assert(next_entry.tar_info().size == len(test_data))
+        assert(b''.join(next_entry.data()) == test_data)
+
+        next_entry = next(entries_gen)
+        assert(next_entry.tar_info().name == str((tmp_path / "sample2").relative_to('/')))
+        assert(next_entry.tar_info().size == len(test_data))
+        assert(b''.join(next_entry.data()) == test_data)
+
+        with pytest.raises(StopIteration):
+            next(entries_gen)
+
+    def test_inner_descriptors(self, tmp_path: pathlib.Path) -> None:
+        test_data = b'Test data'
+
+        with (tmp_path / "sample1").open('wb') as f:
+            f.write(test_data)
+
+        with (tmp_path / "sample2").open('wb') as f:
+            f.write(test_data)
+
+        with (tmp_path / "sample3").open('wb') as f:
+            f.write(test_data)
+
+        tar_arch = TarArchive()
+        arch_gen = tar_arch.static_archive([
+            TarInnerFileGenerator(str(tmp_path / "sample1")),
+            TarInnerFileGenerator(str(tmp_path / "sample2")),
+            TarInnerFileGenerator(str(tmp_path / "sample3")),
+        ])
+
+        with (tmp_path / "archive.tar").open('wb') as f:
+            cg(IOThrottler.sync_writer(arch_gen, f))
+
+        uri = URI.parse(f'file:///{tmp_path}/archive.tar')
+
+        entries_gen = URITarReader(uri).inner_descriptors()
+
+        next_entry = next(entries_gen)
+        assert(next_entry.name == str((tmp_path / "sample1").relative_to('/')))
+
+        next_entry = next(entries_gen)
+        assert(next_entry.name == str((tmp_path / "sample2").relative_to('/')))
+
+        next_entry = next(entries_gen)
+        assert(next_entry.name == str((tmp_path / "sample3").relative_to('/')))
+
+        with pytest.raises(StopIteration):
+            next(entries_gen)

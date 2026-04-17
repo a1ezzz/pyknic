@@ -32,10 +32,14 @@ import typing
 
 from abc import ABCMeta, abstractmethod
 
-from pyknic.lib.verify import verify_value
+from pyknic.lib.capability import iscapable
 from pyknic.lib.io import IOGenerator, IOProducer
 from pyknic.lib.io.aio_wrapper import IOThrottler, cag
 from pyknic.lib.io.aligner import ChunkReader
+from pyknic.lib.io.clients.collection import IOVirtualClient
+from pyknic.lib.io.clients.proto import IOClientProto
+from pyknic.lib.uri import URI
+from pyknic.lib.verify import verify_value
 
 
 MAX_DYNAMIC_FILE_SIZE = (2 ** 10) ** 7  # This is a maximum number of bytes (1 zebibyte) that may be saved "dynamically"
@@ -81,6 +85,23 @@ class DynamicTarEntryProto(metaclass=ABCMeta):
         """
         raise NotImplementedError('This method is abstract')
 
+    @abstractmethod
+    def tar_info(self, size: int, expected_header_size: typing.Optional[int] = None) -> bytes:
+        """ Return binary representation of this entry
+
+        :param size: an entry size. Sometimes it is safe to use MAX_DYNAMIC_FILE_SIZE and later regenerate this header
+        with much lower value
+        :param expected_header_size: size of header that should be generated. If possible then the final header will be
+        padded with some unimportant metainformation in order to match this size.
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @abstractmethod
+    def data(self) -> IOGenerator:
+        """ Return data of this entry
+        """
+        raise NotImplementedError('This method is abstract')
+
 
 class _TarPaddingGenerator:
     """This class calculates required padding and write it
@@ -106,11 +127,11 @@ class _TarPaddingGenerator:
             self.__counter += len(block)
             yield block
 
-        _, extra_bytes = divmod(self.__counter, self.__aligned_to)
+        extra_bytes = self.__counter % self.__aligned_to
         delta = (self.__aligned_to - extra_bytes) if extra_bytes else 0
         if self.__extra_padding:
             delta += self.__aligned_to
-        yield (tarfile.NUL * delta) if delta else b''
+        yield (b'\0' * delta) if delta else b''
 
 
 class _BaseTarInnerFileGenerator(_TarPaddingGenerator):
@@ -361,6 +382,37 @@ class TarInnerDynamicGenerator(_BaseTarInnerFileGenerator, DynamicTarEntryProto)
         self.__uname = uname
         self.__gname = gname
 
+    def tar_info(self, size: int, expected_header_size: typing.Optional[int] = None) -> bytes:
+
+        if expected_header_size is None:
+            info = self._custom_tar_info(
+                self.__filename,
+                size=size,
+                mtime=self.__mtime,
+                mode=self.__mode,
+                uid=self.__uid,
+                gid=self.__gid,
+                uname=self.__uname,
+                gname=self.__gname,
+            )
+        else:
+            info = self._custom_tar_info(
+                self.__filename,
+                size=size,
+                mtime=self.__mtime,
+                mode=self.__mode,
+                uid=self.__uid,
+                gid=self.__gid,
+                uname=self.__uname,
+                gname=self.__gname,
+                expected_header_size=expected_header_size
+            )
+
+        return info.tobuf()
+
+    def data(self) -> IOGenerator:
+        yield from self.__source
+
     @verify_value(file_obj=lambda x: x.seekable())
     def entry(self, file_obj: typing.IO[bytes]) -> IOGenerator:
         """ :meth:`.DynamicTarEntryProto.entry` implementation
@@ -369,17 +421,7 @@ class TarInnerDynamicGenerator(_BaseTarInnerFileGenerator, DynamicTarEntryProto)
         def data_generator() -> IOGenerator:
             start_pos = file_obj.tell()
 
-            tar_info = self._custom_tar_info(
-                self.__filename,
-                size=MAX_DYNAMIC_FILE_SIZE,
-                mtime=self.__mtime,
-                mode=self.__mode,
-                uid=self.__uid,
-                gid=self.__gid,
-                uname=self.__uname,
-                gname=self.__gname,
-            )
-            binary_tar_info = tar_info.tobuf()
+            binary_tar_info = self.tar_info(MAX_DYNAMIC_FILE_SIZE)
             yield binary_tar_info
 
             data_size = 0
@@ -393,23 +435,11 @@ class TarInnerDynamicGenerator(_BaseTarInnerFileGenerator, DynamicTarEntryProto)
 
             end_pos = file_obj.tell()
 
-            patched_tar_info = self._custom_tar_info(
-                self.__filename,
-                size=data_size,
-                mtime=self.__mtime,
-                mode=self.__mode,
-                uid=self.__uid,
-                gid=self.__gid,
-                uname=self.__uname,
-                gname=self.__gname,
-                expected_header_size=len(binary_tar_info)
-            )
-
-            patched_binary_tar_info = patched_tar_info.tobuf()
-            assert(len(binary_tar_info) == len(patched_binary_tar_info))
+            patched_tar_info = self.tar_info(data_size, len(binary_tar_info))
+            assert(len(binary_tar_info) == len(patched_tar_info))
 
             file_obj.seek(start_pos, os.SEEK_SET)
-            file_obj.write(patched_binary_tar_info)
+            file_obj.write(patched_tar_info)
             file_obj.seek(end_pos, os.SEEK_SET)
 
         yield from self._write(data_generator())
@@ -425,6 +455,7 @@ class _FilthyTarEntry:
     binary_info: bytes            # original tar header (may be larger than tarfile.BLOCKSIZE when it is combined
     # from several extended entries)
     parsed_info: tarfile.TarInfo  # tar header
+    offset: int                   # offset of this header from the very beggining
 
     def data(self) -> IOGenerator:
         """Read data related to this entry
@@ -444,15 +475,28 @@ class DecentTarEntry:
     """This class helps to read tar entry in a safe way.
     """
 
-    def __init__(self, tar_info: tarfile.TarInfo, chunk_reader: ChunkReader) -> None:
+    def __init__(self, tar_info: tarfile.TarInfo, chunk_reader: ChunkReader, offset: int, header_size: int) -> None:
         """Create new entry.
 
         :param tar_info: information about inner entry
         :param chunk_reader: content of inner entry that must be read before the request for the next entry.
+        :param offset: offset to the start of this record from the very beggining
         """
+        self.__data_read = 0
         self.__tar_info = tar_info
         self.__chunk_reader = chunk_reader
+        self.__offset = offset
+        self.__header_size = header_size
         self.__wasted = False
+
+    def head_offset(self) -> int:
+        return self.__offset
+
+    def head_size(self) -> int:
+        return self.__header_size
+
+    def data_read(self) -> int:
+        return self.__data_read
 
     def is_wasted(self) -> bool:
         """Return True if data fully read.
@@ -467,19 +511,19 @@ class DecentTarEntry:
     def data(self) -> IOGenerator:
         """Read data related to this entry
         """
-        counter = self.__tar_info.size
 
-        while counter > 0:
-            max_chunks = (counter // tarfile.BLOCKSIZE) + (0 if counter % tarfile.BLOCKSIZE == 0 else 1)
+        while self.__data_read < self.__tar_info.size:
+            bytes_left = self.__tar_info.size - self.__data_read
+            max_chunks = (bytes_left // tarfile.BLOCKSIZE) + (0 if bytes_left % tarfile.BLOCKSIZE == 0 else 1)
             next_chunk = self.__chunk_reader.next_chunk(1, max_chunks)
 
             assert((len(next_chunk) % tarfile.BLOCKSIZE) == 0)
 
-            if len(next_chunk) > counter:
-                yield next_chunk[:counter]
-                counter = 0
+            if len(next_chunk) > bytes_left:
+                self.__data_read += bytes_left
+                yield next_chunk[:bytes_left]
             else:
-                counter -= len(next_chunk)
+                self.__data_read += len(next_chunk)
                 yield next_chunk
 
         self.__wasted = True
@@ -534,35 +578,39 @@ class _TarReader:
         return entry.type in extended_head_types
 
     # noinspection PyMethodMayBeStatic
-    def _next_raw_entries(self, chunk_reader: ChunkReader) -> _FilthyTarEntry:
+    def _next_raw_entries(self, chunk_reader: ChunkReader, start_offset: int) -> _FilthyTarEntry:
         """Iterate over all entries in source. Extended headers will be split and yielded independently
         """
 
         next_chunk = chunk_reader.next_chunk(1, 1)
         while next_chunk == self.zero_block:
+            start_offset += len(next_chunk)
             next_chunk = chunk_reader.next_chunk(1, 1)
 
         head = tarfile.TarInfo.frombuf(next_chunk, tarfile.ENCODING, 'strict')  # read the
         # https://docs.python.org/3/library/codecs.html#error-handlers
-        return _FilthyTarEntry(chunk_reader, next_chunk, head)
+        return _FilthyTarEntry(chunk_reader, next_chunk, head, start_offset)
 
-    def _next_extended_entry(self, chunk_reader: ChunkReader) -> _FilthyTarEntry:
+    def _next_extended_entry(self, chunk_reader: ChunkReader, start_offset: int) -> _FilthyTarEntry:
         """Iterate over all entries in source. Extended headers will be combined and only "regular" entries will be
         yielded.
         """
 
-        tar_entry = self._next_raw_entries(chunk_reader)
+        tar_entry = self._next_raw_entries(chunk_reader, start_offset)
         tar_head = tar_entry.parsed_info
 
         if self._is_regular_entry(tar_head):
             return tar_entry
 
         if self._is_extended_head_entry(tar_head):
+
             extended_head_data = tar_entry.binary_info
+            next_entry_offset = start_offset + len(tar_entry.binary_info)
             for chunk in tar_entry.data():
                 extended_head_data += chunk
+                next_entry_offset += len(chunk)
 
-            next_entry = self._next_raw_entries(chunk_reader)
+            next_entry = self._next_raw_entries(chunk_reader, next_entry_offset)
             while not self._is_regular_entry(next_entry.parsed_info):
                 if not self._is_extended_head_entry(next_entry.parsed_info):
                     raise ValueError(
@@ -570,16 +618,18 @@ class _TarReader:
                     )
 
                 extended_head_data += next_entry.binary_info
+                next_entry_offset += len(next_entry.binary_info)
                 for chunk in next_entry.data():
                     extended_head_data += chunk
+                    next_entry_offset += len(chunk)
 
-                next_entry = self._next_raw_entries(chunk_reader)
+                next_entry = self._next_raw_entries(chunk_reader, next_entry_offset)
 
             extended_head_data += next_entry.binary_info
 
             combined_head = tarfile.TarFile(fileobj=io.BytesIO(extended_head_data)).next()
             assert(combined_head is not None)
-            return _FilthyTarEntry(next_entry.source, extended_head_data, combined_head)
+            return _FilthyTarEntry(next_entry.source, extended_head_data, combined_head, start_offset)
 
         raise ValueError(f'Unknown tar entry spotted -- {str(tar_head.type)} (file -- {str(tar_head.name)})')
 
@@ -589,13 +639,298 @@ class _TarReader:
 
         with contextlib.suppress(StopIteration):
             chunk_reader = ChunkReader(data, tarfile.BLOCKSIZE, strict_mode=True)
+            offset = 0
             while True:
-                filthy_entry = self._next_extended_entry(chunk_reader)
-                previous_entry = DecentTarEntry(filthy_entry.parsed_info, chunk_reader)
+                filthy_entry = self._next_extended_entry(chunk_reader, offset)
+                previous_entry = DecentTarEntry(
+                    filthy_entry.parsed_info, chunk_reader, offset, len(filthy_entry.binary_info)
+                )
                 yield previous_entry
 
                 if not previous_entry.is_wasted():
                     raise RuntimeError('You must read data from previous entry before requesting a next one')
+
+                offset += len(filthy_entry.binary_info)
+                offset += (filthy_entry.parsed_info.size // tarfile.BLOCKSIZE)
+
+                if (filthy_entry.parsed_info.size % tarfile.BLOCKSIZE) != 0:
+                    offset += tarfile.BLOCKSIZE
+
+
+class _PartedTarWriter:
+    """ This class helps to write tar archives with dynamic contents and remote locations
+    """
+
+    @dataclasses.dataclass
+    class _DirtyCachePage:
+        """ This is a fixed-length chunk (page) that hold some data. This includes a data that can not be written at
+        the moment, but also includes a normal data that precedes or follows a dirty entry in order to fulfill the
+        fixed size
+        """
+        index: int                       # sequential number of fixed-length part
+        data: bytes                      # fixed-length data
+        linked_entries: typing.Set[int]  # id of the _DirtyEntry
+
+    @dataclasses.dataclass
+    class _DirtyEntry:
+        """ This class describes a data inside a _PartedTarWriter._DirtyCachePage that can not be written at the moment.
+        Instead of immediate writing, this entry will be stored inside a _DirtyCachePage and will be waiting for
+        following updates
+        """
+
+        page_index: int  # sequential number of fixed-length part, same as the _DirtyCachePage.index (if data is split
+        # across different pages, then this value must have the very first page)
+        offset: int      # starting position of this entry inside a page
+        length: int      # data size
+
+    class _Cache:
+        """ This class helps to postpone some "dirty" data chunks and write them later
+        """
+        # TODO: this memory routine looks slowly, may be it will perform better with memory view or with something else
+
+        def __init__(self, part_size: int):
+            """ Create a cache
+
+            :param part_size: size of the single chunk (page)
+            """
+            self.__part_size = part_size
+            self.__part_number = 0
+            self.__flushed_bytes = 0
+            self.__cache = b''
+
+            self.__cleaned_pages: typing.List[_PartedTarWriter._DirtyCachePage] = list()
+            self.__dirty_pages: typing.List[_PartedTarWriter._DirtyCachePage] = list()
+            self.__dirty_entries_number = 0
+            self.__dirty_entries: typing.Dict[int, _PartedTarWriter._DirtyEntry] = dict()
+
+        def __iadd__(self, other: bytes) -> '_PartedTarWriter._Cache':
+            """ Append clean data to this cache
+            """
+
+            if self.__dirty_pages:
+                last_dirty_page = self.__dirty_pages[-1]
+                dirty_cache_delta = len(last_dirty_page.data) % self.__part_size
+
+                if dirty_cache_delta:
+                    extra_bytes = self.__part_size - dirty_cache_delta
+                    last_dirty_page.data += other[:extra_bytes]
+                    other = other[extra_bytes:]
+
+                    self.__flush_dirty_pages()
+
+            if other:
+                self.__cache += other
+            return self
+
+        def flushed_bytes(self) -> int:
+            """ Return number of bytes that was flushed through this cache
+            """
+            return self.__flushed_bytes
+
+        def cached_size(self) -> int:
+            """ Return number of unflushed bytes
+            """
+            dirty_pages_cache = sum((len(x.data) for x in self.__dirty_pages))
+            return dirty_pages_cache + len(self.__cache)
+
+        def flush_cache(self, with_final_chunk: bool = False) -> typing.Generator[typing.Tuple[bytes, int], None, None]:
+            """ Checkout internal cache and yield fixed-length chunk (pages)
+
+            :param with_final_chunk: whether it is the end and the last chunks should be yielded. The last chunk
+            may be smaller. All the dirty entries must be fixed before this value is set to True
+            """
+
+            for page in self.__cleaned_pages:
+                assert(len(page.data) == self.__part_size)
+                yield page.data, page.index
+            self.__cleaned_pages.clear()
+
+            while len(self.__cache) >= self.__part_size:
+                self.__flushed_bytes += self.__part_size
+                yield self.__cache[:self.__part_size], self.__part_number
+                self.__part_number += 1
+                self.__cache = self.__cache[self.__part_size:]
+
+            if with_final_chunk:
+                if self.__dirty_pages:
+                    assert(not self.__cache)
+                    assert(len(self.__dirty_pages) == 1)
+
+                    self.__flushed_bytes += len(self.__dirty_pages[0].data)
+                    yield self.__dirty_pages[0].data, self.__dirty_pages[0].index
+                    self.__dirty_pages.clear()
+
+                elif self.__cache:
+                    assert(not self.__dirty_pages)
+
+                    self.__flushed_bytes += len(self.__cache)
+                    yield self.__cache, self.__part_number
+                    self.__part_number += 1
+                    self.__cache = b''
+
+        def dirty_entry(self, dirty_data: bytes) -> int:
+            """ Append dirty entry to this cache and return its identifier
+
+            :param dirty_data: a dirty data that will be fixed later
+            """
+
+            entry_index = self.__dirty_entries_number
+            header_len = len(dirty_data)
+
+            if self.__dirty_pages:
+                last_dirty_page = self.__dirty_pages[-1]
+                dirty_cache_delta = len(last_dirty_page.data) % self.__part_size
+
+                if dirty_cache_delta:
+                    assert(not self.__cache)
+
+                    extra_bytes = self.__part_size - dirty_cache_delta
+                    offset = len(last_dirty_page.data)
+                    last_dirty_page.data += dirty_data[:extra_bytes]
+                    dirty_data = dirty_data[extra_bytes:]
+                    last_dirty_page.linked_entries.add(entry_index)
+
+                    self.__dirty_entries[entry_index] = _PartedTarWriter._DirtyEntry(last_dirty_page.index, offset, header_len)
+
+            if dirty_data:
+                offset = len(self.__cache)
+                assert(offset < self.__part_size)
+
+                next_dirty_cache = self.__cache + dirty_data
+                self.__cache = b''
+                self.__dirty_entries[entry_index] = _PartedTarWriter._DirtyEntry(self.__part_number, offset, header_len)
+
+                while len(next_dirty_cache):
+                    self.__dirty_pages.append(
+                        _PartedTarWriter._DirtyCachePage(
+                            self.__part_number, next_dirty_cache[:self.__part_size], {entry_index,},
+                        )
+                    )
+                    self.__part_number += 1
+                    next_dirty_cache = next_dirty_cache[self.__part_size:]
+
+            self.__dirty_entries_number += 1
+            return entry_index
+
+        def fix_dirty_entry(self, dirty_entry_index: int, patched_data: bytes) -> None:
+            """ Fix a data that was previously marked as dirty. This patch must be the same length as a previous data
+            (no more no less). This method also cleans dirty pages (if possible)
+
+            :param dirty_entry_index: identifier of the dirty entry
+            """
+
+            entry_info = self.__dirty_entries[dirty_entry_index]
+            assert(entry_info.length == len(patched_data))
+
+            page_found = False
+            for dirty_page in self.__dirty_pages:
+                if dirty_page.index == entry_info.page_index:
+                    page_found = True
+
+                    page_fix = patched_data[:self.__part_size - entry_info.offset]
+                    patched_data = patched_data[len(page_fix):]
+                    dirty_page.data = dirty_page.data[:entry_info.offset] + page_fix + dirty_page.data[(entry_info.offset + len(page_fix)):]
+                    dirty_page.linked_entries.remove(dirty_entry_index)
+
+                    pages_span = 0
+                    while patched_data:
+                        pages_span += 1
+
+                        span_page_found = False
+                        for span_dirty_page in self.__dirty_pages:
+                            if span_dirty_page.index == (dirty_page.index + pages_span):
+                                span_page_found = True
+
+                                page_fix = patched_data[:self.__part_size]
+                                patched_data = patched_data[len(page_fix):]
+                                span_dirty_page.data = page_fix + span_dirty_page.data[len(page_fix):]
+
+                        assert(span_page_found)
+
+                    break
+
+            assert(page_found)
+            self.__flush_dirty_pages()
+
+        def __flush_dirty_pages(self) -> None:
+            """ Try to "clean" dirty pages (if possible), so make pages that are no longer dirty to become ready for
+            the next flush
+            """
+            still_dirty_pages = []
+
+            for dirty_page in self.__dirty_pages:
+                if not dirty_page.linked_entries and len(dirty_page.data) == self.__part_size:
+                    self.__cleaned_pages.append(dirty_page)
+                else:
+                    still_dirty_pages.append(dirty_page)
+
+            self.__dirty_pages = still_dirty_pages
+
+    def __init__(
+        self, part_size: int, sources: typing.Iterable[typing.Union[StaticTarEntryProto, DynamicTarEntryProto]]
+    ) -> None:
+        """ Create a new writer
+
+        :param part_size: fixed part size to yield
+        :param sources: list of entries to archive
+        """
+
+        self.__part_size = part_size
+        self.__sources = sources
+
+        self.__generator = self.__parts_generator()
+
+    def __parts_generator(self) -> typing.Generator[typing.Tuple[bytes, int], None, None]:
+        """ Yield parts (tuple of fixed length bytes and part number)
+        """
+
+        cache = _PartedTarWriter._Cache(self.__part_size)
+
+        for source in self.__sources:
+            if isinstance(source, StaticTarEntryProto):
+                for chunk in source.entry():
+                    cache += chunk
+
+                    yield from cache.flush_cache()
+            else:
+                assert(isinstance(source, DynamicTarEntryProto))
+
+                tar_header = source.tar_info(MAX_DYNAMIC_FILE_SIZE)
+                dirty_entry = cache.dirty_entry(tar_header)
+
+                data_size = 0
+                for chunk in source.data():
+                    data_size += len(chunk)
+                    cache += chunk
+                    yield from cache.flush_cache()
+
+                # TODO: rewrite common alignment code!
+                extra_entry_bytes = data_size % tarfile.BLOCKSIZE
+                entry_delta = (tarfile.BLOCKSIZE - extra_entry_bytes) if extra_entry_bytes else 0
+                if entry_delta:
+                    cache += (b'\0' * entry_delta)
+
+                patched_tar_header = source.tar_info(data_size, len(tar_header))
+                assert(len(tar_header) == len(patched_tar_header))
+                cache.fix_dirty_entry(dirty_entry, patched_tar_header)
+                yield from cache.flush_cache()
+
+        # TODO: rewrite common alignment code!
+        extra_bytes = (cache.flushed_bytes() + cache.cached_size()) % tarfile.RECORDSIZE
+        delta = (tarfile.RECORDSIZE - extra_bytes) if extra_bytes else 0
+        delta += tarfile.RECORDSIZE
+        cache += (b'\0' * delta)
+        yield from cache.flush_cache(with_final_chunk=True)
+
+    def __iter__(self) -> '_PartedTarWriter':
+        """ Make this object an iterator
+        """
+        return self
+
+    def __next__(self) -> typing.Tuple[bytes, int]:
+        """ Return next part (fixed length bytes and part number)
+        """
+        return next(self.__generator)
 
 
 class TarArchive(_TarPaddingGenerator):
@@ -620,13 +955,13 @@ class TarArchive(_TarPaddingGenerator):
         yield from self._write(entries())
 
     @verify_value(destination=lambda x: x.seekable())
-    async def dynamic_archive(
+    async def dynamic_archive_to_file(
         self,
         destination: typing.IO[bytes],
         sources: typing.Iterable[typing.Union[StaticTarEntryProto, DynamicTarEntryProto]],
         write_throttling: typing.Optional[int] = None
     ) -> None:
-        """Save data as a tar archive.
+        """Save data as a tar archive to IO-object (this object must be seekable)
 
         :param destination: destination file
         :param sources: archive entries
@@ -645,9 +980,37 @@ class TarArchive(_TarPaddingGenerator):
 
         await cag(IOThrottler.async_writer(self._write(entries()), destination, throttling=write_throttling))
 
+    async def dynamic_archive_to_uri(
+        self,
+        destination: URI,
+        sources: typing.Iterable[typing.Union[StaticTarEntryProto, DynamicTarEntryProto]],
+        write_throttling: typing.Optional[int] = None
+    ) -> None:
+        # TODO: it should not be async with 5MB chunks!
+        """Save data as a tar archive to IO-object (this object must be seekable)
+
+        :param destination: destination file
+        :param sources: archive entries
+        :param write_throttling: whether to throttle at saving (number of bytes per second)  # TODO: implement!
+        """
+
+        file_name, client = IOVirtualClient.create_client_w_file_path(destination)
+
+        if not iscapable(client, IOClientProto.upload_by_part):
+            raise ValueError(
+                f'The client from the "{str(destination)}" does not implement the "upload_by_part" capability'
+            )
+
+        part_size = (5 * (1024 ** 2))  # TODO: make a constant! Or input parameter, as for now this is a minimal
+        # chunk size for S3
+
+        with client.upload_by_part(file_name, part_size) as uploader:
+            for data, part_number in _PartedTarWriter(part_size, sources):
+                uploader.upload_part(data, part_number)
+
     @staticmethod
     @verify_value(source=lambda x: x.seekable())
-    def extract(source: typing.IO[bytes], filename: str) -> IOGenerator:
+    def extract_from_file(source: typing.IO[bytes], filename: str) -> IOGenerator:
         """Extract data from an archive
 
         :param source: tar-data
@@ -667,22 +1030,96 @@ class TarArchive(_TarPaddingGenerator):
         source.seek(start_pos, os.SEEK_SET)
 
     @staticmethod
-    def entries(source: IOProducer) -> typing.Generator[DecentTarEntry, None, None]:
-        """Read data and yield information about inner files. Entries are returned one by one. Each entry must be
-        read with the :meth:`.DecentTarEntry.data` method before the request for the next entry.
+    def extract_from_uri(source: URI, filename: str) -> IOGenerator:
+        """Extract data from an archive
 
-        :param source: tar data to read
+        :param source: a path to a file
+        :param filename: name of a file to retrieve from archive
         """
-        yield from _TarReader().iterate_entries(source)
+        # TODO: implement!
+        raise NotImplementedError('Not ready!')
 
-    @staticmethod
-    def inner_descriptors(source: IOProducer) -> typing.Generator[tarfile.TarInfo, None, None]:
-        """Yield information about inner files. Entries are returned one by one
 
-        :param source: tar data to read
+class TarArchiveReaderProto(metaclass=ABCMeta):
+    """ Prototype for reader that is able to process tar-archive
+    """
+
+    @abstractmethod
+    def entries(self) -> typing.Generator[DecentTarEntry, None, None]:
+        """ Read data and yield information about inner files. Entries are returned one by one. Each entry must
+        be read with the :meth:`.DecentTarEntry.data` method before the request for the next entry.
         """
+        raise NotImplementedError('This method is abstract')
 
-        for i in _TarReader().iterate_entries(source):
+    @abstractmethod
+    def inner_descriptors(self) -> typing.Generator[tarfile.TarInfo, None, None]:
+        """ Yield information about inner files. Entries are returned one by one
+        """
+        raise NotImplementedError('This method is abstract')
+
+
+class IOTarReader(TarArchiveReaderProto):
+    """ This reader implementation reads data sequentially so it is more robust but has huge performance penalties
+    for the :meth:`TarArchiveReaderProto.inner_descriptors` method implementation
+    """
+
+    def __init__(self, source: IOProducer):
+        """ This implementation reads tar-archive from :class:`.IOProducer`
+
+        :param source: tar-archive to read
+        """
+        TarArchiveReaderProto.__init__(self)
+        self.__source = source
+
+    def entries(self) -> typing.Generator[DecentTarEntry, None, None]:
+        """ The :meth:`.TarArchiveReaderProto.entries` method implementation.
+        """
+        yield from _TarReader().iterate_entries(self.__source)
+
+    def inner_descriptors(self) -> typing.Generator[tarfile.TarInfo, None, None]:
+        """The :meth:`.TarArchiveReaderProto.inner_descriptors` method implementation."""
+        for i in _TarReader().iterate_entries(self.__source):
             yield i.tar_info()
             for _ in i.data():
                 pass
+
+
+class URITarReader(TarArchiveReaderProto):
+    """ Read a file with the :class:`.IOClientProto` client
+    """
+
+    def __init__(self, file_uri: URI) -> None:
+        TarArchiveReaderProto.__init__(self)
+        self.__uri = file_uri
+        self.__file_name, self.__client = IOVirtualClient.create_client_w_file_path(self.__uri)
+
+        if not iscapable(self.__client, IOClientProto.receive_file):
+            raise ValueError(
+                f'The client from the "{str(self.__uri)}" does not implement the "receive_file" capability'
+            )
+
+        if not iscapable(self.__client, IOClientProto.receive_file_with_offset):
+            raise ValueError(
+                f'The client from the "{str(self.__uri)}" does not implement the "receive_file_with_offset" capability'
+            )
+
+    def entries(self) -> typing.Generator[DecentTarEntry, None, None]:
+        data = self.__client.receive_file(self.__file_name)
+        yield from _TarReader().iterate_entries(data)
+
+    def inner_descriptors(self) -> typing.Generator[tarfile.TarInfo, None, None]:
+        offset = 0
+
+        with contextlib.suppress(StopIteration):
+            while True:
+                data = self.__client.receive_file_with_offset(self.__file_name, offset)
+
+                tar_entry = next(_TarReader().iterate_entries(data))
+                tar_info = tar_entry.tar_info()
+                yield tar_info
+
+                offset += tar_entry.head_offset() + tar_entry.head_size()
+                offset += (tar_info.size // tarfile.BLOCKSIZE)
+
+                if (tar_info.size % tarfile.BLOCKSIZE) != 0:
+                    offset += tarfile.BLOCKSIZE
