@@ -31,7 +31,7 @@ class TestBasePartsUploader:
         pytest.raises(TypeError, BasePartsUploader)
         pytest.raises(NotImplementedError, PartsUploaderProto.__enter__, None)
         pytest.raises(NotImplementedError, BasePartsUploader._upload_part, None, b'', 0)
-        pytest.raises(NotImplementedError, BasePartsUploader._finalize, None, None, {1, 2, 3})
+        pytest.raises(NotImplementedError, BasePartsUploader._finalize, None, None)
 
     def test(self) -> None:
 

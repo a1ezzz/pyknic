@@ -20,13 +20,12 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import copy
-import os.path
 import pathlib
 import typing
 from urllib.parse import urlsplit, parse_qs, urlencode
 
 from pyknic.lib.property import TypedDescriptor
-from pyknic.lib.path import split_file, normalize_path
+from pyknic.lib.path import split_file
 
 
 URIQueryParameterType = typing.TypeVar('URIQueryParameterType')

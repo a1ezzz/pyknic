@@ -7,7 +7,6 @@ import pathlib
 import sys
 import tarfile
 import typing
-import uuid
 
 import pytest
 
@@ -16,7 +15,6 @@ from pyknic.lib.io.aio_wrapper import IOThrottler, cg
 from pyknic.lib.io.tar import StaticTarEntryProto, DynamicTarEntryProto
 from pyknic.lib.io.tar import TarInnerFileGenerator, TarInnerGenerator, TarArchive, TarInnerDynamicGenerator
 from pyknic.lib.io.tar import TarArchiveReaderProto, IOTarReader, URITarReader
-from pyknic.lib.io.clients.s3 import S3Client
 from pyknic.lib.uri import URI
 
 from fixtures.asyncio import pyknic_async_test

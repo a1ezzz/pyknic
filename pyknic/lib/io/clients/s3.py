@@ -55,7 +55,7 @@ class _S3PartsUploader(BasePartsUploader):
         self.__part_size = part_size
 
         self.__mp_request = None
-        self.__parts_info = list()
+        self.__parts_info: typing.List[typing.Dict[str, typing.Any]] = list()
 
     def __enter__(self) -> BasePartsUploader:
         assert(self.__mp_request is None)

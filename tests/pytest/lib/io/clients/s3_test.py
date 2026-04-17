@@ -120,7 +120,7 @@ class TestS3Client:
         test_dir = f'pytest-directory-{uuid.uuid4()}'
         client.make_directory(test_dir)
         client.change_directory(test_dir)
-        client.upload_file('remote-file', [test_data], len(test_data))
+        client.upload_file('remote-file', [test_data])
 
         assert(client.file_size('remote-file') == len(test_data))
 
@@ -143,7 +143,7 @@ class TestS3Client:
         client.change_directory(test_dir)
 
         data = b'Test data'
-        client.upload_file('remote-file', [data], len(data))
+        client.upload_file('remote-file', [data])
         with pytest.raises(FileNotFoundError):
             client.remove_directory('remote-file')
         client.remove_file('remote-file')
@@ -160,7 +160,7 @@ class TestS3Client:
         client.change_directory(test_dir)
 
         data = b'Test data'
-        client.upload_file('remote-file', [data], len(data))
+        client.upload_file('remote-file', [data])
 
         received_data = b''.join(client.receive_file_with_offset('remote-file', offset=5))
         assert(received_data == b'data')

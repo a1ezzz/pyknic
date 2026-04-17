@@ -34,4 +34,4 @@ class TestIOVirtualClient:
         client = IOVirtualClient.create_client(uri)
         with client.open():
             file_data = b'some data'
-            client.upload_file('remote-file', [file_data], len(file_data))
+            client.upload_file('remote-file', [file_data])

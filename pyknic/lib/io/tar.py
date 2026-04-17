@@ -790,7 +790,9 @@ class _PartedTarWriter:
                     dirty_data = dirty_data[extra_bytes:]
                     last_dirty_page.linked_entries.add(entry_index)
 
-                    self.__dirty_entries[entry_index] = _PartedTarWriter._DirtyEntry(last_dirty_page.index, offset, header_len)
+                    self.__dirty_entries[entry_index] = _PartedTarWriter._DirtyEntry(
+                        last_dirty_page.index, offset, header_len
+                    )
 
             if dirty_data:
                 offset = len(self.__cache)
@@ -803,7 +805,9 @@ class _PartedTarWriter:
                 while len(next_dirty_cache):
                     self.__dirty_pages.append(
                         _PartedTarWriter._DirtyCachePage(
-                            self.__part_number, next_dirty_cache[:self.__part_size], {entry_index,},
+                            self.__part_number,
+                            next_dirty_cache[:self.__part_size],
+                            {entry_index, }
                         )
                     )
                     self.__part_number += 1
@@ -829,7 +833,13 @@ class _PartedTarWriter:
 
                     page_fix = patched_data[:self.__part_size - entry_info.offset]
                     patched_data = patched_data[len(page_fix):]
-                    dirty_page.data = dirty_page.data[:entry_info.offset] + page_fix + dirty_page.data[(entry_info.offset + len(page_fix)):]
+
+                    dirty_page.data = (
+                        dirty_page.data[:entry_info.offset] +
+                        page_fix +
+                        dirty_page.data[(entry_info.offset + len(page_fix)):]
+                    )
+
                     dirty_page.linked_entries.remove(dirty_entry_index)
 
                     pages_span = 0
