@@ -28,17 +28,16 @@ import os
 import pathlib
 import pwd
 import tarfile
+import time
 import typing
 
 from abc import ABCMeta, abstractmethod
 
 from pyknic.lib.capability import iscapable
 from pyknic.lib.io import IOGenerator, IOProducer
-from pyknic.lib.io.aio_wrapper import IOThrottler, cag
+from pyknic.lib.io.aio_wrapper import IOThrottler, cg
 from pyknic.lib.io.aligner import ChunkReader
-from pyknic.lib.io.clients.collection import IOVirtualClient
 from pyknic.lib.io.clients.proto import IOClientProto
-from pyknic.lib.uri import URI
 from pyknic.lib.verify import verify_value
 
 
@@ -127,11 +126,20 @@ class _TarPaddingGenerator:
             self.__counter += len(block)
             yield block
 
-        extra_bytes = self.__counter % self.__aligned_to
+        delta = self.padding_length(self.__counter)
+        yield (b'\0' * delta) if delta else b''
+
+    def padding_length(self, counter: int) -> int:
+        """ Calculate padding length for the specified counter
+
+        :param counter: base length to calculate padding from
+        """
+        extra_bytes = counter % self.__aligned_to
         delta = (self.__aligned_to - extra_bytes) if extra_bytes else 0
         if self.__extra_padding:
             delta += self.__aligned_to
-        yield (b'\0' * delta) if delta else b''
+
+        return delta
 
 
 class _BaseTarInnerFileGenerator(_TarPaddingGenerator):
@@ -480,7 +488,7 @@ class DecentTarEntry:
 
         :param tar_info: information about inner entry
         :param chunk_reader: content of inner entry that must be read before the request for the next entry.
-        :param offset: offset to the start of this record from the very beggining
+        :param offset: offset to the start of this record from the very beginning
         """
         self.__data_read = 0
         self.__tar_info = tar_info
@@ -497,6 +505,15 @@ class DecentTarEntry:
 
     def data_read(self) -> int:
         return self.__data_read
+
+    def size(self):
+        result = self.head_size()
+
+        result += ((self.__tar_info.size // tarfile.BLOCKSIZE) * tarfile.BLOCKSIZE)
+        if (self.__tar_info.size % tarfile.BLOCKSIZE) != 0:
+            result += tarfile.BLOCKSIZE
+
+        return result
 
     def is_wasted(self) -> bool:
         """Return True if data fully read.
@@ -650,11 +667,7 @@ class _TarReader:
                 if not previous_entry.is_wasted():
                     raise RuntimeError('You must read data from previous entry before requesting a next one')
 
-                offset += len(filthy_entry.binary_info)
-                offset += (filthy_entry.parsed_info.size // tarfile.BLOCKSIZE)
-
-                if (filthy_entry.parsed_info.size % tarfile.BLOCKSIZE) != 0:
-                    offset += tarfile.BLOCKSIZE
+                offset += previous_entry.size()
 
 
 class _PartedTarWriter:
@@ -914,22 +927,19 @@ class _PartedTarWriter:
                     cache += chunk
                     yield from cache.flush_cache()
 
-                # TODO: rewrite common alignment code!
-                extra_entry_bytes = data_size % tarfile.BLOCKSIZE
-                entry_delta = (tarfile.BLOCKSIZE - extra_entry_bytes) if extra_entry_bytes else 0
-                if entry_delta:
-                    cache += (b'\0' * entry_delta)
+                entry_padding = _TarPaddingGenerator(tarfile.BLOCKSIZE).padding_length(data_size)
+                if entry_padding:
+                    cache += (b'\0' * entry_padding)
 
                 patched_tar_header = source.tar_info(data_size, len(tar_header))
                 assert(len(tar_header) == len(patched_tar_header))
                 cache.fix_dirty_entry(dirty_entry, patched_tar_header)
                 yield from cache.flush_cache()
 
-        # TODO: rewrite common alignment code!
-        extra_bytes = (cache.flushed_bytes() + cache.cached_size()) % tarfile.RECORDSIZE
-        delta = (tarfile.RECORDSIZE - extra_bytes) if extra_bytes else 0
-        delta += tarfile.RECORDSIZE
-        cache += (b'\0' * delta)
+        padding_generator = _TarPaddingGenerator(aligned_to=tarfile.RECORDSIZE, extra_padding=True)
+        tar_padding = padding_generator.padding_length(cache.flushed_bytes() + cache.cached_size())
+        cache += (b'\0' * tar_padding)
+
         yield from cache.flush_cache(with_final_chunk=True)
 
     def __iter__(self) -> '_PartedTarWriter':
@@ -965,7 +975,7 @@ class TarArchive(_TarPaddingGenerator):
         yield from self._write(entries())
 
     @verify_value(destination=lambda x: x.seekable())
-    async def dynamic_archive_to_file(
+    def dynamic_archive_to_file(
         self,
         destination: typing.IO[bytes],
         sources: typing.Iterable[typing.Union[StaticTarEntryProto, DynamicTarEntryProto]],
@@ -988,49 +998,54 @@ class TarArchive(_TarPaddingGenerator):
                     assert(isinstance(s, DynamicTarEntryProto))
                     yield from s.entry(destination)
 
-        await cag(IOThrottler.async_writer(self._write(entries()), destination, throttling=write_throttling))
+        cg(IOThrottler.sync_writer(self._write(entries()), destination, throttling=write_throttling))
 
-    async def dynamic_archive_to_uri(
+    def dynamic_archive_to_client(
         self,
-        destination: URI,
+        client: IOClientProto,
+        destination_file: str,
         sources: typing.Iterable[typing.Union[StaticTarEntryProto, DynamicTarEntryProto]],
-        write_throttling: typing.Optional[int] = None
+        write_throttling: typing.Optional[int] = None,
+        part_size: typing.Optional[int] = None
     ) -> None:
-        # TODO: it should not be async with 5MB chunks!
         """Save data as a tar archive to IO-object (this object must be seekable)
 
-        :param destination: destination file
+        :param client: an IO-client to use
+        :param destination_file: file to write archive to
         :param sources: archive entries
-        :param write_throttling: whether to throttle at saving (number of bytes per second)  # TODO: implement!
+        :param write_throttling: whether to throttle at saving (number of bytes per second)
+        :param part_size: number of bytes each chunk should have for a single write request. Please note, that
+        S3 requires part_size to be not less than 5MB, so this value is used as default one
         """
-
-        file_name, client = IOVirtualClient.create_client_w_file_path(destination)
 
         if not iscapable(client, IOClientProto.upload_by_part):
             raise ValueError(
-                f'The client from the "{str(destination)}" does not implement the "upload_by_part" capability'
+                f'The client from the "{repr(client)}" does not implement the "upload_by_part" capability'
             )
 
-        part_size = (5 * (1024 ** 2))  # TODO: make a constant! Or input parameter, as for now this is a minimal
-        # chunk size for S3
 
-        with client.upload_by_part(file_name, part_size) as uploader:
-            for data, part_number in _PartedTarWriter(part_size, sources):
+        client_part_size = (5 * (1024 ** 2)) if part_size is None else part_size
+
+        throttler = IOThrottler(throttling=write_throttling)
+        with client.upload_by_part(destination_file, client_part_size) as uploader:
+            for data, part_number in _PartedTarWriter(client_part_size, sources):
+                throttler += len(data)
                 uploader.upload_part(data, part_number)
+                time.sleep(throttler.pause())
 
     @staticmethod
     @verify_value(source=lambda x: x.seekable())
-    def extract_from_file(source: typing.IO[bytes], filename: str) -> IOGenerator:
+    def extract_from_file(source: typing.IO[bytes], entry_name: str) -> IOGenerator:
         """Extract data from an archive
 
         :param source: tar-data
-        :param filename: name of a file to retrieve from archive
+        :param entry_name: name of a file to retrieve from archive
         """
 
         start_pos = source.tell()
 
         with tarfile.open(fileobj=source) as tar:
-            tar_info = tar.getmember(filename)
+            tar_info = tar.getmember(entry_name)
             file_size = tar_info.size
             source.seek(start_pos + tar_info.offset_data, os.SEEK_SET)
 
@@ -1040,14 +1055,16 @@ class TarArchive(_TarPaddingGenerator):
         source.seek(start_pos, os.SEEK_SET)
 
     @staticmethod
-    def extract_from_uri(source: URI, filename: str) -> IOGenerator:
+    def extract_from_client(client: IOClientProto, archive_file: str, entry_name: str) -> IOGenerator:
         """Extract data from an archive
 
-        :param source: a path to a file
-        :param filename: name of a file to retrieve from archive
+        :param client: an IO-client to use
+        :param archive_file: archive file to fetch
+        :param entry_name: name of a file to retrieve from archive
         """
-        # TODO: implement!
-        raise NotImplementedError('Not ready!')
+
+        tar_entry = ClientTarReader(client, archive_file).entry(entry_name)
+        yield from tar_entry.data()
 
 
 class TarArchiveReaderProto(metaclass=ABCMeta):
@@ -1067,10 +1084,21 @@ class TarArchiveReaderProto(metaclass=ABCMeta):
         """
         raise NotImplementedError('This method is abstract')
 
+    @abstractmethod
+    def entry(self, entry_name: str) -> DecentTarEntry:
+        """ Return description and data for a single archive entry
+
+        :param entry_name: name of the archive entry
+        """
+        raise NotImplementedError('This method is abstract')
+
 
 class IOTarReader(TarArchiveReaderProto):
     """ This reader implementation reads data sequentially so it is more robust but has huge performance penalties
     for the :meth:`TarArchiveReaderProto.inner_descriptors` method implementation
+
+    :note: Please be advised, that the :meth:`TarArchiveReaderProto.entry` implementation is slow since it is required
+    to read through the data
     """
 
     def __init__(self, source: IOProducer):
@@ -1080,56 +1108,96 @@ class IOTarReader(TarArchiveReaderProto):
         """
         TarArchiveReaderProto.__init__(self)
         self.__source = source
+        self.__source_read = False
+
+    def __non_thread_safe_flag(self):
+        """ This method checks that the source has been read already
+        """
+        if self.__source_read:
+            raise ValueError(f'The source of this reader ({repr(self)}) has been read already.)')
+        self.__source_read = True
 
     def entries(self) -> typing.Generator[DecentTarEntry, None, None]:
         """ The :meth:`.TarArchiveReaderProto.entries` method implementation.
         """
+        self.__non_thread_safe_flag()
         yield from _TarReader().iterate_entries(self.__source)
 
     def inner_descriptors(self) -> typing.Generator[tarfile.TarInfo, None, None]:
         """The :meth:`.TarArchiveReaderProto.inner_descriptors` method implementation."""
+        self.__non_thread_safe_flag()
+
         for i in _TarReader().iterate_entries(self.__source):
             yield i.tar_info()
             for _ in i.data():
                 pass
 
+    def entry(self, entry_name: str) -> DecentTarEntry:
+        """ The :meth:`.TarArchiveReaderProto.entry` method implementation.
 
-class URITarReader(TarArchiveReaderProto):
+        :note: Please be advised, that this method implementation is slow since it is required to read through the data
+        """
+        self.__non_thread_safe_flag()
+
+        for i in _TarReader().iterate_entries(self.__source):
+            if i.tar_info().name == entry_name:
+                return i
+
+            for _ in i.data():
+                pass
+
+        raise FileNotFoundError(f'The entry "{entry_name}" does not exist')
+
+
+class ClientTarReader(TarArchiveReaderProto):
     """ Read a file with the :class:`.IOClientProto` client
     """
 
-    def __init__(self, file_uri: URI) -> None:
+    def __init__(self, client: IOClientProto, archive_file: str) -> None:
         TarArchiveReaderProto.__init__(self)
-        self.__uri = file_uri
-        self.__file_name, self.__client = IOVirtualClient.create_client_w_file_path(self.__uri)
+        self.__client = client
+        self.__archive_file = archive_file
 
         if not iscapable(self.__client, IOClientProto.receive_file):
             raise ValueError(
-                f'The client from the "{str(self.__uri)}" does not implement the "receive_file" capability'
+                f'The client from the "{repr(self.__client)}" does not implement the "receive_file" capability'
             )
 
         if not iscapable(self.__client, IOClientProto.receive_file_with_offset):
             raise ValueError(
-                f'The client from the "{str(self.__uri)}" does not implement the "receive_file_with_offset" capability'
+                f'The client from the "{repr(self.__client)}"'
+                ' does not implement the "receive_file_with_offset" capability'
             )
 
     def entries(self) -> typing.Generator[DecentTarEntry, None, None]:
-        data = self.__client.receive_file(self.__file_name)
+        """The :meth:`.TarArchiveReaderProto.entries` method implementation."""
+        data = self.__client.receive_file(self.__archive_file)
         yield from _TarReader().iterate_entries(data)
 
-    def inner_descriptors(self) -> typing.Generator[tarfile.TarInfo, None, None]:
+    def entry(self, entry_name: str) -> DecentTarEntry:
+        """The :meth:`.TarArchiveReaderProto.entry` method implementation."""
+
         offset = 0
 
         with contextlib.suppress(StopIteration):
             while True:
-                data = self.__client.receive_file_with_offset(self.__file_name, offset)
+                data = self.__client.receive_file_with_offset(self.__archive_file, offset)
 
                 tar_entry = next(_TarReader().iterate_entries(data))
                 tar_info = tar_entry.tar_info()
-                yield tar_info
 
-                offset += tar_entry.head_offset() + tar_entry.head_size()
-                offset += (tar_info.size // tarfile.BLOCKSIZE)
+                if tar_info.name == entry_name:
+                    return tar_entry
 
-                if (tar_info.size % tarfile.BLOCKSIZE) != 0:
-                    offset += tarfile.BLOCKSIZE
+                offset += tar_entry.head_offset() + tar_entry.size()
+
+        raise FileNotFoundError(f'The entry "{entry_name}" does not exist')
+
+    def inner_descriptors(self) -> typing.Generator[tarfile.TarInfo, None, None]:
+        """The :meth:`.TarArchiveReaderProto.inner_descriptors` method implementation."""
+
+        data = self.__client.receive_file(self.__archive_file)
+        for i in _TarReader().iterate_entries(data):
+            yield i.tar_info()
+            for _ in i.data():
+                pass
