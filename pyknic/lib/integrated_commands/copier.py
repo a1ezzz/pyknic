@@ -69,8 +69,9 @@ class BellBoyCopyCommand(BellBoyCommandHandler):
 
     def __client_by_uri(self, uri_str: str) -> typing.Tuple[IOVirtualClient, URI, str]:
         original_uri = URI.parse(uri_str)
-        file_name, client = IOVirtualClient.create_client_w_file_path(original_uri)
-        return client, original_uri, file_name
+        fname, fixed_uri = original_uri.get_file()
+        client = IOVirtualClient.create_client(fixed_uri)
+        return client, original_uri, fname
 
     def __copy(self) -> LobbyCommandResult:
         assert (isinstance(self._args, CopierCommandModel))

@@ -47,7 +47,12 @@ class IOVirtualClient(IOClientProto):
             """
             self.__client = client
 
-        def __enter__(self) -> 'IOVirtualClient.ClientContext':
+        def client(self) -> IOClientProto:
+            """ Return client this context is connected to
+            """
+            return self.__client
+
+        def __enter__(self) -> typing.Self:
             """ Enter the context (client connects)
             """
 
@@ -65,6 +70,24 @@ class IOVirtualClient(IOClientProto):
             """
             if iscapable(self.__client, IOClientProto.disconnect):
                 self.__client.disconnect()
+
+    class ClientNFileContext(ClientContext):
+        """ Lightly enhanced :class:`.IOVirtualClient.ClientContext` that keeps a filename from URI
+        """
+
+        def __init__(self, client: IOClientProto, filename: str):
+            """ Create a new context
+
+            :param client: client to connect/disconnect
+            :param filename: filename from URI
+            """
+            IOVirtualClient.ClientContext.__init__(self, client)
+            self.__filename = filename
+
+        def filename(self) -> str:
+            """ Return filename that this context kept
+            """
+            return self.__filename
 
     @verify_value(uri=lambda x: x.scheme is not None)
     def __init__(self, uri: URI, registry: typing.Optional[APIRegistry] = None) -> None:
@@ -111,12 +134,6 @@ class IOVirtualClient(IOClientProto):
         """
         return cls(uri, registry=__default_io_clients_registry__)
 
-    @classmethod
-    def create_client_w_file_path(cls, uri: URI) -> typing.Tuple[str, 'IOVirtualClient']:
-        file_name, modified_uri = uri.get_file()
-        client = IOVirtualClient.create_client(modified_uri)
-        return file_name, client
-
     def uri(self) -> URI:
         """ Return URI with which client is created
         """
@@ -125,4 +142,13 @@ class IOVirtualClient(IOClientProto):
     def open(self) -> 'IOVirtualClient.ClientContext':
         """ Create a context which helps to connect and disconnect
         """
-        return IOVirtualClient.ClientContext(self.__client)
+        return IOVirtualClient.ClientContext(self)
+
+    @classmethod
+    def create_n_open(cls, uri: URI) -> 'IOVirtualClient.ClientNFileContext':
+        """ Split URI and return a context that connects/disconnects and keeps a filename from URI
+        """
+        file_name, modified_uri = uri.get_file()
+        client = IOVirtualClient.create_client(modified_uri)
+
+        return IOVirtualClient.ClientNFileContext(client, file_name)

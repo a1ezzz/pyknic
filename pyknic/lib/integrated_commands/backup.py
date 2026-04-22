@@ -34,10 +34,11 @@ import pydantic_settings
 
 from pyknic.lib.crypto.kdf import PBKDF2
 from pyknic.lib.io import IOGenerator
-from pyknic.lib.io.aio_wrapper import IOThrottler, cag
+from pyknic.lib.io.aio_wrapper import IOThrottler, cg, AsyncWrapper
 from pyknic.lib.backup.archive_v1 import HashMethod, CompressionMode, BackupArchiveV1
 from pyknic.lib.bellboy.app import BellBoyCommandHandler, register_bellboy_command
 from pyknic.lib.fastapi.models.lobby import LobbyCommandResult, LobbyKeyValueFeedbackResult, LobbyStrFeedbackResult
+from pyknic.lib.uri import URI
 
 
 class BackupSource(pydantic_settings.CliMutuallyExclusiveGroup):
@@ -99,7 +100,7 @@ class BackupCommandModel(pydantic.BaseModel):
     )
 
     archive: str = pydantic.Field(
-        description='a target path to archive file'
+        description='an URI to a target path to archive file (like file:///some-dir/archive.tar)'
     )
 
     backup_source: BackupSource = pydantic.Field(
@@ -169,9 +170,7 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
                 for i in inner_files:
                     yield str(os.path.join(search_dir, i))
 
-    async def exec(self) -> LobbyCommandResult:
-        """ The :meth:`.BellBoyCommandHandler.exec` method implementation
-        """
+    def __backup(self) -> LobbyCommandResult:
         assert(isinstance(self._args, BackupCommandModel))
 
         archiver = BackupArchiveV1(
@@ -183,27 +182,28 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
             extra_meta=self._args.extra_meta
         )
 
-        with open(self._args.archive, 'wb') as archive_file:
-            if self._args.backup_source.command is not None:
-                await archiver.backup_io(self.__read_command(self._args.backup_source.command), archive_file)
-            elif self._args.backup_source.files is not None:
-                await archiver.backup_files(
-                    self.__walk_through_directories(self._args.backup_source.files),
-                    archive_file
-                )
-            elif self._args.backup_source.files_command is not None:
-                await archiver.backup_files(
-                    self.__walk_through_directories(
-                        self.__read_files_by_command(self._args.backup_source.files_command)
-                    ),
-                    archive_file
-                )
-            else:
-                raise ValueError('Unknown backup source spotted!')
+        archive_uri = URI.parse(self._args.archive)
 
-        with open(self._args.archive, 'rb') as archive_file:
-            header = archiver.extract_header_meta(archive_file)
-            tail = archiver.extract_tail_meta(archive_file)
+        if self._args.backup_source.command is not None:
+            archiver.backup_io(self.__read_command(self._args.backup_source.command), archive_uri)
+        elif self._args.backup_source.files is not None:
+            archiver.backup_files(
+                self.__walk_through_directories(self._args.backup_source.files),
+                archive_uri
+            )
+        elif self._args.backup_source.files_command is not None:
+            archiver.backup_files(
+                self.__walk_through_directories(
+                    self.__read_files_by_command(self._args.backup_source.files_command)
+                ),
+                archive_uri
+            )
+        else:
+            raise ValueError('Unknown backup source spotted!')
+
+        # TODO: make a extract_meta method
+        header = archiver.extract_header_meta(archive_uri)
+        tail = archiver.extract_tail_meta(archive_uri)
 
         return LobbyKeyValueFeedbackResult(kv_result={
             "archiver_version": header.version,
@@ -216,6 +216,12 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
             "hashes": {x.algorithm.value: base64.b64encode(x.digest) for x in tail.hashes},
             "extra": header.extra,
         })
+
+    async def exec(self) -> LobbyCommandResult:
+        """ The :meth:`.BellBoyCommandHandler.exec` method implementation
+        """
+        caller = await AsyncWrapper.create(self.__backup)
+        return await caller()  # type: ignore[no-any-return]
 
 
 class ArchiveValidateCommandModel(pydantic.BaseModel):
@@ -249,15 +255,20 @@ class BellBoyArchiveValidateCommand(BellBoyCommandHandler):
         """
         return ArchiveValidateCommandModel
 
-    async def exec(self) -> LobbyCommandResult:
+    def __validate(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
         assert(isinstance(self._args, ArchiveValidateCommandModel))
 
-        with open(self._args.archive, 'rb') as archive_file:
-            await BackupArchiveV1.validate_archive(archive_file, throttling=self._args.throttling)
+        archive_uri = URI.parse(self._args.archive)
+        BackupArchiveV1.validate_archive(archive_uri, throttling=self._args.throttling)
+        return LobbyStrFeedbackResult(str_result=f'The archive is consistent!')
 
-        return LobbyStrFeedbackResult(str_result=f'The "{self._args.archive}" archive is consistent!')
+    async def exec(self) -> LobbyCommandResult:
+        """ The :meth:`.BellBoyCommandHandler.exec` method implementation
+        """
+        caller = await AsyncWrapper.create(self.__validate)
+        return await caller()  # type: ignore[no-any-return]
 
 
 class RestoreCommandModel(pydantic.BaseModel):
@@ -308,21 +319,26 @@ class BellBoyRestoreCommand(BellBoyCommandHandler):
         """
         return RestoreCommandModel
 
-    async def exec(self) -> LobbyCommandResult:
+    def __restore(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
         assert(isinstance(self._args, RestoreCommandModel))
 
-        archive = self._args.archive
         restore_location = self._args.restore_location
+        archive_uri = URI.parse(self._args.archive)
 
         with open(restore_location, 'wb') as restore_file:
-            with open(archive, 'rb') as archive_file:
-                unarchiver = BackupArchiveV1.extract_data(
-                    archive_file, self._args.encryption_key, validate_hashes=self._args.validate_hashes
-                )
-                await cag(IOThrottler.async_writer(unarchiver, restore_file, throttling=self._args.throttling))
+            unarchiver = BackupArchiveV1.extract_data(
+                archive_uri, self._args.encryption_key, validate_hashes=self._args.validate_hashes
+            )
+            cg(IOThrottler.sync_writer(unarchiver, restore_file, throttling=self._args.throttling))
 
         return LobbyStrFeedbackResult(
-            str_result=f'The "{archive}" archive has been restored to the "{restore_location}" file'
+            str_result=f'The archive has been restored to the "{restore_location}" file'
         )
+
+    async def exec(self) -> LobbyCommandResult:
+        """ The :meth:`.BellBoyCommandHandler.exec` method implementation
+        """
+        caller = await AsyncWrapper.create(self.__restore)
+        return await caller()  # type: ignore[no-any-return]
