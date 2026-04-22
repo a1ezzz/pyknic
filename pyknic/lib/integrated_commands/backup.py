@@ -262,7 +262,7 @@ class BellBoyArchiveValidateCommand(BellBoyCommandHandler):
 
         archive_uri = URI.parse(self._args.archive)
         BackupArchiveV1.validate_archive(archive_uri, throttling=self._args.throttling)
-        return LobbyStrFeedbackResult(str_result=f'The archive is consistent!')
+        return LobbyStrFeedbackResult(str_result='The archive is consistent!')
 
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation

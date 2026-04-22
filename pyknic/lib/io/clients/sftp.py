@@ -55,7 +55,7 @@ class _SFTPPartsUploader(BasePartsUploader):
         self.__opened_file = self.__sftp_client.open(self.__remote_file_name, 'wb')  # type: ignore[assignment]
         return self
 
-    def _upload_part(self, data: bytes, part_number: int) -> None:
+    def _upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
         assert(self.__opened_file)
 
         offset = part_number * self.__part_size

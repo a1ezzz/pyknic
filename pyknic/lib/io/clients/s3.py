@@ -67,7 +67,7 @@ class _S3PartsUploader(BasePartsUploader):
 
         return self
 
-    def _upload_part(self, data: bytes, part_number: int) -> None:
+    def _upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
         assert(self.__mp_request)
 
         upload_request = self.__client.upload_part(

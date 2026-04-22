@@ -49,7 +49,7 @@ class _LocalFilePartsUploader(BasePartsUploader):
         self.__opened_file = open(self.__remote_file_name, 'wb')
         return self
 
-    def _upload_part(self, data: bytes, part_number: int) -> None:
+    def _upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
         assert(self.__opened_file)
 
         offset = part_number * self.__part_size

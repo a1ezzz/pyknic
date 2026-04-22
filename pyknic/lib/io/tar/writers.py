@@ -385,7 +385,7 @@ class _PartedTarWriter:
         fixed size
         """
         index: int                       # sequential number of fixed-length part
-        data: bytes                      # fixed-length data
+        data: bytearray                  # fixed-length data
         linked_entries: typing.Set[int]  # id of the _DirtyEntry
 
     @dataclasses.dataclass
@@ -403,7 +403,6 @@ class _PartedTarWriter:
     class _Cache:
         """ This class helps to postpone some "dirty" data chunks and write them later
         """
-        # TODO: this memory routine looks slowly, may be it will perform better with memory view or with something else
 
         def __init__(self, part_size: int):
             """ Create a cache
@@ -413,7 +412,7 @@ class _PartedTarWriter:
             self.__part_size = part_size
             self.__part_number = 0
             self.__flushed_bytes = 0
-            self.__cache = b''
+            self.__cache = bytearray()
 
             self.__cleaned_pages: typing.List[_PartedTarWriter._DirtyCachePage] = list()
             self.__dirty_pages: typing.List[_PartedTarWriter._DirtyCachePage] = list()
@@ -450,7 +449,9 @@ class _PartedTarWriter:
             dirty_pages_cache = sum((len(x.data) for x in self.__dirty_pages))
             return dirty_pages_cache + len(self.__cache)
 
-        def flush_cache(self, with_final_chunk: bool = False) -> typing.Generator[typing.Tuple[bytes, int], None, None]:
+        def flush_cache(
+            self, with_final_chunk: bool = False
+        ) -> typing.Generator[typing.Tuple[bytearray, int], None, None]:
             """ Checkout internal cache and yield fixed-length chunk (pages)
 
             :param with_final_chunk: whether it is the end and the last chunks should be yielded. The last chunk
@@ -483,7 +484,7 @@ class _PartedTarWriter:
                     self.__flushed_bytes += len(self.__cache)
                     yield self.__cache, self.__part_number
                     self.__part_number += 1
-                    self.__cache = b''
+                    self.__cache = bytearray()
 
         def dirty_entry(self, dirty_data: bytes) -> int:
             """ Append dirty entry to this cache and return its identifier
@@ -516,7 +517,7 @@ class _PartedTarWriter:
                 assert(offset < self.__part_size)
 
                 next_dirty_cache = self.__cache + dirty_data
-                self.__cache = b''
+                self.__cache = bytearray()
                 self.__dirty_entries[entry_index] = _PartedTarWriter._DirtyEntry(self.__part_number, offset, header_len)
 
                 while len(next_dirty_cache):
@@ -538,6 +539,7 @@ class _PartedTarWriter:
             (no more no less). This method also cleans dirty pages (if possible)
 
             :param dirty_entry_index: identifier of the dirty entry
+            :param patched_data: updated data
             """
 
             entry_info = self.__dirty_entries[dirty_entry_index]
@@ -570,7 +572,7 @@ class _PartedTarWriter:
 
                                 page_fix = patched_data[:self.__part_size]
                                 patched_data = patched_data[len(page_fix):]
-                                span_dirty_page.data = page_fix + span_dirty_page.data[len(page_fix):]
+                                span_dirty_page.data = bytearray(page_fix) + span_dirty_page.data[len(page_fix):]
 
                         assert(span_page_found)
 
@@ -607,7 +609,7 @@ class _PartedTarWriter:
 
         self.__generator = self.__parts_generator()
 
-    def __parts_generator(self) -> typing.Generator[typing.Tuple[bytes, int], None, None]:
+    def __parts_generator(self) -> typing.Generator[typing.Tuple[bytearray, int], None, None]:
         """ Yield parts (tuple of fixed length bytes and part number)
         """
 
@@ -652,7 +654,7 @@ class _PartedTarWriter:
         """
         return self
 
-    def __next__(self) -> typing.Tuple[bytes, int]:
+    def __next__(self) -> typing.Tuple[bytearray, int]:
         """ Return next part (fixed length bytes and part number)
         """
         return next(self.__generator)

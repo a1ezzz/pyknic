@@ -23,7 +23,7 @@ class TestBasePartsUploader:
         def _finalize(self, exc_val: typing.Optional[BaseException] = None) -> None:
             pass
 
-        def _upload_part(self, data: bytes, part_number: int) -> None:
+        def _upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
             self.io.seek(self.part_size * part_number, io.SEEK_SET)
             self.io.write(data)
 

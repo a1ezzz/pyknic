@@ -72,7 +72,7 @@ class PartsUploaderProto(metaclass=ABCMeta):
         """
         raise NotImplementedError('This method is abstract')
 
-    def upload_part(self, data: bytes, part_number: int) -> None:
+    def upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
         """ Upload data
 
         :param data: data to upload. For not last past a size of a data must be the same size as it was

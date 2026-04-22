@@ -50,7 +50,7 @@ class BasePartsUploader(PartsUploaderProto, metaclass=ABCMeta):
         raise NotImplementedError('This method is abstract')
 
     @abstractmethod
-    def _upload_part(self, data: bytes, part_number: int) -> None:
+    def _upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
         """ Upload a single part
 
         :param data: data to upload
@@ -84,7 +84,7 @@ class BasePartsUploader(PartsUploaderProto, metaclass=ABCMeta):
 
         self._finalize()
 
-    def upload_part(self, data: bytes, part_number: int) -> None:
+    def upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
         """ Do some checks and request uploading. The :meth:`.PartsUploaderProto.upload_part` method implementation.
         """
         if part_number in self.__uploaded_parts:
