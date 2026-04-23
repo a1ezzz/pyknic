@@ -47,7 +47,12 @@ class IOVirtualClient(IOClientProto):
             """
             self.__client = client
 
-        def __enter__(self) -> 'IOVirtualClient.ClientContext':
+        def client(self) -> IOClientProto:
+            """ Return client this context is connected to
+            """
+            return self.__client
+
+        def __enter__(self) -> typing.Self:
             """ Enter the context (client connects)
             """
 
@@ -66,6 +71,24 @@ class IOVirtualClient(IOClientProto):
             if iscapable(self.__client, IOClientProto.disconnect):
                 self.__client.disconnect()
 
+    class ClientNFileContext(ClientContext):
+        """ Lightly enhanced :class:`.IOVirtualClient.ClientContext` that keeps a filename from URI
+        """
+
+        def __init__(self, client: IOClientProto, filename: str):
+            """ Create a new context
+
+            :param client: client to connect/disconnect
+            :param filename: filename from URI
+            """
+            IOVirtualClient.ClientContext.__init__(self, client)
+            self.__filename = filename
+
+        def filename(self) -> str:
+            """ Return filename that this context kept
+            """
+            return self.__filename
+
     @verify_value(uri=lambda x: x.scheme is not None)
     def __init__(self, uri: URI, registry: typing.Optional[APIRegistry] = None) -> None:
         """ Create a new client
@@ -83,14 +106,20 @@ class IOVirtualClient(IOClientProto):
         self.__client = registry.get(uri.scheme).create_client(uri)
         self.__init_capability('connect')
         self.__init_capability('disconnect')
+        self.__init_capability('current_directory')
         self.__init_capability('change_directory')
         self.__init_capability('list_directory')
         self.__init_capability('make_directory')
         self.__init_capability('remove_directory')
         self.__init_capability('upload_file')
+        self.__init_capability('append_file')
+        self.__init_capability('update_file')
+        self.__init_capability('truncate_file')
         self.__init_capability('remove_file')
         self.__init_capability('receive_file')
+        self.__init_capability('receive_file_with_offset')
         self.__init_capability('file_size')
+        self.__init_capability('upload_by_part')
 
     def __init_capability(self, method_name: str) -> None:
         cap = getattr(IOClientProto, method_name)
@@ -113,4 +142,13 @@ class IOVirtualClient(IOClientProto):
     def open(self) -> 'IOVirtualClient.ClientContext':
         """ Create a context which helps to connect and disconnect
         """
-        return IOVirtualClient.ClientContext(self.__client)
+        return IOVirtualClient.ClientContext(self)
+
+    @classmethod
+    def create_n_open(cls, uri: URI) -> 'IOVirtualClient.ClientNFileContext':
+        """ Split URI and return a context that connects/disconnects and keeps a filename from URI
+        """
+        file_name, modified_uri = uri.get_file()
+        client = IOVirtualClient.create_client(modified_uri)
+
+        return IOVirtualClient.ClientNFileContext(client, file_name)

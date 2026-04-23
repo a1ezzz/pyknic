@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# pyknic/path.py
+# pyknic/lib/io/tar/__init__.py
 #
-# Copyright (C) 2024 the pyknic authors and contributors
+# Copyright (C) 2025-2026 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -18,8 +18,3 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
-
-import pathlib
-
-
-root_path = pathlib.Path(__file__).parent

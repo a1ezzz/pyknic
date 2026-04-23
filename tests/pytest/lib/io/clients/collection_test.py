@@ -18,6 +18,7 @@ def test_collection() -> None:
 class TestIOVirtualClient:
 
     client_uri = "sftp://foo:bar@127.0.0.1:3001/?host_key_auto_add="
+    client_uri_w_file = "sftp://foo:bar@127.0.0.1:3001/remote-file?host_key_auto_add="
 
     @pytest.mark.parametrize('sftp_server', [3001], indirect=['sftp_server'])
     def test(self, sftp_server: sftp_fixture) -> None:
@@ -32,6 +33,16 @@ class TestIOVirtualClient:
 
         uri = URI.parse(self.client_uri)
         client = IOVirtualClient.create_client(uri)
-        with client.open():
+        with client.open() as c:
+            assert(c.client() is client)
+
             file_data = b'some data'
-            client.upload_file('remote-file', [file_data], len(file_data))
+            client.upload_file('remote-file', [file_data])
+
+    @pytest.mark.parametrize('sftp_server', [3001], indirect=['sftp_server'])
+    def test_create_n_open(self, sftp_server: sftp_fixture) -> None:
+
+        uri = URI.parse(self.client_uri_w_file)
+        with IOVirtualClient.create_n_open(uri) as c:
+            assert(isinstance(c.client(), IOVirtualClient))
+            assert(c.filename() == 'remote-file')
