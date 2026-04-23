@@ -18,7 +18,7 @@ from pyknic.lib.fastapi.base import BaseFastAPIApp, TgBotBaseFastAPIApp
 from pyknic.lib.fastapi.models import tg_bot_types, tg_bot_methods, base as base_models
 from pyknic.lib.config import Config
 from pyknic.lib.gettext import GetTextWrapper
-from pyknic.path import root_path
+from pyknic.lib.path import root_path
 
 
 class TestBaseFastAPIApp:

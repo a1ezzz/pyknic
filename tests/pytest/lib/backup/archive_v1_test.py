@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import asyncio
 import base64
 import contextlib
 import io
@@ -13,9 +12,10 @@ import pytest
 from pyknic.lib.io.aio_wrapper import cg, IOThrottler
 from pyknic.lib.backup.archive_v1 import ArchiveInnerFiles, ArchiveV1HeaderMeta, ArchiveType, CompressionMode
 from pyknic.lib.backup.archive_v1 import ArchiveV1MetaCipher, ArchiveV1PBKDF, BackupArchiveV1, HashMethod
-from pyknic.lib.io.tar import TarArchive, TarInnerDynamicGenerator
-
-from fixtures.asyncio import pyknic_async_test
+from pyknic.lib.io.tar.writers import TarDynamicEntry, IOTarArchiveWriter
+from pyknic.lib.io.tar.readers import ClientTarArchiveReader, FileObjectTarReader
+from pyknic.lib.io.clients import IOVirtualClient
+from pyknic.lib.uri import URI
 
 # TODO: test throttling
 # TODO: test bash scripts!
@@ -69,20 +69,17 @@ class TestArchiveInnerFiles:
 
 class TestBackupArchiveV1:
 
-    @pyknic_async_test
-    async def test_plain(self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path) -> None:
+    def test_plain(self, tmp_path: pathlib.Path) -> None:
         test_data = io.BytesIO(b'Test data')
         archive = BackupArchiveV1()
 
         tar_archive_file = tmp_path / "archive.tar"
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
 
-        with tar_archive_file.open('wb') as f:
-            await archive.backup_io(IOThrottler.sync_reader(test_data), f)
+        archive.backup_io(IOThrottler.sync_reader(test_data), file_uri)
 
-        with tar_archive_file.open('rb') as f:
-            assert(test_data.getvalue() == b''.join(BackupArchiveV1.extract_data(f)))
+        assert(test_data.getvalue() == b''.join(BackupArchiveV1.extract_data(file_uri)))
 
-    @pyknic_async_test
     @pytest.mark.parametrize(
         'hash_algos, compression, encryption_key',
         [
@@ -97,13 +94,12 @@ class TestBackupArchiveV1:
             [None, CompressionMode.no_compression, 'foobarfoobarfoobarfoobar'],
         ]
     )
-    async def test_empty_file(
+    def test_empty_file(
         self,
         monkeypatch: pytest.MonkeyPatch,
         hash_algos: typing.Optional[typing.List[HashMethod]],
         compression: CompressionMode,
         encryption_key: typing.Optional[str],
-        module_event_loop: asyncio.AbstractEventLoop,
         tmp_path: pathlib.Path
     ) -> None:
         archive = BackupArchiveV1(
@@ -112,16 +108,15 @@ class TestBackupArchiveV1:
             encryption_key=encryption_key
         )
 
-        tar_archive_file = tmp_path / "archive.tar"
+        monkeypatch.chdir(str(tmp_path))
 
         with (tmp_path / "sample").open('wb') as f:
             f.write(b'')
 
-        with tar_archive_file.open('wb') as f:
-            monkeypatch.chdir(str(tmp_path))
-            await archive.backup_files(['sample'], f)  # just check that there is no error
+        tar_archive_file = tmp_path / "archive.tar"
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
+        archive.backup_files(['sample'], file_uri)  # just check that there is no error
 
-    @pyknic_async_test
     @pytest.mark.parametrize(
         'hash_algos, compression, encryption_key',
         [
@@ -136,12 +131,11 @@ class TestBackupArchiveV1:
             [None, CompressionMode.no_compression, 'foobarfoobarfoobarfoobar'],
         ]
     )
-    async def test_empty_io(
+    def test_empty_io(
         self,
         hash_algos: typing.Optional[typing.List[HashMethod]],
         compression: CompressionMode,
         encryption_key: typing.Optional[str],
-        module_event_loop: asyncio.AbstractEventLoop,
         tmp_path: pathlib.Path
     ) -> None:
         archive = BackupArchiveV1(
@@ -151,34 +145,28 @@ class TestBackupArchiveV1:
         )
 
         tar_archive_file = tmp_path / "archive.tar"
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
 
-        with tar_archive_file.open('wb') as f:
-            await archive.backup_io(IOThrottler.sync_reader(io.BytesIO(b'')), f)  # just check that there is no error
+        archive.backup_io(IOThrottler.sync_reader(io.BytesIO(b'')), file_uri)  # just check that there is no error
 
-    @pyknic_async_test
-    async def test_extra_meta(self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path) -> None:
+    def test_extra_meta(self, tmp_path: pathlib.Path) -> None:
         test_data = io.BytesIO(b'Test data')
         archive = BackupArchiveV1()
 
         tar_archive_file = tmp_path / "archive.tar"
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
+        archive.backup_io(IOThrottler.sync_reader(test_data), file_uri)
 
-        with tar_archive_file.open('wb') as f:
-            await archive.backup_io(IOThrottler.sync_reader(test_data), f)
-
-        with tar_archive_file.open('rb') as f:
-            header = BackupArchiveV1.extract_header_meta(f)
-            assert(header.extra is None)
+        header = BackupArchiveV1.extract_header_meta(file_uri)
+        assert(header.extra is None)
 
         extra_data = {"data": [1, 2, 3]}
         archive = BackupArchiveV1(extra_meta=extra_data)
-        with tar_archive_file.open('wb') as f:
-            await archive.backup_io(IOThrottler.sync_reader(test_data), f)
+        archive.backup_io(IOThrottler.sync_reader(test_data), file_uri)
 
-        with tar_archive_file.open('rb') as f:
-            header = BackupArchiveV1.extract_header_meta(f)
-            assert(header.extra == extra_data)
+        header = BackupArchiveV1.extract_header_meta(file_uri)
+        assert(header.extra == extra_data)
 
-    @pyknic_async_test
     @pytest.mark.parametrize(
         'compression_mode, backup_file, reference_size',
         [
@@ -188,62 +176,48 @@ class TestBackupArchiveV1:
             [CompressionMode.bzip2, 'backup.bz2', 49]
         ]
     )
-    async def test_compression(
+    def test_compression(
         self,
         compression_mode: CompressionMode,
         backup_file: str,
         reference_size: int,
-        module_event_loop: asyncio.AbstractEventLoop,
         tmp_path: pathlib.Path
     ) -> None:
         test_data = io.BytesIO(b'Test data')
-        archive = BackupArchiveV1(
-            compression=compression_mode
-        )
+        archive = BackupArchiveV1(compression=compression_mode)
 
         tar_archive_file = tmp_path / "archive.tar"
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
+        archive.backup_io(IOThrottler.sync_reader(test_data), file_uri)
 
-        with tar_archive_file.open('wb') as f:
-            await archive.backup_io(IOThrottler.sync_reader(test_data), f)
+        assert(test_data.getvalue() == b''.join(BackupArchiveV1.extract_data(file_uri)))
 
         with tar_archive_file.open('rb') as f:
-            assert(test_data.getvalue() == b''.join(BackupArchiveV1.extract_data(f)))
+            assert(len(FileObjectTarReader(f).entry(backup_file).read()) == reference_size)
 
-        with open(tar_archive_file, 'rb') as f:
-            assert(cg(TarArchive().extract(f, backup_file)) == reference_size)
-
-    @pyknic_async_test
     @pytest.mark.parametrize('i', list(range(10)))  # some time this test fails
-    async def test_encryption(
-        self, i: int, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path
-    ) -> None:
+    def test_encryption(self, i: int, tmp_path: pathlib.Path) -> None:
         test_data = io.BytesIO(b'Test data')
         encryption_key = 'foobarfoobarfoobarfoobar'
 
-        archive = BackupArchiveV1(
-            encryption_key=encryption_key
-        )
+        archive = BackupArchiveV1(encryption_key=encryption_key)
 
         tar_archive_file = tmp_path / "archive.tar"
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
+        archive.backup_io(IOThrottler.sync_reader(test_data), file_uri)
 
-        with tar_archive_file.open('wb') as f:
-            await archive.backup_io(IOThrottler.sync_reader(test_data), f)
-
-        with tar_archive_file.open('rb') as f:
-            assert(test_data.getvalue() == b''.join(BackupArchiveV1.extract_data(f, encryption_key=encryption_key)))
+        assert(test_data.getvalue() == b''.join(BackupArchiveV1.extract_data(file_uri, encryption_key=encryption_key)))
 
         with pytest.raises(ValueError):
-            with tar_archive_file.open('rb') as f:
-                cg(BackupArchiveV1.extract_data(f))
+            # no password submitted
+            cg(BackupArchiveV1.extract_data(file_uri))
 
         data = None
         with contextlib.suppress(RuntimeError):  # may PKCS7 error happen
-            with tar_archive_file.open('rb') as f:
-                data = b''.join(BackupArchiveV1.extract_data(f, encryption_key=(encryption_key + '-baaad')))
+            data = b''.join(BackupArchiveV1.extract_data(file_uri, encryption_key=(encryption_key + '-baaad')))
 
         assert(data != test_data.getvalue())
 
-    @pyknic_async_test
     @pytest.mark.parametrize(
         'hash_algos, digests',
         [
@@ -255,102 +229,86 @@ class TestBackupArchiveV1:
             ]],
         ]
     )
-    async def test_digest(
+    def test_digest(
         self,
         hash_algos: typing.List[HashMethod],
         digests: typing.List[bytes],
-        module_event_loop: asyncio.AbstractEventLoop,
         tmp_path: pathlib.Path
     ) -> None:
         test_data = io.BytesIO(b'Test data')
-        archive = BackupArchiveV1(
-            hash_algorithms=hash_algos
-        )
+        archive = BackupArchiveV1(hash_algorithms=hash_algos)
 
         tar_archive_file = tmp_path / "archive.tar"
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
+        archive.backup_io(IOThrottler.sync_reader(test_data), file_uri)
 
-        with tar_archive_file.open('wb') as f:
-            await archive.backup_io(IOThrottler.sync_reader(test_data), f)
+        tail_meta = BackupArchiveV1.extract_tail_meta(file_uri)
+        assert({x.algorithm for x in tail_meta.hashes} == set(hash_algos))
 
-        with tar_archive_file.open('rb') as f:
-            tail_meta = BackupArchiveV1.extract_tail_meta(f)
-            assert({x.algorithm for x in tail_meta.hashes} == set(hash_algos))
+        for i, ha in enumerate(hash_algos):
+            assert([x.digest for x in tail_meta.hashes if x.algorithm == ha] == [digests[i]])
 
-            for i, ha in enumerate(hash_algos):
-                assert([x.digest for x in tail_meta.hashes if x.algorithm == ha] == [digests[i]])
-
-    @pyknic_async_test
-    async def test_hashes_validate_chain(
-        self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path
-    ) -> None:
+    def test_hashes_validate_chain(self, tmp_path: pathlib.Path) -> None:
         test_data = io.BytesIO(b'Test data')
         archive = BackupArchiveV1(
             hash_algorithms=[HashMethod.md5, HashMethod.sha256]
         )
 
         tar_archive_file = tmp_path / "archive.tar"
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
 
-        with tar_archive_file.open('wb') as f:
-            await archive.backup_io(IOThrottler.sync_reader(test_data), f)
+        archive.backup_io(IOThrottler.sync_reader(test_data), file_uri)
 
-        with tar_archive_file.open('rb') as original_file:
-            header_meta = BackupArchiveV1.extract_header_meta(original_file)
-            tail_meta = BackupArchiveV1.extract_tail_meta(original_file)
-            tail_meta.hashes[0].digest = (b'\x00' * len(tail_meta.hashes[0].digest))
+        header_meta = BackupArchiveV1.extract_header_meta(file_uri)
+        tail_meta = BackupArchiveV1.extract_tail_meta(file_uri)
 
-            tar_corrupted_archive_file = tmp_path / "corrupted-archive.tar"
-            with tar_corrupted_archive_file.open('wb') as corrupted_file:
+        tar_corrupted_archive_file = tmp_path / "corrupted-archive.tar"
+        corrupted_file_uri = URI.parse(f'file:///{str(tar_corrupted_archive_file)}')
 
-                tail_file = TarInnerDynamicGenerator(
-                    io.BytesIO(tail_meta.model_dump_json().encode()),
-                    ArchiveInnerFiles.tail_meta.value
-                )
-
-                archive_file = TarInnerDynamicGenerator(
-                    TarArchive().extract(original_file, ArchiveInnerFiles.backup_file(header_meta)),
-                    ArchiveInnerFiles.backup_file(header_meta)
-                )
-
-                header_file = TarInnerDynamicGenerator(
-                    TarArchive().extract(original_file, ArchiveInnerFiles.header_meta.value),
+        with tar_archive_file.open('rb') as original_f:
+            with tar_corrupted_archive_file.open('wb') as corrupted_f:
+                header_file = TarDynamicEntry(
+                    [header_meta.model_dump_json().encode()],
                     ArchiveInnerFiles.header_meta.value
                 )
 
-                await TarArchive().dynamic_archive(corrupted_file, [tail_file, archive_file, header_file])
+                archive_name = ArchiveInnerFiles.backup_file(header_meta)
+                archive_file = TarDynamicEntry(
+                    [FileObjectTarReader(original_f).entry(archive_name).read()],
+                    archive_name
+                )
+
+                tail_meta.hashes[0].digest = (b'\x00' * len(tail_meta.hashes[0].digest))
+                tail_file = TarDynamicEntry(
+                    [tail_meta.model_dump_json().encode()],
+                    ArchiveInnerFiles.tail_meta.value
+                )
+
+                IOTarArchiveWriter(corrupted_f).archive([tail_file, archive_file, header_file])
 
         with pytest.raises(ValueError):
             # corrupted hash
-            with tar_corrupted_archive_file.open('rb') as corrupted_file:
-                await BackupArchiveV1.validate_archive(corrupted_file)
+            BackupArchiveV1.validate_archive(corrupted_file_uri)
 
-    @pyknic_async_test
-    async def test_hashes_validate_chain_error(
-        self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path
-    ) -> None:
+    def test_hashes_validate_chain_error(self, tmp_path: pathlib.Path) -> None:
         test_data = io.BytesIO(b'Test data')
         archive = BackupArchiveV1()
 
         tar_archive_file = tmp_path / "archive.tar"
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
 
-        with tar_archive_file.open('wb') as f:
-            await archive.backup_io(IOThrottler.sync_reader(test_data), f)
+        archive.backup_io(IOThrottler.sync_reader(test_data), file_uri)
 
         with pytest.raises(ValueError):
             # no digests
-            with tar_archive_file.open('rb') as f:
-                await BackupArchiveV1.validate_archive(f)
+            BackupArchiveV1.validate_archive(file_uri)
 
-    @pyknic_async_test
-    async def test_files(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        module_event_loop: asyncio.AbstractEventLoop,
-        tmp_path: pathlib.Path
-    ) -> None:
+    def test_files(self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
         test_data = b'Test data'
         archive = BackupArchiveV1()
 
         tar_archive_file = tmp_path / "archive.tar"
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
 
         with (tmp_path / "sample1").open('wb') as f:
             f.write(test_data + b'-sample1')
@@ -358,55 +316,37 @@ class TestBackupArchiveV1:
         with (tmp_path / "sample2").open('wb') as f:
             f.write(test_data + b'-sample2')
 
-        with tar_archive_file.open('wb') as f:
-            old_cwd = os.getcwd()
-            monkeypatch.chdir(str(tmp_path))
+        old_cwd = os.getcwd()
+        monkeypatch.chdir(str(tmp_path))
+        archive.backup_files(['sample1', 'sample2'], file_uri)
+        monkeypatch.chdir(old_cwd)
 
-            await archive.backup_files(['sample1', 'sample2'], f)
+        destination_tar = tmp_path / "destination.tar"
+        with destination_tar.open('wb') as df:
+            cg(IOThrottler.sync_writer(BackupArchiveV1.extract_data(file_uri), df))
 
-            monkeypatch.chdir(old_cwd)
+        dest_file_uri = URI.parse(f'file:///{str(destination_tar)}')
+        with IOVirtualClient.create_n_open(dest_file_uri) as c:
+            tar_reader = ClientTarArchiveReader(c.client(), c.filename())
+            assert(tar_reader.entry('sample1').read() == test_data + b'-sample1')
+            assert(tar_reader.entry('sample2').read() == test_data + b'-sample2')
 
-        with tar_archive_file.open('rb') as af:
-            destination_tar = tmp_path / "destination.tar"
-            with destination_tar.open('wb') as df:
-                cg(IOThrottler.sync_writer(BackupArchiveV1.extract_data(af), df))
-
-            with destination_tar.open('rb') as df:
-                assert(b''.join(TarArchive().extract(df, 'sample1')) == test_data + b'-sample1')
-
-            with destination_tar.open('rb') as df:
-                assert(b''.join(TarArchive().extract(df, 'sample2')) == test_data + b'-sample2')
-
-    @pyknic_async_test
-    async def test_corrupted_link(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        module_event_loop: asyncio.AbstractEventLoop,
-        tmp_path: pathlib.Path
-    ) -> None:
+    def test_corrupted_link(self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
         monkeypatch.chdir(str(tmp_path))
         os.symlink('invalid-file.txt', 'link.txt')
 
         archive = BackupArchiveV1()
 
         tar_archive_file = tmp_path / "archive.tar"
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
+        archive.backup_files(['link.txt'], file_uri)
 
-        with tar_archive_file.open('wb') as f:
-            await archive.backup_files(['link.txt'], f)
-
-    @pyknic_async_test
-    async def test_directory(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        module_event_loop: asyncio.AbstractEventLoop,
-        tmp_path: pathlib.Path
-    ) -> None:
+    def test_directory(self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
         monkeypatch.chdir(str(tmp_path))
         os.mkdir('empty-dir')
 
         archive = BackupArchiveV1()
 
         tar_archive_file = tmp_path / "archive.tar"
-
-        with tar_archive_file.open('wb') as f:
-            await archive.backup_files(['empty-dir'], f)
+        file_uri = URI.parse(f'file:///{str(tar_archive_file)}')
+        archive.backup_files(['empty-dir'], file_uri)

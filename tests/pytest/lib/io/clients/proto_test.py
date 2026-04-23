@@ -5,14 +5,27 @@ import asyncio
 import pytest
 
 from pyknic.lib.uri import URI
-from pyknic.lib.io.clients.proto import IOClientProto
+from pyknic.lib.io.clients.proto import IOClientProto, DirectoryNotEmptyError, InvalidPartSize, NonSequentialPartNumbers
+from pyknic.lib.io.clients.proto import PartsUploaderProto
 from pyknic.lib.capability import iscapable
 
 from fixtures.asyncio import pyknic_async_test
 
 
+def test_exceptions() -> None:
+    assert(issubclass(DirectoryNotEmptyError, Exception) is True)
+    assert(issubclass(InvalidPartSize, Exception) is True)
+    assert(issubclass(NonSequentialPartNumbers, Exception) is True)
+
+
 @pyknic_async_test
 async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
+
+    pytest.raises(TypeError, PartsUploaderProto)
+    pytest.raises(NotImplementedError, PartsUploaderProto.__enter__, None)
+    pytest.raises(NotImplementedError, PartsUploaderProto.__exit__, None, None, None, None)
+    pytest.raises(NotImplementedError, PartsUploaderProto.upload_part, None, b'b', 1)
+
     pytest.raises(TypeError, IOClientProto)
     pytest.raises(NotImplementedError, IOClientProto.create_client, 'foo')
     pytest.raises(NotImplementedError, IOClientProto.uri, None)
@@ -20,12 +33,18 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
     pytest.raises(NotImplementedError, IOClientProto.connect, None)
     pytest.raises(NotImplementedError, IOClientProto.disconnect, None)
     pytest.raises(NotImplementedError, IOClientProto.change_directory, None, '/path/to/dir')
+    pytest.raises(NotImplementedError, IOClientProto.list_directory, None)
     pytest.raises(NotImplementedError, IOClientProto.make_directory, None, 'new_dir')
     pytest.raises(NotImplementedError, IOClientProto.remove_directory, None, 'old_dir')
-    pytest.raises(NotImplementedError, IOClientProto.upload_file, None, 'file_name', [b'ggg'], 3)
+    pytest.raises(NotImplementedError, IOClientProto.upload_file, None, 'file_name', [b'ggg'])
+    pytest.raises(NotImplementedError, IOClientProto.append_file, None, 'file_name', [b'ggg'])
+    pytest.raises(NotImplementedError, IOClientProto.update_file, None, 'file_name', [b'ggg'])
+    pytest.raises(NotImplementedError, IOClientProto.truncate_file, None, 'file_name', 1)
     pytest.raises(NotImplementedError, IOClientProto.remove_file, None, 'file_name')
     pytest.raises(NotImplementedError, IOClientProto.receive_file, None, 'remote_file')
+    pytest.raises(NotImplementedError, IOClientProto.receive_file_with_offset, None, 'remote_file', 10, 100)
     pytest.raises(NotImplementedError, IOClientProto.file_size, None, 'remote_file')
+    pytest.raises(NotImplementedError, IOClientProto.upload_by_part, None, 'remote_file', 10)
 
     class Client(IOClientProto):
 

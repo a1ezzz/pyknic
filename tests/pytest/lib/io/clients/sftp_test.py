@@ -161,7 +161,7 @@ class TestSFTPClient:
         test_dir = f'pytest-directory-{uuid.uuid4()}'
         client.make_directory(test_dir)
         client.change_directory(test_dir)
-        client.upload_file('remote-file', [test_data], len(test_data))
+        client.upload_file('remote-file', [test_data])
 
         assert(client.file_size('remote-file') == len(test_data))
 
@@ -186,10 +186,104 @@ class TestSFTPClient:
         client.change_directory(test_dir)
 
         test_data = b'Test data'
-        client.upload_file('remote-file', [test_data], len(test_data))
+        client.upload_file('remote-file', [test_data])
         with pytest.raises(IOError):
             client.remove_directory('remote-file')
         client.remove_file('remote-file')
 
         client.change_directory('..')
         client.remove_directory(test_dir)
+
+    def test_append_file(self, sftp_server: sftp_fixture, tmp_path: pathlib.Path) -> None:
+        sftp_server[1].base_dir = str(tmp_path)
+
+        client = SFTPClient(URI.parse(self.client_uri))
+        client.connect()
+
+        test_dir = f'pytest-directory-{uuid.uuid4()}'
+        client.make_directory(test_dir)
+        client.change_directory(test_dir)
+
+        test_data = b'Test data'
+        client.upload_file('remote-file', [test_data])
+
+        client.append_file('remote-file', [test_data])
+        received_data = b''.join(client.receive_file('remote-file'))
+        assert(received_data == (test_data + test_data))
+
+    def test_update_file(self, sftp_server: sftp_fixture, tmp_path: pathlib.Path) -> None:
+        sftp_server[1].base_dir = str(tmp_path)
+
+        client = SFTPClient(URI.parse(self.client_uri))
+        client.connect()
+
+        test_dir = f'pytest-directory-{uuid.uuid4()}'
+        client.make_directory(test_dir)
+        client.change_directory(test_dir)
+
+        test_data = b'Test data'
+        client.upload_file('remote-file', [test_data])
+
+        hi_data = b'hi'
+        client.update_file('remote-file', [hi_data], offset=5)
+        received_data = b''.join(client.receive_file('remote-file'))
+        assert(received_data == b'Test hita')
+
+        hello_data = b'hello'
+        client.update_file('remote-file', [hello_data], offset=5)
+        received_data = b''.join(client.receive_file('remote-file'))
+        assert(received_data == b'Test hello')
+
+    def test_truncate_file(self, sftp_server: sftp_fixture, tmp_path: pathlib.Path) -> None:
+        sftp_server[1].base_dir = str(tmp_path)
+
+        client = SFTPClient(URI.parse(self.client_uri))
+        client.connect()
+
+        test_dir = f'pytest-directory-{uuid.uuid4()}'
+        client.make_directory(test_dir)
+        client.change_directory(test_dir)
+
+        test_data = b'Test data'
+        client.upload_file('remote-file', [test_data])
+
+        client.truncate_file('remote-file', 4)
+        received_data = b''.join(client.receive_file('remote-file'))
+        assert(received_data == b'Test')
+
+        client.truncate_file('remote-file')
+        received_data = b''.join(client.receive_file('remote-file'))
+        assert(received_data == b'')
+
+    def test_receive_file_with_offset(self, sftp_server: sftp_fixture, tmp_path: pathlib.Path) -> None:
+        sftp_server[1].base_dir = str(tmp_path)
+
+        client = SFTPClient(URI.parse(self.client_uri))
+        client.connect()
+
+        test_dir = f'pytest-directory-{uuid.uuid4()}'
+        client.make_directory(test_dir)
+        client.change_directory(test_dir)
+
+        test_data = b'Test data'
+        client.upload_file('remote-file', [test_data])
+
+        received_data = b''.join(client.receive_file_with_offset('remote-file', 5))
+        assert(received_data == b'data')
+
+        received_data = b''.join(client.receive_file_with_offset('remote-file', 3))
+        assert(received_data == b't data')
+
+    def test_upload_by_part(self, sftp_server: sftp_fixture, tmp_path: pathlib.Path) -> None:
+        sftp_server[1].base_dir = str(tmp_path)
+
+        client = SFTPClient(URI.parse(self.client_uri))
+        client.connect()
+
+        with client.upload_by_part('new_file', 5) as uploader:
+            uploader.upload_part(b'b' * 5, 1)
+            uploader.upload_part(b'c' * 2, 2)
+            uploader.upload_part(b'a' * 5, 0)
+
+        received_data = b''.join(client.receive_file('new_file'))
+        assert(received_data == (b'a' * 5 + b'b' * 5 + b'c' * 2))

@@ -31,7 +31,7 @@ from pyknic.lib.config import Config
 from pyknic.lib.fastapi.models.tg_bot_types import Update
 from pyknic.lib.fastapi.base import TgBotBaseFastAPIApp, TgBotResponseType
 from pyknic.lib.gettext import GetTextWrapper
-from pyknic.path import root_path
+from pyknic.lib.path import root_path
 
 
 class TGBotCityGame(TgBotBaseFastAPIApp):

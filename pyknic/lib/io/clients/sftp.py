@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import functools
+import os
 import pathlib
 import typing
 
@@ -30,9 +30,41 @@ from pyknic.lib.uri import URI, URIQuery
 from pyknic.lib.io import IOProducer, IOGenerator
 from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
 from pyknic.lib.io.clients.collection import __default_io_clients_registry__
+from pyknic.lib.io.clients.proto import PartsUploaderProto
+from pyknic.lib.io.clients.parts_uploader import BasePartsUploader
 from pyknic.lib.io.read_fo import ReadFileObject
-from pyknic.lib.io.write_fo import WriteFileObject
+from pyknic.lib.io.aio_wrapper import IOThrottler, cg
 from pyknic.lib.verify import verify_value
+from pyknic.lib.path import normalize_path
+
+
+class _SFTPPartsUploader(BasePartsUploader):
+
+    def __init__(self, sftp_client: paramiko.SFTPClient, remote_file_name: str, part_size: int):
+        BasePartsUploader.__init__(self, part_size)
+
+        self.__sftp_client = sftp_client
+        self.__remote_file_name = remote_file_name
+        self.__part_size = part_size
+
+        self.__opened_file: typing.Optional[typing.IO[bytes]] = None
+
+    def __enter__(self) -> BasePartsUploader:
+        assert(self.__opened_file is None)
+
+        self.__opened_file = self.__sftp_client.open(self.__remote_file_name, 'wb')  # type: ignore[assignment]
+        return self
+
+    def _upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
+        assert(self.__opened_file)
+
+        offset = part_number * self.__part_size
+        self.__opened_file.seek(offset, os.SEEK_SET)
+        self.__opened_file.write(data)
+
+    def _finalize(self, exc_val: typing.Optional[BaseException] = None) -> None:
+        assert(self.__opened_file)
+        self.__opened_file.close()
 
 
 @register_api(__default_io_clients_registry__, "sftp")
@@ -123,7 +155,7 @@ class SFTPClient(VirtualDirectoryClient):
         if not posix_path.is_absolute():
             posix_path = self.session_path() / posix_path
 
-        normalized_path = self.normalize_path(posix_path)
+        normalized_path = normalize_path(posix_path)
         try:
             self.__sftp_client.chdir(str(normalized_path))
         finally:
@@ -157,15 +189,38 @@ class SFTPClient(VirtualDirectoryClient):
         return tuple(self.__sftp_client.listdir(dir_to_list))
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
-    def upload_file(self, remote_file_name: str, source: IOProducer, source_size: int) -> None:
+    def upload_file(self, remote_file_name: str, source: IOProducer) -> None:
         """Synchronous implementation of the `.IOClientProto.upload_file` method
         """
         assert(self.__sftp_client is not None)
 
         new_file_path = self.entry_path(remote_file_name)
-        self.__sftp_client.putfo(
-            ReadFileObject(source), str(new_file_path), file_size=source_size  # type: ignore[arg-type]
-        )
+        self.__sftp_client.putfo(ReadFileObject(source), str(new_file_path))  # type: ignore[arg-type]
+
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def append_file(self, remote_file_name: str, source: IOProducer) -> None:
+        """The :meth:`.IOClientProto.append_file` method implementation."""
+        assert(self.__sftp_client is not None)
+        file_path = self.entry_path(remote_file_name)
+        with self.__sftp_client.open(str(file_path), 'ab') as sftp_file:
+            cg(IOThrottler().sync_writer(source, sftp_file))  # type: ignore[arg-type]
+
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def update_file(self, remote_file_name: str, source: IOProducer, offset: int = 0) -> None:
+        """The :meth:`.IOClientProto.update_file` method implementation."""
+        assert(self.__sftp_client is not None)
+        file_path = self.entry_path(remote_file_name)
+        with self.__sftp_client.open(str(file_path), 'rb+') as sftp_file:
+            sftp_file.seek(offset, os.SEEK_SET)
+            cg(IOThrottler().sync_writer(source, sftp_file))  # type: ignore[arg-type]
+
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def truncate_file(self, remote_file_name: str, offset: int = 0) -> None:
+        """The :meth:`.IOClientProto.truncate_file` method implementation."""
+        assert(self.__sftp_client is not None)
+        path = self.entry_path(remote_file_name)
+        with self.__sftp_client.open(str(path), mode='rb+') as f_remote:
+            f_remote.truncate(offset)
 
     @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def remove_file(self, file_name: str) -> None:
@@ -183,11 +238,23 @@ class SFTPClient(VirtualDirectoryClient):
 
         file_path = self.entry_path(remote_file_name)
 
-        wfo = WriteFileObject(
-            functools.partial(self.__sftp_client.getfo, str(file_path))
-        )
+        with self.__sftp_client.open(str(file_path), 'rb') as sftp_file:
+            yield from IOThrottler().sync_reader(sftp_file)  # type: ignore[arg-type]
 
-        yield from wfo()
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1, offset=lambda x: x >= 0)
+    @verify_value(length=lambda x: x is None or x >= 0)
+    def receive_file_with_offset(
+        self, remote_file_name: str, offset: int = 0, length: typing.Optional[int] = None
+    ) -> IOGenerator:
+        """The :meth:`.IOClientProto.receive_file_with_offset` method implementation."""
+        assert(self.__sftp_client is not None)
+
+        file_path = self.entry_path(remote_file_name)
+
+        with self.__sftp_client.open(str(file_path), 'rb') as sftp_file:
+            sftp_file.seek(offset, os.SEEK_SET)
+
+            yield from IOThrottler().sync_reader(sftp_file, read_size=length)  # type: ignore[arg-type]
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def file_size(self, remote_file_name: str) -> int:
@@ -202,3 +269,7 @@ class SFTPClient(VirtualDirectoryClient):
             return stat.st_size
 
         raise IOError('File size not available')
+
+    def upload_by_part(self, remote_file_name: str, part_size: int) -> PartsUploaderProto:
+        assert(self.__sftp_client is not None)
+        return _SFTPPartsUploader(self.__sftp_client, str(self.entry_path(remote_file_name)), part_size)
