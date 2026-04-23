@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from pyknic.path import root_path
 from pyknic.lib.gettext import GetTextWrapper
+from pyknic.lib.path import root_path
 
 
 class TestGetTextWrapper:

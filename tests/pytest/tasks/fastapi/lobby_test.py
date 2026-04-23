@@ -11,7 +11,7 @@ import pytest
 from pyknic.tasks.fastapi.lobby import LobbyApp
 from pyknic.lib.gettext import GetTextWrapper
 from pyknic.lib.config import Config
-from pyknic.path import root_path
+from pyknic.lib.path import root_path
 from pyknic.lib.fastapi.headers import FastAPIHeaders
 from pyknic.lib.fastapi.models.lobby import LobbyStrFeedbackResult, LobbyFingerprintModel
 from pyknic.lib.fastapi.lobby_fingerprint import LobbyFingerprint

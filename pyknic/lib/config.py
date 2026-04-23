@@ -161,14 +161,14 @@ class _ConfigImplementation:
     It is private and helps to implement more complex logic.
     """
 
-    def __init__(self, value: RawConfigComplexType | '_ConfigImplementation'):
+    def __init__(self, value: typing.Union[RawConfigComplexType, '_ConfigImplementation']):
         """Create a new configuration and initialize it with a value.
 
         :param value: initial value
         """
 
         @verify_type(init_value=(None, dict, list, int, float, str, bool, _ConfigImplementation))
-        def init(init_value: RawConfigComplexType | '_ConfigImplementation') -> None:
+        def init(init_value: typing.Union[RawConfigComplexType, '_ConfigImplementation']) -> None:
             """Just decorated __init__ method that is called later."""
             self.__value: RawConfigComplexType = \
                 init_value.__value if isinstance(init_value, _ConfigImplementation) else init_value
@@ -193,13 +193,13 @@ class _ConfigImplementation:
         """Return that inside storage is a dict object."""
         return isinstance(self.__value, dict)
 
-    def __as_dict(self) -> typing.Dict[str, RawConfigComplexType | '_ConfigImplementation']:
+    def __as_dict(self) -> typing.Dict[str, typing.Union[RawConfigComplexType, '_ConfigImplementation']]:
         """Check that inside storage is a dict object. Also adapt code to mypy."""
         self.__ensure_type(dict)
-        return typing.cast(typing.Dict[str, RawConfigComplexType | _ConfigImplementation], self.__value)
+        return typing.cast(typing.Dict[str, typing.Union[RawConfigComplexType, '_ConfigImplementation']], self.__value)
 
     def dict_iterate(self) -> typing.Generator[
-        typing.Tuple[str, RawConfigComplexType | '_ConfigImplementation'],
+        typing.Tuple[str, typing.Union[RawConfigComplexType, '_ConfigImplementation']],
         None,
         None
     ]:
@@ -227,7 +227,7 @@ class _ConfigImplementation:
             raise ValueError(f'There is no {name} property in a configuration object')
         return _ConfigImplementation(dict_obj[name])
 
-    def dict_update(self, name: str, value: RawConfigComplexType | '_ConfigImplementation') -> None:
+    def dict_update(self, name: str, value: typing.Union[RawConfigComplexType, '_ConfigImplementation']) -> None:
         """Insert or update a value that is stored within a key.
 
         :param name: a key which value should be updated
@@ -243,7 +243,7 @@ class _ConfigImplementation:
         """Return that inside storage is a list object."""
         return isinstance(self.__value, list)
 
-    def __as_list(self) -> typing.List[RawConfigComplexType | '_ConfigImplementation']:
+    def __as_list(self) -> typing.List[typing.Union[RawConfigComplexType, '_ConfigImplementation']]:
         """Check that inside storage is a list object. Also adapt code to mypy."""
         self.__ensure_type(list)
         return typing.cast(typing.List[RawConfigComplexType | _ConfigImplementation], self.__value)

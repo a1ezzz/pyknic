@@ -25,7 +25,7 @@ from pyknic.lib.tasks.scheduler.chain_source import ChainedTask, __default_chain
 from pyknic.lib.registry import register_api
 from pyknic.lib.log import Logger
 from pyknic.lib.gettext import GetTextWrapper
-from pyknic.path import root_path
+from pyknic.lib.path import root_path
 
 
 @register_api(__default_chained_tasks_registry__, "gettext_task")

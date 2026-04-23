@@ -103,7 +103,7 @@ class TestLocalClient:
         assert(not new_file.exists())
 
         client = LocalClient.create_client(URI.parse(str(tmp_path)))
-        client.upload_file('new_file', [file_data], len(file_data))
+        client.upload_file('new_file', [file_data])
         assert(new_file.is_file())
 
         fetched_data = open(str(new_file), 'rb').read()
@@ -116,3 +116,75 @@ class TestLocalClient:
         assert(new_file.is_file())
         client.remove_file('new_file')
         assert(not new_file.exists())
+
+    def test_append_file(self, tmp_path: pathlib.Path) -> None:
+        new_file = tmp_path / 'new_file'
+        file_data = b'some test data'
+        assert(not new_file.exists())
+
+        client = LocalClient.create_client(URI.parse(str(tmp_path)))
+        client.upload_file('new_file', [file_data])
+
+        client.append_file('new_file', [file_data])
+        received_data = b''.join(client.receive_file('new_file'))
+        assert(received_data == (file_data + file_data))
+
+    def test_update_file(self, tmp_path: pathlib.Path) -> None:
+        new_file = tmp_path / 'new_file'
+        file_data = b'some test data'
+        assert(not new_file.exists())
+
+        client = LocalClient.create_client(URI.parse(str(tmp_path)))
+        client.upload_file('new_file', [file_data])
+
+        hello_data = b'hello'
+        client.update_file('new_file', [hello_data], offset=5)
+        received_data = b''.join(client.receive_file('new_file'))
+        assert(received_data == b'some hellodata')
+
+        hello_data = b'hello-hello'
+        client.update_file('new_file', [hello_data], offset=5)
+        received_data = b''.join(client.receive_file('new_file'))
+        assert(received_data == b'some hello-hello')
+
+    def test_truncate_file(self, tmp_path: pathlib.Path) -> None:
+        new_file = tmp_path / 'new_file'
+        file_data = b'some test data'
+        assert(not new_file.exists())
+
+        client = LocalClient.create_client(URI.parse(str(tmp_path)))
+        client.upload_file('new_file', [file_data])
+
+        client.truncate_file('new_file', 4)
+        received_data = b''.join(client.receive_file('new_file'))
+        assert(received_data == b'some')
+
+        client.truncate_file('new_file')
+        received_data = b''.join(client.receive_file('new_file'))
+        assert(received_data == b'')
+
+    def test_receive_file_with_offset(self, tmp_path: pathlib.Path) -> None:
+        new_file = tmp_path / 'new_file'
+        file_data = b'some test data'
+        assert(not new_file.exists())
+
+        client = LocalClient.create_client(URI.parse(str(tmp_path)))
+        client.upload_file('new_file', [file_data])
+
+        received_data = b''.join(client.receive_file_with_offset('new_file', offset=5))
+        assert(received_data == b'test data')
+
+        received_data = b''.join(client.receive_file_with_offset('new_file', offset=5, length=4))
+        assert(received_data == b'test')
+
+    def test_upload_by_part(self, tmp_path: pathlib.Path) -> None:
+
+        client = LocalClient.create_client(URI.parse(str(tmp_path)))
+
+        with client.upload_by_part('new_file', 5) as uploader:
+            uploader.upload_part(b'b' * 5, 1)
+            uploader.upload_part(b'c' * 2, 2)
+            uploader.upload_part(b'a' * 5, 0)
+
+        received_data = b''.join(client.receive_file('new_file'))
+        assert(received_data == (b'a' * 5 + b'b' * 5 + b'c' * 2))

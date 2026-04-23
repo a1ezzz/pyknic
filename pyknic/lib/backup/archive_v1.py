@@ -33,14 +33,17 @@ import typing
 import pydantic
 
 from pyknic.lib.io import IOGenerator
-from pyknic.lib.io.aio_wrapper import IOThrottler, chain_sync_processor, cg, as_ag
+from pyknic.lib.io.aio_wrapper import IOThrottler, chain_sync_processor
 from pyknic.lib.crypto.hash import __default_hashers_registry__
+from pyknic.lib.io.clients import IOVirtualClient
 from pyknic.lib.io.compression import __default_io_compressors_registry__
 from pyknic.lib.crypto.cipher import __default_cipher_registry__
 from pyknic.lib.crypto.kdf import PBKDF2
 from pyknic.lib.crypto.padding import PKCS7Padding
 from pyknic.lib.io.stats import GeneratorStats
-from pyknic.lib.io.tar import TarArchive, TarInnerDynamicGenerator, TarInnerFileGenerator
+from pyknic.lib.io.tar.writers import ClientTarArchiveWriter, TarDynamicEntry, TarFileGenerator
+from pyknic.lib.io.tar.readers import ClientTarArchiveReader
+from pyknic.lib.uri import URI
 from pyknic.lib.verify import verify_value
 
 
@@ -393,9 +396,7 @@ class BackupArchiveV1:
         self.__encryption_key = encryption_key
         self.__cipher_name = cipher_name
 
-    async def __backup(
-        self, archive_type: ArchiveType, data_reader: IOGenerator, destination: typing.IO[bytes]
-    ) -> None:
+    def __backup(self, archive_type: ArchiveType, data_reader: IOGenerator, destination: URI) -> None:
         """This method wraps backup routine
 
         :param archive_type: type of archive to create
@@ -415,22 +416,24 @@ class BackupArchiveV1:
         header_reader = IOThrottler.sync_reader(io.BytesIO(header.model_dump_json().encode()))
 
         sources = [
-            TarInnerDynamicGenerator(header_reader, ArchiveInnerFiles.header_meta.value),
-            TarInnerDynamicGenerator(helper.backup_chain(data_reader), ArchiveInnerFiles.backup_file(header)),
-            TarInnerDynamicGenerator(helper.tail_data(), ArchiveInnerFiles.tail_meta.value)
+            TarDynamicEntry(header_reader, ArchiveInnerFiles.header_meta.value),
+            TarDynamicEntry(helper.backup_chain(data_reader), ArchiveInnerFiles.backup_file(header)),
+            TarDynamicEntry(helper.tail_data(), ArchiveInnerFiles.tail_meta.value)
         ]
 
-        await TarArchive().dynamic_archive(destination, sources, write_throttling=self.__throttling)
+        with IOVirtualClient.create_n_open(destination) as c:
+            writer = ClientTarArchiveWriter(c.client(), c.filename(), write_throttling=self.__throttling)
+            writer.archive(sources)
 
-    async def backup_io(self, source: IOGenerator, destination: typing.IO[bytes]) -> None:
+    def backup_io(self, source: IOGenerator, destination: URI) -> None:
         """Backup dynamic data
 
         :param source: data to backup
         :param destination: file target archive to write to
         """
-        await self.__backup(ArchiveType.io_archive, source, destination)
+        self.__backup(ArchiveType.io_archive, source, destination)
 
-    async def backup_files(self, files: typing.Iterable[str], destination: typing.IO[bytes]) -> None:
+    def backup_files(self, files: typing.Iterable[str], destination: URI) -> None:
         """Backup ordinary files
 
         :param files: files, directories, named sockets from FS to backup
@@ -438,44 +441,36 @@ class BackupArchiveV1:
         """
         # TODO: add note that check that there are no duplicates inside files generator
 
-        def files_generator() -> typing.Generator[TarInnerFileGenerator, None, None]:
-            for f in files:
-                yield TarInnerFileGenerator(f)
-
-        data_reader = TarArchive().static_archive(files_generator())
-
-        await self.__backup(ArchiveType.file_archive, data_reader, destination)
+        data_reader = TarFileGenerator.tar(files)
+        self.__backup(ArchiveType.file_archive, data_reader, destination)
 
     @classmethod
-    def extract_header_meta(cls, archive: typing.IO[bytes]) -> ArchiveV1HeaderMeta:
+    def extract_header_meta(cls, archive: URI) -> ArchiveV1HeaderMeta:
         """Extract main meta-data from stored archive
 
         :param archive: archive to extract meta-data from
         """
-        extractor = TarArchive().extract(archive, ArchiveInnerFiles.header_meta.value)
-        header_buffer = io.BytesIO()
-        cg(IOThrottler.sync_writer(extractor, header_buffer))
 
-        return ArchiveV1HeaderMeta.model_validate_json(header_buffer.getvalue())
+        with IOVirtualClient.create_n_open(archive) as c:
+            reader = ClientTarArchiveReader(c.client(), c.filename())
+            header = reader.entry(ArchiveInnerFiles.header_meta.value).read()
+            return ArchiveV1HeaderMeta.model_validate_json(header)
 
     @classmethod
-    def extract_tail_meta(cls, archive: typing.IO[bytes]) -> ArchiveV1TailMeta:
+    def extract_tail_meta(cls, archive: URI) -> ArchiveV1TailMeta:
         """Extract additional meta-data from stored archive
 
         :param archive: archive to extract meta-data from
         """
-        extractor = TarArchive().extract(archive, ArchiveInnerFiles.tail_meta.value)
-        header_buffer = io.BytesIO()
-        cg(IOThrottler.sync_writer(extractor, header_buffer))
 
-        return ArchiveV1TailMeta.model_validate_json(header_buffer.getvalue())
+        with IOVirtualClient.create_n_open(archive) as c:
+            reader = ClientTarArchiveReader(c.client(), c.filename())
+            tail = reader.entry(ArchiveInnerFiles.tail_meta.value).read()
+            return ArchiveV1TailMeta.model_validate_json(tail)
 
     @classmethod
     def extract_data(
-        cls,
-        archive: typing.IO[bytes],
-        encryption_key: typing.Optional[str] = None,
-        validate_hashes: bool = False,
+        cls, archive: URI, encryption_key: typing.Optional[str] = None, validate_hashes: bool = False,
     ) -> IOGenerator:
         """Extract data from stored archive
 
@@ -483,29 +478,62 @@ class BackupArchiveV1:
         :param encryption_key: encryption key that was used for archive creation (if any)
         :param validate_hashes: whether to check hashes or not
         """
-        header_meta = cls.extract_header_meta(archive)
-        tail_meta = cls.extract_tail_meta(archive)
-        inner_data = TarArchive().extract(archive, ArchiveInnerFiles.backup_file(header_meta))
 
-        return _BackupHelper.unarchive_chain(
-            header_meta, tail_meta, inner_data, encryption_key=encryption_key, validate_hashes=validate_hashes
-        )
+        with IOVirtualClient.create_n_open(archive) as c:
+            reader = ClientTarArchiveReader(c.client(), c.filename())
+
+            entries_request = reader.inner_entries(
+                ArchiveInnerFiles.header_meta.value,
+                ArchiveInnerFiles.tail_meta.value
+            )
+
+            meta_data = {
+                x.tar_info().name: x.read() for x in entries_request
+            }
+
+            header_meta = ArchiveV1HeaderMeta.model_validate_json(
+                meta_data[ArchiveInnerFiles.header_meta.value]
+            )
+
+            tail_meta = ArchiveV1TailMeta.model_validate_json(
+                meta_data[ArchiveInnerFiles.tail_meta.value]
+            )
+
+            inner_data = reader.entry(ArchiveInnerFiles.backup_file(header_meta)).data()
+            return _BackupHelper.unarchive_chain(
+                header_meta, tail_meta, inner_data, encryption_key=encryption_key, validate_hashes=validate_hashes
+            )
 
     @classmethod
-    async def validate_archive(
-        cls,
-        archive: typing.IO[bytes],
-        throttling: typing.Optional[int] = None
-    ) -> None:
+    def validate_archive(cls, archive: URI, throttling: typing.Optional[int] = None) -> None:
         """Validate data stored in an archive
 
         :param archive: archive to check
         :param throttling: bytes per second rate to read an archive
         """
-        header_meta = cls.extract_header_meta(archive)
-        tail_meta = cls.extract_tail_meta(archive)
-        inner_data = TarArchive().extract(archive, ArchiveInnerFiles.backup_file(header_meta))
 
-        sync_generator = _BackupHelper.hashes_validate_chain(tail_meta, inner_data)
-        async for _ in IOThrottler.async_resender(as_ag(sync_generator), throttling=throttling):
-            pass
+        with IOVirtualClient.create_n_open(archive) as c:
+
+            reader = ClientTarArchiveReader(c.client(), c.filename())
+
+            entries_request = reader.inner_entries(
+                ArchiveInnerFiles.header_meta.value,
+                ArchiveInnerFiles.tail_meta.value
+            )
+
+            meta_data = {
+                x.tar_info().name: x.read() for x in entries_request
+            }
+
+            header_meta = ArchiveV1HeaderMeta.model_validate_json(
+                meta_data[ArchiveInnerFiles.header_meta.value]
+            )
+
+            tail_meta = ArchiveV1TailMeta.model_validate_json(
+                meta_data[ArchiveInnerFiles.tail_meta.value]
+            )
+
+            inner_data = reader.entry(ArchiveInnerFiles.backup_file(header_meta)).data()
+            sync_generator = _BackupHelper.hashes_validate_chain(tail_meta, inner_data)
+            for _ in IOThrottler.sync_resender(sync_generator, throttling=throttling):
+                pass

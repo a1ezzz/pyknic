@@ -20,8 +20,10 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import pathlib
+import types
 import typing
-from abc import abstractmethod
+
+from abc import abstractmethod, ABCMeta
 
 from pyknic.lib.io import IOGenerator, IOProducer
 from pyknic.lib.capability import CapabilitiesHolder, capability
@@ -35,12 +37,56 @@ class DirectoryNotEmptyError(Exception):
     pass
 
 
+class InvalidPartSize(Exception):
+    """ This exception is raised when a size of a part does not match initialization value"""
+    pass
+
+
+class NonSequentialPartNumbers(Exception):
+    """ There were missing parts when part uploading is finalized. Or there were multiple parts with the same number
+    """
+    pass
+
+
+class PartsUploaderProto(metaclass=ABCMeta):
+    """ This is a part of the :meth:`.IOClientProto.upload_by_part` capability. This class should implement a logic
+    that will upload a single file split by parts. Every part (except a last one) must be the same size as it was
+    defined in the :meth:`.IOClientProto.upload_by_part` method. Parts are numbered from zero
+    """
+
+    @abstractmethod
+    def __enter__(self) -> 'PartsUploaderProto':
+        """ Start and initialize this uploader
+        """
+
+        raise NotImplementedError('This method is abstract')
+
+    @abstractmethod
+    def __exit__(
+        self,
+        exc_type: typing.Optional[typing.Type[BaseException]],
+        exc_val: typing.Optional[BaseException],
+        exc_tb: typing.Optional[types.TracebackType]
+    ) -> None:
+        """ Finalize this uploader and combine all uploaded parts
+        """
+        raise NotImplementedError('This method is abstract')
+
+    def upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
+        """ Upload data
+
+        :param data: data to upload. For not last past a size of a data must be the same size as it was
+        defined in the :meth:`.IOClientProto.upload_by_part` method
+        :param part_number: part number (sequential number that starts from zero)
+        """
+        raise NotImplementedError('This method is abstract')
+
+
 class IOClientProto(CapabilitiesHolder):
     """ Base class for network clients. This class implements :class:`.WSchemeHandler` to handle connections
     encoded as URI and :class:`.WCapabilitiesHolder` to use capabilities as different client requests
     """
 
-    # TODO: add basic "with" usage, that will create, connect and disconnect client at the end
     # TODO: add signals that will notify about copying progress
 
     @classmethod
@@ -103,14 +149,47 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
-    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1, source_size=lambda x: x > 0)
-    def upload_file(self, remote_file_name: str, source: IOProducer, source_size: int) -> None:
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def upload_file(self, remote_file_name: str, source: IOProducer) -> None:
         """Upload file. File will be uploaded to a current session directory. A name must not contain
         a directory separator
 
         :param remote_file_name: target file name
         :param source: data to upload
-        :param source_size: size of data to upload (some API require data size)
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def append_file(self, remote_file_name: str, source: IOProducer) -> None:
+        """Append data a file. Updated file will be changed in a current session directory. A name must not contain
+        a directory separator
+
+        :param remote_file_name: target file name to update
+        :param source: data to upload
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def update_file(self, remote_file_name: str, source: IOProducer, offset: int = 0) -> None:
+        """Update a file (replace and or update date from the offset). Updated file will be changed in a current
+        session directory. A name must not contain a directory separator
+
+        :param remote_file_name: target file name to update
+        :param source: data to upload
+        :param offset: offset to change a file from
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
+    def truncate_file(self, remote_file_name: str, offset: int = 0) -> None:
+        """ Truncate a remote file. Truncated file will be changed in a current session directory. A name must not
+        contain a directory separator
+
+        :param remote_file_name: target file name to update
+        :param offset: offset from a start to keep a data
         """
         raise NotImplementedError('This method is abstract')
 
@@ -134,10 +213,33 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
+    @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1, offset=lambda x: x >= 0)
+    @verify_value(length=lambda x: x is None or x >= 0)
+    def receive_file_with_offset(
+        self, remote_file_name: str, offset: int = 0, length: typing.Optional[int] = None
+    ) -> IOGenerator:
+        """Fetch/download a file. A remote file name must not contain a directory separator
+
+        :param remote_file_name: file to fetch
+        :param offset: offset to start from
+        :param length: length of data to fetch. The length if data is mandatory if defined
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @capability
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def file_size(self, remote_file_name: str) -> int:
         """Return size of file in bytes.
 
         :param remote_file_name: file to check
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    def upload_by_part(self, remote_file_name: str, part_size: int) -> PartsUploaderProto:
+        """ Return context manager that will help to upload data part by part (chunk by chunk)
+
+        :param remote_file_name: file to upload
+        :param part_size: exact number of bytes each part must have
         """
         raise NotImplementedError('This method is abstract')
