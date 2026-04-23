@@ -46,17 +46,20 @@ class Test_TarInfoGenerator:
 class TestTarArchiveWriter:
 
     @staticmethod
-    def io_writer(file_path: str) -> IOTarArchiveWriter:
-        f = open(file_path, 'wb')  # no problem to keep file opened for tests
-        return IOTarArchiveWriter(f)
+    def io_writer(file_path: str, sources: typing.Iterable[TarWriterEntryProto]) -> None:
+        with open(file_path, 'wb') as f:
+            writer = IOTarArchiveWriter(f)
+            writer.archive(sources)
 
     @staticmethod
-    def client_writer(file_path: str) -> ClientTarArchiveWriter:
+    def client_writer(file_path: str, sources: typing.Iterable[TarWriterEntryProto]) -> None:
         uri = URI.parse(f'file:///{file_path}')
         file_name, modified_uri = uri.get_file()
-        client = IOVirtualClient.create_client(modified_uri)
 
-        return ClientTarArchiveWriter(client, file_name)
+        client = IOVirtualClient.create_client(modified_uri)
+        with client.open():
+            writer = ClientTarArchiveWriter(client, file_name)
+            writer.archive(sources)
 
     @pytest.mark.parametrize(
         "writer_impl", [
@@ -80,19 +83,23 @@ class TestTarArchiveWriter:
         ]
     )
     def test(
-        self, writer_impl: typing.Callable[[str], TarArchiveWriterProto], test_data: bytes, tmp_path: pathlib.Path
+        self,
+        writer_impl: typing.Callable[[str, typing.Iterable[TarWriterEntryProto]], None],
+        test_data: bytes,
+        tmp_path: pathlib.Path
     ) -> None:
         pyknic_tar_file = tmp_path / "pyknic-archive.tar"
-
-        writer = writer_impl(str(pyknic_tar_file))
 
         with (tmp_path / "sample1").open('wb') as f:
             f.write(test_data)
 
-        writer.archive([
-            TarFileEntry(str(tmp_path / "sample1")),
-            TarDynamicEntry([test_data], str((tmp_path / "sample2").relative_to('/')))
-        ])
+        writer_impl(
+            str(pyknic_tar_file),
+            [
+                TarFileEntry(str(tmp_path / "sample1")),
+                TarDynamicEntry([test_data], str((tmp_path / "sample2").relative_to('/')))
+            ]
+        )
 
         inner_files = [
             str((tmp_path / 'sample1').relative_to('/')),

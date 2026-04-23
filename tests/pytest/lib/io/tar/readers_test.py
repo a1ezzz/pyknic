@@ -100,7 +100,7 @@ class TestTarArchiveReader:
 
         with pytest.raises(RuntimeError):
             # entry should be read first
-            next_entry = next(unarchive_gen)
+            next(unarchive_gen)
 
         # for inner_entries  (with conditions) tests
         reader = reader_impl(str(pyknic_tar_file))
