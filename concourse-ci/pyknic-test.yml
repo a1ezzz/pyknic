@@ -195,6 +195,7 @@ jobs:
                   BUILD_COMMIT="$(git rev-parse $( [[ -n "((pull_request_id))" ]] && echo "((pull_request_branch_name))" || echo "HEAD" ))" \
                   TG_BOT_TOKEN="((tg_bot_token))" \
                   TG_CHAT_ID="((tg_chat))" \
+                  TG_API_HOST="((tg_api_host))" \
                   GITHUB_PULL_REQUEST_ID="((pull_request_id))" \
                   GITHUB_ACCESS_TOKEN="((github-access-token))" \
                   /scripts/test-feedback.sh failure
@@ -222,6 +223,7 @@ jobs:
                   BUILD_COMMIT="$(git rev-parse $( [[ -n "((pull_request_id))" ]] && echo "((pull_request_branch_name))" || echo "HEAD" ))" \
                   TG_BOT_TOKEN="((tg_bot_token))" \
                   TG_CHAT_ID="((tg_chat))" \
+                  TG_API_HOST="((tg_api_host))" \
                   GITHUB_PULL_REQUEST_ID="((pull_request_id))" \
                   GITHUB_ACCESS_TOKEN="((github-access-token))" \
                   /scripts/test-feedback.sh success
@@ -271,6 +273,7 @@ jobs:
                   BUILD_COMMIT="$(git rev-parse $( [[ -n "((pull_request_id))" ]] && echo "((pull_request_branch_name))" || echo "HEAD" ))" \
                   TG_BOT_TOKEN="((tg_bot_token))" \
                   TG_CHAT_ID="((tg_chat))" \
+                  TG_API_HOST="((tg_api_host))" \
                   GITHUB_PULL_REQUEST_ID="((pull_request_id))" \
                   GITHUB_ACCESS_TOKEN="((github-access-token))" \
                   /scripts/test-feedback.sh failure
@@ -298,6 +301,7 @@ jobs:
                   BUILD_COMMIT="$(git rev-parse $( [[ -n "((pull_request_id))" ]] && echo "((pull_request_branch_name))" || echo "HEAD" ))" \
                   TG_BOT_TOKEN="((tg_bot_token))" \
                   TG_CHAT_ID="((tg_chat))" \
+                  TG_API_HOST="((tg_api_host))" \
                   GITHUB_PULL_REQUEST_ID="((pull_request_id))" \
                   GITHUB_ACCESS_TOKEN="((github-access-token))" \
                   /scripts/test-feedback.sh success

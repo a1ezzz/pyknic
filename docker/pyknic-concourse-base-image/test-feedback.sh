@@ -3,6 +3,7 @@
 # optional env-vars are:
 #  - TG_BOT_TOKEN
 #  - TG_CHAT_ID
+#  - TG_API_HOST
 #  - GITHUB_PULL_REQUEST_ID
 #  - GITHUB_ACCESS_TOKEN
 
@@ -23,6 +24,8 @@ fi
 
 if [[ -n "${TG_BOT_TOKEN:-}" && -n "${TG_CHAT_ID:-}" ]]; then
 
+  TG_API_HOST="${TG_API_HOST:api.telegram.org}"
+
   TG_MESSAGE=""
   if [[ "${TASK_STATE}" == "success" ]]; then
     TG_MESSAGE="☘ Test \"${TEST_NAME}\" succeeded:\n\n"
@@ -40,7 +43,7 @@ if [[ -n "${TG_BOT_TOKEN:-}" && -n "${TG_CHAT_ID:-}" ]]; then
 
   curl \
     -X POST \
-    "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+    "https://${TG_API_HOST}/bot${TG_BOT_TOKEN}/sendMessage" \
     -d chat_id="${TG_CHAT_ID}" \
     -d text="$(echo -en "${TG_MESSAGE}")"
 
