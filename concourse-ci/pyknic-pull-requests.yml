@@ -132,4 +132,5 @@ jobs:
               python_version: ((.:python_version))
               tg_bot_token: ((tg_bot_token))
               tg_chat: ((tg_chat))
+              tg_api_host: "((tg_api_host))"
               pytest_s3_test_uri: ((pytest_s3_test_uri))
