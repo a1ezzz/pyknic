@@ -24,7 +24,7 @@ fi
 
 if [[ -n "${TG_BOT_TOKEN:-}" && -n "${TG_CHAT_ID:-}" ]]; then
 
-  TG_API_HOST="${TG_API_HOST:api.telegram.org}"
+  TG_API_HOST="${TG_API_HOST:-api.telegram.org}"
 
   TG_MESSAGE=""
   if [[ "${TASK_STATE}" == "success" ]]; then
