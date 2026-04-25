@@ -94,7 +94,9 @@ class TestSFTPClient:
         client.connect()
 
         test_dir = f'pytest-directory-{uuid.uuid4()}'
+        assert(client.is_directory(test_dir) is False)
         client.make_directory(test_dir)
+        assert(client.is_directory(test_dir) is True)
 
         with pytest.raises(IOError):
             client.make_directory(test_dir)
@@ -106,8 +108,12 @@ class TestSFTPClient:
 
         inner_dir1 = str(uuid.uuid4())
         inner_dir2 = str(uuid.uuid4())
+        assert(client.is_directory(inner_dir1) is False)
+        assert(client.is_directory(inner_dir2) is False)
         client.make_directory(inner_dir1)
         client.make_directory(inner_dir2)
+        assert(client.is_directory(inner_dir1) is True)
+        assert(client.is_directory(inner_dir2) is True)
         inner_dirs_result = client.list_directory()
         assert(test_dir not in inner_dirs_result)
         assert(inner_dir1 in inner_dirs_result)
@@ -145,6 +151,7 @@ class TestSFTPClient:
         client.change_directory('/')
         client.remove_directory(test_dir)
         assert(test_dir not in client.list_directory())
+        assert(client.is_directory(test_dir) is False)
 
     def test_file(self, sftp_server: sftp_fixture, tmp_path: pathlib.Path) -> None:
         sftp_server[1].base_dir = str(tmp_path)
@@ -152,16 +159,14 @@ class TestSFTPClient:
         client = SFTPClient(URI.parse(self.client_uri))
         client.connect()
 
-        # test_data = b'Test data' * (10 * (1024 ** 2))
-
         test_data = b'Test data' * (1 * (1024 ** 2))
-
-        # test_data = b'Test data'
 
         test_dir = f'pytest-directory-{uuid.uuid4()}'
         client.make_directory(test_dir)
         client.change_directory(test_dir)
+        assert(client.is_directory('remote-file') is False)
         client.upload_file('remote-file', [test_data])
+        assert(client.is_directory('remote-file') is False)
 
         assert(client.file_size('remote-file') == len(test_data))
 

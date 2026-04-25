@@ -33,6 +33,7 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
     pytest.raises(NotImplementedError, IOClientProto.connect, None)
     pytest.raises(NotImplementedError, IOClientProto.disconnect, None)
     pytest.raises(NotImplementedError, IOClientProto.change_directory, None, '/path/to/dir')
+    pytest.raises(NotImplementedError, IOClientProto.is_directory, None, 'dir_name')
     pytest.raises(NotImplementedError, IOClientProto.list_directory, None)
     pytest.raises(NotImplementedError, IOClientProto.make_directory, None, 'new_dir')
     pytest.raises(NotImplementedError, IOClientProto.remove_directory, None, 'old_dir')
