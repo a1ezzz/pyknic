@@ -286,6 +286,10 @@ class S3Client(VirtualDirectoryClient):
     def list_directory(self) -> typing.Tuple[str, ...]:
         return tuple(self.__list_generator(self.session_path()))
 
+    def is_directory(self, directory_name: str) -> bool:
+        dir_path = self.entry_path(directory_name)
+        return self.__has_entry(dir_path, True)
+
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def upload_file(self, remote_file_name: str, source: IOProducer) -> None:
         assert (self.__client is not None)

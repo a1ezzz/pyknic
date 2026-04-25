@@ -21,6 +21,7 @@
 
 import os
 import pathlib
+import stat
 import typing
 
 import paramiko
@@ -188,6 +189,21 @@ class SFTPClient(VirtualDirectoryClient):
         dir_to_list = str(self.session_path())
         return tuple(self.__sftp_client.listdir(dir_to_list))
 
+    def is_directory(self, directory_name: str) -> bool:
+        assert(self.__sftp_client is not None)
+
+        dir_path = self.entry_path(directory_name)
+
+        try:
+            dir_stat = self.__sftp_client.lstat(str(dir_path))
+            if dir_stat.st_mode is not None:
+                return stat.S_ISDIR(dir_stat.st_mode)
+
+        except OSError:
+            pass
+
+        return False
+
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def upload_file(self, remote_file_name: str, source: IOProducer) -> None:
         """Synchronous implementation of the `.IOClientProto.upload_file` method
@@ -263,7 +279,7 @@ class SFTPClient(VirtualDirectoryClient):
         assert(self.__sftp_client is not None)
 
         file_path = self.entry_path(remote_file_name)
-        stat = self.__sftp_client.stat(str(file_path))
+        stat = self.__sftp_client.lstat(str(file_path))
 
         if stat.st_size is not None:
             return stat.st_size
