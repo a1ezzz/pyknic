@@ -89,13 +89,13 @@ class BellBoyCopyCommand(BellBoyCommandHandler):
         if not iscapable(destination_client, IOClientProto.upload_file):
             raise ValueError(f'The "{destination_uri.scheme}" protocol implementation does not file uploading')
 
-        if iscapable(destination_client, IOClientProto.is_directory):
-            destination_client.is_directory(destination_file)
-            destination_client.change_directory(destination_file)
-            destination_file = source_file
-
         with source_client.open():
             with destination_client.open():
+
+                if iscapable(destination_client, IOClientProto.is_directory):
+                    destination_client.is_directory(destination_file)
+                    destination_client.change_directory(destination_file)
+                    destination_file = source_file
 
                 read_generator = source_client.receive_file(source_file)
                 sync_throttler = IOThrottler.sync_resender(read_generator, throttling=self._args.throttling)
