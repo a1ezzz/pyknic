@@ -112,6 +112,11 @@ class LocalClient(VirtualDirectoryClient):
         """The :meth:`.IOClientProto.list_directory` method implementation."""
         return tuple(x.name for x in self.session_path().iterdir())
 
+    def is_directory(self, directory_name: str) -> bool:
+        """The :meth:`.IOClientProto.is_directory` method implementation."""
+        path = pathlib.PosixPath(self.session_path()) / directory_name
+        return path.is_dir()
+
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def make_directory(self, directory_name: str) -> None:
         """The :meth:`.IOClientProto.make_directory` method implementation."""

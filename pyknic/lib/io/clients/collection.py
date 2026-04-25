@@ -111,6 +111,7 @@ class IOVirtualClient(IOClientProto):
         self.__init_capability('list_directory')
         self.__init_capability('make_directory')
         self.__init_capability('remove_directory')
+        self.__init_capability('is_directory')
         self.__init_capability('upload_file')
         self.__init_capability('append_file')
         self.__init_capability('update_file')

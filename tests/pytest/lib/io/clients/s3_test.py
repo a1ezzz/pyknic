@@ -59,7 +59,9 @@ class TestS3Client:
         client.connect()
 
         test_dir = f'pytest-directory-{uuid.uuid4()}'
+        assert(client.is_directory(test_dir) is False)
         client.make_directory(test_dir)
+        assert(client.is_directory(test_dir) is True)
 
         with pytest.raises(FileExistsError):
             client.make_directory(test_dir)
@@ -71,8 +73,12 @@ class TestS3Client:
 
         inner_dir1 = str(uuid.uuid4())
         inner_dir2 = str(uuid.uuid4())
+        assert(client.is_directory(inner_dir1) is False)
+        assert(client.is_directory(inner_dir2) is False)
         client.make_directory(inner_dir1)
         client.make_directory(inner_dir2)
+        assert(client.is_directory(inner_dir1) is True)
+        assert(client.is_directory(inner_dir2) is True)
         inner_dirs_result = client.list_directory()
         assert(test_dir not in inner_dirs_result)
         assert(inner_dir1 in inner_dirs_result)
@@ -110,6 +116,7 @@ class TestS3Client:
         client.change_directory('/')
         client.remove_directory(test_dir)
         assert(test_dir not in client.list_directory())
+        assert(client.is_directory(test_dir) is False)
 
     def test_file(self) -> None:
         client = S3Client(URI.parse(os.environ[S3ConnectionEnvVar]))
@@ -120,7 +127,9 @@ class TestS3Client:
         test_dir = f'pytest-directory-{uuid.uuid4()}'
         client.make_directory(test_dir)
         client.change_directory(test_dir)
+        assert(client.is_directory('remote-file') is False)
         client.upload_file('remote-file', [test_data])
+        assert(client.is_directory('remote-file') is False)
 
         assert(client.file_size('remote-file') == len(test_data))
 
