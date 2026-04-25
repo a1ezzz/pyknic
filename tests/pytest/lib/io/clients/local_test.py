@@ -57,6 +57,19 @@ class TestLocalClient:
         assert(client.change_directory(str(tmp_path)) == str(tmp_path))
         assert(client.current_directory() == str(tmp_path))
 
+    def test_is_directory(self, tmp_path: pathlib.Path) -> None:
+        client = LocalClient.create_client(URI())
+        assert(client.current_directory() == '/')
+
+        client.change_directory(str(tmp_path))
+        assert(client.is_directory('dir_name') is False)
+        assert(client.is_directory('file_name') is False)
+
+        client.upload_file('file_name', [b'some data'])
+        client.make_directory('dir_name')
+        assert(client.is_directory('dir_name') is True)
+        assert(client.is_directory('file_name') is False)
+
     def test_list_directory(self, tmp_path: pathlib.Path) -> None:
         dir_entries = ['dir1', 'dir2', 'dir3']
         file_entries = ['file1', 'file2', 'file3']

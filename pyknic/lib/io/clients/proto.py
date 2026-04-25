@@ -124,6 +124,14 @@ class IOClientProto(CapabilitiesHolder):
         raise NotImplementedError('This method is abstract')
 
     @capability
+    def is_directory(self, directory_name: str) -> bool:
+        """ Check whether there is an entry in current directory and this entry is a directory
+
+        :param directory_name: name to check
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @capability
     def list_directory(self) -> typing.Tuple[str, ...]:
         """List current session directory."""
         raise NotImplementedError('This method is abstract')
