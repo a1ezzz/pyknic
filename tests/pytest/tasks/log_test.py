@@ -26,13 +26,10 @@ class TestLogTask:
         task = LogTask.create(empty_datalog, 'sample-api-id', uuid.uuid4())
         assert(task.task_name() is not None)
 
-        with pytest.raises(ValueError):
-            task.start()
-
-        monkeypatch.setenv(LogTask.__env_var_name__, "FOO")
+        monkeypatch.setenv('PYKNIC_LOG_LEVEL', "FOO")
 
         with pytest.raises(ValueError):
             task.start()
 
-        monkeypatch.setenv(LogTask.__env_var_name__, "DEBUG")
+        monkeypatch.setenv('PYKNIC_LOG_LEVEL', "DEBUG")
         task.start()

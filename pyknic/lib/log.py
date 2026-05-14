@@ -22,8 +22,10 @@
 import logging
 
 from pyknic.lib.singleton import create_singleton
+from pyknic.environment import PyknicEnvVars
 
-
-Logger: logging.Logger = create_singleton(logging.getLogger("pyknic"))  # type: ignore[assignment]  # metaclass
+Logger: logging.Logger = create_singleton(  # type: ignore[assignment]  # metaclass
+    logging.getLogger(PyknicEnvVars().app_name)
+)
 
 # TODO: check it out -- https://docs.python.org/3/library/logging.config.html

@@ -23,30 +23,30 @@
 # TODO: test it
 
 import asyncio
-import os
 import pathlib
-import sys
 import typing
 
 import pydantic
 import pydantic_settings
 
-from pyknic.lib.config import Config
-from pyknic.lib.bellboy.console import BellboyConsole
-from pyknic.lib.bellboy.models import CommonBellBoyCommandModel, FormattingMode
-from pyknic.lib.bellboy.app import __default_bellboy_commands_registry__, BellBoyCommandHandler
-from pyknic.tasks.log import LogTask
+from pyknic.environment import PyknicEnvVars, PyknicLogLevel
 
-import pyknic.lib.integrated_commands  # noqa: F401  # force commands loading
+PyknicEnvVars.export_settings(app_name='bellboy')  # this sets up logger correctly
+
+import pyknic.lib.integrated_commands  # noqa: F401, E402  # force commands loading
+
+from pyknic.lib.bellboy.console import BellboyConsole  # noqa: E402
+from pyknic.lib.bellboy.models import CommonBellBoyCommandModel, FormattingMode  # noqa: E402
+from pyknic.lib.bellboy.app import __default_bellboy_commands_registry__, BellBoyCommandHandler  # noqa: E402
+
+from pyknic.base_app import BaseApp  # noqa: E402
 
 
 # TODO: make the "rich" package optional dependency. But note! There is a direct call to the rich module inside
 #  the "login" command
 
-# TODO: think of loading external bellboy command. May be with the entry_points (think twice!)
 
-
-class Bellboy:
+class BellboyApp(BaseApp):
 
     class BaseCommand(pydantic.BaseModel):
         bellboy: typing.Optional[CommonBellBoyCommandModel] = pydantic.Field(
@@ -63,7 +63,7 @@ class Bellboy:
             assert(isinstance(command, str))
             handler_model: typing.Type[pydantic.BaseModel] = handler.command_model()
 
-            class CustomModel(Bellboy.BaseCommand, handler_model):  # type: ignore[misc,valid-type]
+            class CustomModel(BellboyApp.BaseCommand, handler_model):  # type: ignore[misc,valid-type]
                 _command_handler = handler
 
             commands_annotations[command] = pydantic_settings.CliSubCommand[CustomModel]  # type: ignore[misc]
@@ -76,7 +76,8 @@ class Bellboy:
             pydantic_settings.BaseSettings,
             cli_parse_args=True,
             cli_prog_name='bellboy',
-            cli_use_class_docs_for_groups=True
+            cli_use_class_docs_for_groups=True,
+            cli_exit_on_error=False
         ):
             """ Standalone pyknic tool and a client for the pyknic server
             """
@@ -84,50 +85,61 @@ class Bellboy:
 
         return BellboySettings()
 
-    @classmethod
-    def main(cls) -> None:
-        config = Config()  # TODO: there is no usage at the moment =(
+    def start(self) -> None:
 
-        with (pathlib.Path(__file__).parent / 'lib' / 'bellboy' / 'config.yaml').open() as f:
-            config.merge_file(f)
-
-        console = BellboyConsole()
+        BaseApp.start(self)
 
         try:
-            cmd = cls.args_parser_cls()
-        except pydantic.ValidationError as e:
-            console.error(str(e))
-            sys.exit(-1)
+            tasks_source = self.tasks_source()
+            tasks_source.execute('plugins_task')
+            tasks_source.wait_for(tasks_source.datalog(), 'plugins_task')
 
-        subcommand_obj = pydantic_settings.get_subcommand(cmd)
-        assert(subcommand_obj is not None)
+            config_result = tasks_source.wait_for(tasks_source.datalog(), 'config_task')
+            config = config_result.result  # type: ignore[union-attr]
 
-        assert(isinstance(subcommand_obj, Bellboy.BaseCommand))
-        if subcommand_obj.bellboy is not None:
-            if subcommand_obj.bellboy.config is not None:
-                with pathlib.Path().open(subcommand_obj.bellboy.config):
-                    config.merge_file(f)
+            console = BellboyConsole()
 
-        os.environ[LogTask.__env_var_name__] = "INFO"  # possible options are: "ERROR", "WARN", "INFO", "DEBUG"
-        LogTask.setup_log()
+            try:
+                cmd = self.args_parser_cls()
+            except pydantic.ValidationError as e:
+                console.error(str(e))
+                raise SystemExit(-1)
 
-        loop = asyncio.new_event_loop()
-        prepared_command = subcommand_obj._command_handler.prepare_command(subcommand_obj)
-        result = loop.run_until_complete(prepared_command.exec())
+            subcommand_obj = pydantic_settings.get_subcommand(cmd)
+            assert(subcommand_obj is not None)
 
-        json_mode = False
-        if subcommand_obj.bellboy is not None:
-            if subcommand_obj.bellboy.formatting is not None:
-                if subcommand_obj.bellboy.formatting == FormattingMode.json:
-                    json_mode = True
-                else:
-                    assert(subcommand_obj.bellboy.formatting == FormattingMode.rich)
+            assert(isinstance(subcommand_obj, BellboyApp.BaseCommand))
+            if subcommand_obj.bellboy is not None:
+                if subcommand_obj.bellboy.config is not None:
+                    with pathlib.Path().open(subcommand_obj.bellboy.config) as f:
+                        config.merge_file(f)
 
-        if json_mode:
-            print(result.model_dump_json())
-        else:
-            console.process_result(result)
+            loop = asyncio.new_event_loop()
+            prepared_command = subcommand_obj._command_handler.prepare_command(subcommand_obj)
+            result = loop.run_until_complete(prepared_command.exec())
+
+            json_mode = False
+            if subcommand_obj.bellboy is not None:
+                if subcommand_obj.bellboy.formatting is not None:
+                    if subcommand_obj.bellboy.formatting == FormattingMode.json:
+                        json_mode = True
+                    else:
+                        assert(subcommand_obj.bellboy.formatting == FormattingMode.rich)
+
+            if json_mode:
+                print(result.model_dump_json())
+            else:
+                console.process_result(result)
+
+        finally:
+            self.stop()
+
+    @classmethod
+    def main(cls) -> None:
+        # TODO: custom verbosity levels!
+
+        BellboyApp.start_app('bellboy:starter', log_level=PyknicLogLevel.INFO)
 
 
 if __name__ == "__main__":
-    Bellboy.main()
+    BellboyApp.main()
