@@ -3,6 +3,7 @@
 import asyncio
 import functools
 import pytest
+import sys
 import threading
 import time
 import typing
@@ -174,6 +175,27 @@ class TestThreadTask:
             (task, ThreadedTask.thread_ready, original_task),
             (task, TaskProto.task_completed, TaskResult(exception=task_exception)),
         ])
+
+    def test_sys_exit(self, signals_registry: SignalsRegistry) -> None:
+
+        def test_fn() -> None:
+            # call to sys.exit may be spotted in some external libraries such as pydantic_settings (note --help routine)
+            # in this case all the program may be freezed, so test it
+            sys.exit(0)
+
+        task = ThreadedTask.plain_task(test_fn)
+        task.callback(TaskProto.task_completed, signals_registry)
+
+        task.start()
+        task.wait()
+
+        signals = signals_registry.dump(True)
+        assert(len(signals) == 1)
+        task_result = signals[0][2]
+        assert(task_result is not None)
+        assert(isinstance(task_result, TaskResult) is True)
+        assert(isinstance(task_result.exception, SystemExit) is True)
+        assert(task_result.exception.code == 0)
 
 
 class TestThreadRunner:
