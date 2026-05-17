@@ -27,6 +27,9 @@ import boto3.session
 import botocore.client
 import botocore.exceptions
 
+from types_boto3_s3 import S3Client as Boto3S3Client
+from types_boto3_s3.type_defs import CreateMultipartUploadOutputTypeDef
+
 from pyknic.lib.registry import register_api
 from pyknic.lib.uri import URI, URIQuery
 from pyknic.lib.io import IOGenerator, IOProducer
@@ -46,7 +49,7 @@ class _S3PartsUploader(BasePartsUploader):
     __minimal_part_size__ = 5 * (1024 ** 2)  # minimum part size
 
     @verify_value(part_size=lambda x: x >= _S3PartsUploader.__minimal_part_size__)
-    def __init__(self, client: botocore.client.BaseClient, bucket: str, remote_file_name: str, part_size: int):
+    def __init__(self, client: Boto3S3Client, bucket: str, remote_file_name: str, part_size: int):
         BasePartsUploader.__init__(self, part_size)
 
         self.__client = client
@@ -54,7 +57,7 @@ class _S3PartsUploader(BasePartsUploader):
         self.__remote_file_name = remote_file_name
         self.__part_size = part_size
 
-        self.__mp_request = None
+        self.__mp_request: typing.Optional[CreateMultipartUploadOutputTypeDef] = None
         self.__parts_info: typing.List[typing.Dict[str, typing.Any]] = list()
 
     def __enter__(self) -> BasePartsUploader:
@@ -75,7 +78,7 @@ class _S3PartsUploader(BasePartsUploader):
             Key=self.__remote_file_name,
             UploadId=self.__mp_request["UploadId"],
             PartNumber=(part_number + 1),
-            Body=data
+            Body=data  # type: ignore[arg-type]
         )
 
         self.__parts_info.append(
@@ -96,7 +99,7 @@ class _S3PartsUploader(BasePartsUploader):
                 Bucket=self.__bucket,
                 Key=self.__remote_file_name,
                 UploadId=self.__mp_request["UploadId"],
-                MultipartUpload={'Parts': self.__parts_info}
+                MultipartUpload={'Parts': self.__parts_info}  # type: ignore[typeddict-item]
             )
 
 
@@ -120,7 +123,7 @@ class S3Client(VirtualDirectoryClient):
 
         self.__uri = uri
         self.__session: typing.Optional[boto3.session.Session] = None
-        self.__client: typing.Optional[botocore.client.BaseClient] = None
+        self.__client: typing.Optional[Boto3S3Client] = None
         self.__block_size = 4096
 
         if self.__uri.query is None:
@@ -147,13 +150,13 @@ class S3Client(VirtualDirectoryClient):
 
         secure = self.__uri.scheme != 's3'
 
-        self.__session = boto3.session.Session(  # type: ignore[no-untyped-call]
+        self.__session = boto3.session.Session(
             aws_access_key_id=self.__uri_query.single_parameter('access_key', str),
             aws_secret_access_key=self.__uri_query.single_parameter('secret_key', str),
 
         )
 
-        self.__client = self.__session.client(  # type: ignore[no-untyped-call]
+        self.__client = self.__session.client(
             service_name='s3',
             endpoint_url=str(connection_uri),
             use_ssl=secure,
@@ -175,7 +178,7 @@ class S3Client(VirtualDirectoryClient):
     def disconnect(self) -> None:
         assert(self.__client is not None)
 
-        self.__client.close()  # type: ignore[no-untyped-call]
+        self.__client.close()
         self.__client = None
         self.__session = None
 
@@ -300,7 +303,7 @@ class S3Client(VirtualDirectoryClient):
             raise FileExistsError(f'Object {str(new_file_path)} already exists')
 
         self.__client.upload_fileobj(
-            Fileobj=ReadFileObject(source),
+            Fileobj=ReadFileObject(source),  # type: ignore[arg-type]
             Bucket=self.__bucket_name,
             Key=self.relative_path(new_file_path),
         )
@@ -330,7 +333,7 @@ class S3Client(VirtualDirectoryClient):
             Bucket=self.__bucket_name, Key=self.relative_path(file_path)
         )
 
-        yield from IOThrottler().sync_reader(get_request["Body"])
+        yield from IOThrottler().sync_reader(get_request["Body"])  # type: ignore[arg-type]
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1, offset=lambda x: x >= 0)
     @verify_value(length=lambda x: x is None or x >= 0)
@@ -352,7 +355,7 @@ class S3Client(VirtualDirectoryClient):
             Bucket=self.__bucket_name, Key=self.relative_path(file_path), Range=f'bytes={offset}-{file_size}'
         )
 
-        yield from IOThrottler().sync_reader(get_request["Body"], read_size=length)
+        yield from IOThrottler().sync_reader(get_request["Body"], read_size=length)  # type: ignore[arg-type]
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def file_size(self, remote_file_name: str) -> int:
