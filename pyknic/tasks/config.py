@@ -30,6 +30,7 @@ from pyknic.lib.registry import register_api
 
 from pyknic.lib.log import Logger
 from pyknic.lib.config import Config
+from pyknic.environment import PyknicEnvVars
 
 
 @register_api(__default_chained_tasks_registry__, "config_task")
@@ -45,9 +46,6 @@ class ConfigTask(ChainedTask):
 
     __apps_defaults_dir__ = os.path.join(os.path.dirname(__file__), '..')  # directory with default configurations
     __default_file__ = "config.yaml"  # default configuration file name
-
-    __app_dir_config_envar__ = "PYKNIC_APP_DIR_CONFIG"  # defines an environment variable for directory with configs
-    __app_file_config_envar__ = "PYKNIC_APP_FILE_CONFIG"  # defines an environment variable for config file
 
     def __load_file(self, config: Config, filename: str) -> None:
         """ Merge data from a file to a config
@@ -110,11 +108,12 @@ class ConfigTask(ChainedTask):
         result = Config()
         self.__read_directory(result, self.__apps_defaults_dir__, self.__default_file__)
 
-        if self.__app_dir_config_envar__ in os.environ:
-            self.__read_directory(result, os.environ[self.__app_dir_config_envar__])
+        env_vars_settings = PyknicEnvVars()
+        if env_vars_settings.dir_config:
+            self.__read_directory(result, env_vars_settings.dir_config)
 
-        if self.__app_file_config_envar__ in os.environ:
-            self.__load_file(result, os.environ[self.__app_file_config_envar__])
+        if env_vars_settings.file_config:
+            self.__load_file(result, env_vars_settings.file_config)
 
         self.save_result(result)
         Logger.info('Configuration loaded')

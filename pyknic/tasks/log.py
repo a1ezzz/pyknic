@@ -20,19 +20,17 @@
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-import os
 
 from pyknic.lib.tasks.scheduler.chain_source import ChainedTask, __default_chained_tasks_registry__
 from pyknic.lib.registry import register_api
 from pyknic.lib.log import Logger
+from pyknic.environment import PyknicEnvVars
 
 
 @register_api(__default_chained_tasks_registry__, "log_task")
 class LogTask(ChainedTask):
     """ This task sets up the project's logger
     """
-
-    __env_var_name__ = "PYKNIC_LOG_LEVEL"  # defines an environment variable for log level
 
     def start(self) -> None:
         """ Call the method :meth:`.LogTask.setup_log` to tweak the logger
@@ -48,12 +46,8 @@ class LogTask(ChainedTask):
     def setup_log() -> None:
         """ Tweak the logger
         """
-        if LogTask.__env_var_name__ not in os.environ:
-            raise ValueError(f'The "{LogTask.__env_var_name__}" variable was not set')
 
-        log_level_str = os.environ[LogTask.__env_var_name__]
-        if log_level_str not in ('ERROR', 'WARN', 'INFO', 'DEBUG'):
-            raise ValueError(f'Unknown value of "{LogTask.__env_var_name__}" -- {log_level_str}')
+        env_vars_settings = PyknicEnvVars()
 
         formatter = logging.Formatter(
             '[%(name)s] [%(threadName)s] [%(levelname)s] [%(asctime)s] %(message)s',
@@ -63,7 +57,7 @@ class LogTask(ChainedTask):
         handler = logging.StreamHandler()
         handler.setFormatter(formatter)
 
-        log_level = getattr(logging, log_level_str)
+        log_level = getattr(logging, env_vars_settings.log_level.name)
         Logger.addHandler(handler)
         Logger.setLevel(log_level)
 

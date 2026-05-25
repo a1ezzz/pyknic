@@ -15,4 +15,4 @@ def log_exceptions(decorated_fn: typing.Callable[..., typing.Any]) -> typing.Cal
             print(f'Exception :: {decorated_fn} :: {e.__class__.__name__} :: {e}')
             raise
 
-    return decorator.decorator(fn_decorator)(decorated_fn)  # type: ignore[no-any-return, no-untyped-call]
+    return decorator.decorator(fn_decorator)(decorated_fn)

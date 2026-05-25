@@ -55,6 +55,7 @@ class FastAPIInitTask(ChainedTask):
         Logger.info('Check dependencies')
 
         self.wait_for('log_task')
+        self.wait_for('plugins_task')
         config = self.wait_for('config_task').result  # type: ignore[union-attr]
 
         Logger.info('Prepare fastAPI')
@@ -84,7 +85,7 @@ class FastAPIInitTask(ChainedTask):
     def dependencies(cls) -> typing.Optional[typing.Set[str]]:
         """ The :meth:`.ChainedTask.dependencies` method implementation
         """
-        return {"log_task", "config_task"}
+        return {"log_task", "config_task", "plugins_task"}
 
 
 @register_api(__default_chained_tasks_registry__, "fastapi-loader")
