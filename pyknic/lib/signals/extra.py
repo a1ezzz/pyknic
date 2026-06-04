@@ -334,7 +334,7 @@ class AsyncWatchDog(CriticalResource):
         if not self.__received_signal:
             if self.__matcher is None or self.__matcher(value):
 
-                with self.critical_context():
+                with self.critical_context(description=repr(self.__call__)):
                     if self.__received_signal is None:
                         self.__received_signal = ReceivedSignal(source, signal, value)
                         if self.__watchdog_future is not None:
@@ -348,7 +348,7 @@ class AsyncWatchDog(CriticalResource):
         if current_loop is not self.__loop:
             raise RuntimeError('Watchdog has been created in another loop')
 
-        with self.critical_context():
+        with self.critical_context(description=repr(self.watchdog_future)):
             if self.__watchdog_future is None:
                 self.__watchdog_future = asyncio.Future(loop=self.__loop)
             if not self.__watchdog_future.done() and self.__received_signal is not None:

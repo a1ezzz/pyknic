@@ -51,7 +51,7 @@ class DatalogPy(DatalogProto, CriticalResource):
         """ The :meth:`.DatalogPy.iterate` method implementation
         """
 
-        with self.critical_context():
+        with self.critical_context(description=repr(self.iterate)):
             log_copy = self.__log.copy()
 
         if reverse:
