@@ -20,8 +20,8 @@ class TestCipherModeModel:
         assert(isinstance(model, CipherModeModel))
         assert(isinstance(model, pydantic.BaseModel))
 
-        pytest.raises(NotImplementedError, CipherModeModel.generate, None)
-        pytest.raises(NotImplementedError, CipherModeModel.deserialize, None, None)
+        pytest.raises(NotImplementedError, CipherModeModel.generate, None)  # type: ignore[call-overload]
+        pytest.raises(NotImplementedError, CipherModeModel.deserialize, None, None)  # type: ignore[call-overload]
         pytest.raises(NotImplementedError, model.c10y_mode)
 
 

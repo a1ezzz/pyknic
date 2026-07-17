@@ -26,27 +26,29 @@ def test_exceptions() -> None:
 @pyknic_async_test
 async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
     pytest.raises(TypeError, TaskProto)
-    pytest.raises(NotImplementedError, TaskProto.start, None)
+    pytest.raises(NotImplementedError, TaskProto.start, None)  # type: ignore[call-overload]
 
     pytest.raises(TypeError, ScheduleRecordProto)
-    pytest.raises(NotImplementedError, ScheduleRecordProto.task, None)
-    pytest.raises(NotImplementedError, ScheduleRecordProto.source, None)
+    pytest.raises(NotImplementedError, ScheduleRecordProto.task, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, ScheduleRecordProto.source, None)  # type: ignore[call-overload]
 
     pytest.raises(TypeError, SchedulerProto)
-    pytest.raises(NotImplementedError, SchedulerProto.subscribe, None, None)
-    pytest.raises(NotImplementedError, SchedulerProto.unsubscribe, None, None)
+    pytest.raises(NotImplementedError, SchedulerProto.subscribe, None, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, SchedulerProto.unsubscribe, None, None)  # type: ignore[call-overload]
 
-    pytest.raises(NotImplementedError, ScheduleSourceProto.scheduler_feedback, None, None, None)  # capability test
+    pytest.raises(
+        NotImplementedError, ScheduleSourceProto.scheduler_feedback, None, None, None
+    )  # type: ignore[call-overload]
 
     pytest.raises(TypeError, TaskExecutorProto)
-    pytest.raises(NotImplementedError, TaskExecutorProto.submit_task, None, None)
-    pytest.raises(NotImplementedError, TaskExecutorProto.complete_task, None, None)
-    pytest.raises(NotImplementedError, TaskExecutorProto.wait_task, None, None, None)
+    pytest.raises(NotImplementedError, TaskExecutorProto.submit_task, None, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, TaskExecutorProto.complete_task, None, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, TaskExecutorProto.wait_task, None, None, None)  # type: ignore[call-overload]
 
     with pytest.raises(NotImplementedError):
         await TaskExecutorProto.start_async(None, None)  # type: ignore[arg-type]  # it is just a test
 
-    pytest.raises(NotImplementedError, TaskExecutorProto.tasks, None)
+    pytest.raises(NotImplementedError, TaskExecutorProto.tasks, None)  # type: ignore[call-overload]
 
 
 class TestTaskProto:

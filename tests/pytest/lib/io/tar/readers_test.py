@@ -16,8 +16,8 @@ from pyknic.lib.uri import URI
 
 def test_abstract() -> None:
     pytest.raises(TypeError, TarArchiveReaderProto)
-    pytest.raises(NotImplementedError, TarArchiveReaderProto.inner_entries, None)
-    pytest.raises(NotImplementedError, TarArchiveReaderProto.entry, None, '')
+    pytest.raises(NotImplementedError, TarArchiveReaderProto.inner_entries, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, TarArchiveReaderProto.entry, None, '')  # type: ignore[call-overload]
 
 
 class TestTarArchiveReader:

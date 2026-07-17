@@ -16,11 +16,11 @@ from pyknic.lib.uri import URI
 
 def test_abstract() -> None:
     pytest.raises(TypeError, TarWriterEntryProto)
-    pytest.raises(NotImplementedError, TarWriterEntryProto.tar_info, None)
-    pytest.raises(NotImplementedError, TarWriterEntryProto.data, None)
+    pytest.raises(NotImplementedError, TarWriterEntryProto.tar_info, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, TarWriterEntryProto.data, None)  # type: ignore[call-overload]
 
     pytest.raises(TypeError, TarArchiveWriterProto)
-    pytest.raises(NotImplementedError, TarArchiveWriterProto.archive, None, None)
+    pytest.raises(NotImplementedError, TarArchiveWriterProto.archive, None, None)  # type: ignore[call-overload]
 
 
 class Test_TarInfoGenerator:

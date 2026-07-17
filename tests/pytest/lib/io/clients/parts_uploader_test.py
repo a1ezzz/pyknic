@@ -28,10 +28,10 @@ class TestBasePartsUploader:
             self.io.write(data)
 
     def test_abstract(self) -> None:
-        pytest.raises(TypeError, BasePartsUploader)
-        pytest.raises(NotImplementedError, PartsUploaderProto.__enter__, None)
-        pytest.raises(NotImplementedError, BasePartsUploader._upload_part, None, b'', 0)
-        pytest.raises(NotImplementedError, BasePartsUploader._finalize, None, None)
+        pytest.raises(TypeError, BasePartsUploader)  # type: ignore[call-overload]
+        pytest.raises(NotImplementedError, PartsUploaderProto.__enter__, None)  # type: ignore[call-overload]
+        pytest.raises(NotImplementedError, BasePartsUploader._upload_part, None, b'', 0)  # type: ignore[call-overload]
+        pytest.raises(NotImplementedError, BasePartsUploader._finalize, None, None)  # type: ignore[call-overload]
 
     def test(self) -> None:
 

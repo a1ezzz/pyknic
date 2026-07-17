@@ -22,30 +22,44 @@ def test_exceptions() -> None:
 async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
 
     pytest.raises(TypeError, PartsUploaderProto)
-    pytest.raises(NotImplementedError, PartsUploaderProto.__enter__, None)
-    pytest.raises(NotImplementedError, PartsUploaderProto.__exit__, None, None, None, None)
-    pytest.raises(NotImplementedError, PartsUploaderProto.upload_part, None, b'b', 1)
+    pytest.raises(NotImplementedError, PartsUploaderProto.__enter__, None)  # type: ignore[call-overload]
+    pytest.raises(
+        NotImplementedError, PartsUploaderProto.__exit__, None, None, None, None
+    )  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, PartsUploaderProto.upload_part, None, b'b', 1)  # type: ignore[call-overload]
 
     pytest.raises(TypeError, IOClientProto)
-    pytest.raises(NotImplementedError, IOClientProto.create_client, 'foo')
-    pytest.raises(NotImplementedError, IOClientProto.uri, None)
-    pytest.raises(NotImplementedError, IOClientProto.current_directory, None)
-    pytest.raises(NotImplementedError, IOClientProto.connect, None)
-    pytest.raises(NotImplementedError, IOClientProto.disconnect, None)
-    pytest.raises(NotImplementedError, IOClientProto.change_directory, None, '/path/to/dir')
-    pytest.raises(NotImplementedError, IOClientProto.is_directory, None, 'dir_name')
-    pytest.raises(NotImplementedError, IOClientProto.list_directory, None)
-    pytest.raises(NotImplementedError, IOClientProto.make_directory, None, 'new_dir')
-    pytest.raises(NotImplementedError, IOClientProto.remove_directory, None, 'old_dir')
-    pytest.raises(NotImplementedError, IOClientProto.upload_file, None, 'file_name', [b'ggg'])
-    pytest.raises(NotImplementedError, IOClientProto.append_file, None, 'file_name', [b'ggg'])
-    pytest.raises(NotImplementedError, IOClientProto.update_file, None, 'file_name', [b'ggg'])
-    pytest.raises(NotImplementedError, IOClientProto.truncate_file, None, 'file_name', 1)
-    pytest.raises(NotImplementedError, IOClientProto.remove_file, None, 'file_name')
-    pytest.raises(NotImplementedError, IOClientProto.receive_file, None, 'remote_file')
-    pytest.raises(NotImplementedError, IOClientProto.receive_file_with_offset, None, 'remote_file', 10, 100)
-    pytest.raises(NotImplementedError, IOClientProto.file_size, None, 'remote_file')
-    pytest.raises(NotImplementedError, IOClientProto.upload_by_part, None, 'remote_file', 10)
+    pytest.raises(NotImplementedError, IOClientProto.create_client, 'foo')  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.uri, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.current_directory, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.connect, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.disconnect, None)  # type: ignore[call-overload]
+    pytest.raises(
+        NotImplementedError, IOClientProto.change_directory, None, '/path/to/dir'
+    )  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.is_directory, None, 'dir_name')  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.list_directory, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.make_directory, None, 'new_dir')  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.remove_directory, None, 'old_dir')  # type: ignore[call-overload]
+    pytest.raises(
+        NotImplementedError, IOClientProto.upload_file, None, 'file_name', [b'ggg']
+    )  # type: ignore[call-overload]
+    pytest.raises(
+        NotImplementedError, IOClientProto.append_file, None, 'file_name', [b'ggg']
+    )  # type: ignore[call-overload]
+    pytest.raises(
+        NotImplementedError, IOClientProto.update_file, None, 'file_name', [b'ggg']
+    )  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.truncate_file, None, 'file_name', 1)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.remove_file, None, 'file_name')  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.receive_file, None, 'remote_file')  # type: ignore[call-overload]
+    pytest.raises(
+        NotImplementedError, IOClientProto.receive_file_with_offset, None, 'remote_file', 10, 100
+    )  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, IOClientProto.file_size, None, 'remote_file')  # type: ignore[call-overload]
+    pytest.raises(
+        NotImplementedError, IOClientProto.upload_by_part, None, 'remote_file', 10
+    )  # type: ignore[call-overload]
 
     class Client(IOClientProto):
 
