@@ -1,0 +1,58 @@
+
+services:
+
+  concourse-ci-psql:
+
+    build:
+      context: ./local-concourse-pgsql
+    restart: unless-stopped
+    networks:
+      - concourse-ci-net
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust  # usually unsafe, but OK since network is hidden
+
+  concourse-ci:
+    image: "concourse/concourse:7.13.2@sha256:cc40ecf37fee9056dad7e0b0751d321e8791449e3fe56603995c2e56a80ad1c1"
+    command: quickstart
+    restart: unless-stopped
+    depends_on:
+      - concourse-ci-psql
+    networks:
+      - concourse-ci-net
+    ports:
+      - 8080:8080/tcp
+    privileged: true
+    environment:
+      CONCOURSE_POSTGRES_HOST: concourse-ci-psql
+      CONCOURSE_POSTGRES_USER: concourse_user
+      CONCOURSE_POSTGRES_DATABASE: concourse
+
+      CONCOURSE_ADD_LOCAL_USER: "concourse:concourse"
+      CONCOURSE_MAIN_TEAM_LOCAL_USER: "concourse"
+
+      CONCOURSE_WORKER_BAGGAGECLAIM_DRIVER: overlay
+      CONCOURSE_WORKER_RUNTIME: "containerd"
+      CONCOURSE_WORKER_CONTAINERD_DNS_SERVER: "8.8.8.8"
+
+  local-test:
+    build:
+      context: ./local-concourse-ci-fly
+      args:
+        CONCOURSE_VERSION: 7.13.2
+    depends_on:
+      - concourse-ci-psql
+      - concourse-ci
+    networks:
+      - concourse-ci-net
+    environment:
+      CONCOURSE_HOST: concourse-ci:8080
+      CONCOURSE_USER: concourse
+      CONCOURSE_PASS: concourse
+
+      BRANCH: "${BRANCH}"
+      PYTHON_VERSION: "${PYTHON_VERSION}"
+
+networks:
+
+  concourse-ci-net:
+    name: concourse-ci-net

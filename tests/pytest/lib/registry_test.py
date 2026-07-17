@@ -15,12 +15,12 @@ def test_exceptions() -> None:
 
 def test_abstract() -> None:
     pytest.raises(TypeError, APIRegistryProto)
-    pytest.raises(NotImplementedError, APIRegistryProto.register, None, None, None)
-    pytest.raises(NotImplementedError, APIRegistryProto.unregister, None, None)
-    pytest.raises(NotImplementedError, APIRegistryProto.get, None, None)
-    pytest.raises(NotImplementedError, APIRegistryProto.ids, None)
-    pytest.raises(NotImplementedError, APIRegistryProto.has, None, None)
-    pytest.raises(NotImplementedError, APIRegistryProto.__iter__, None)
+    pytest.raises(NotImplementedError, APIRegistryProto.register, None, None, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, APIRegistryProto.unregister, None, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, APIRegistryProto.get, None, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, APIRegistryProto.ids, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, APIRegistryProto.has, None, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, APIRegistryProto.__iter__, None)  # type: ignore[call-overload]
 
 
 class TestAPIRegistry:
