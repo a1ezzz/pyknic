@@ -55,12 +55,14 @@ class App(BaseApp):
         elif log_level_int >= 3:
             log_level_str = PyknicLogLevel.DEBUG.value  # default value
 
-        App.start_app(
+        app_thread = App.start_app(
             'pyknic:starter',
             log_level=PyknicLogLevel(log_level_str),
             config_file=args.config,
             config_dir=args.config_dir
         )
+
+        app_thread.wait()
 
 
 if __name__ == "__main__":
