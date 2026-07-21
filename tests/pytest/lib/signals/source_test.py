@@ -51,8 +51,10 @@ class TestSignalSource:
         assert(isinstance(source, SignalSourceProto) is True)
 
         pytest.raises(UnknownSignalException, source.emit, Signal())
-        pytest.raises(UnknownSignalException, source.callback, Signal(), lambda: None)
-        pytest.raises(UnknownSignalException, source.remove_callback, Signal(), lambda: None)
+        pytest.raises(UnknownSignalException, source.callback, Signal(), lambda: None)  # type: ignore[call-overload]
+        pytest.raises(
+            UnknownSignalException, source.remove_callback, Signal(), lambda: None
+        )  # type: ignore[call-overload]
 
     @pytest.mark.parametrize(
         "test_cls", [

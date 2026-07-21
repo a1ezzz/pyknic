@@ -19,7 +19,7 @@ def test_exceptions() -> None:
 
 @pyknic_async_test
 async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
-    pytest.raises(TypeError, LobbyCommandHandler)
+    pytest.raises(TypeError, LobbyCommandHandler)  # type: ignore[call-overload]
     pytest.raises(NotImplementedError, LobbyCommandHandler.command_name)
     pytest.raises(NotImplementedError, LobbyCommandHandler.command_model)
 

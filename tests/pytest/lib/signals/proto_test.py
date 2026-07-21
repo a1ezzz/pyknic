@@ -13,16 +13,22 @@ def test_exceptions() -> None:
 
 def test_abstract() -> None:
     pytest.raises(TypeError, SignalSourceProto)
-    pytest.raises(NotImplementedError, SignalSourceProto.emit, None, Signal())
-    pytest.raises(NotImplementedError, SignalSourceProto.callback, None, Signal(), lambda: None)
-    pytest.raises(NotImplementedError, SignalSourceProto.remove_callback, None, Signal(), lambda: None)
+    pytest.raises(NotImplementedError, SignalSourceProto.emit, None, Signal())  # type: ignore[call-overload]
+    pytest.raises(
+        NotImplementedError, SignalSourceProto.callback, None, Signal(), lambda: None
+    )  # type: ignore[call-overload]
+    pytest.raises(
+        NotImplementedError, SignalSourceProto.remove_callback, None, Signal(), lambda: None
+    )  # type: ignore[call-overload]
 
     pytest.raises(TypeError, SignalCallbackProto)
-    pytest.raises(NotImplementedError, SignalCallbackProto.__call__, None, None, Signal())
+    pytest.raises(
+        NotImplementedError, SignalCallbackProto.__call__, None, None, Signal()
+    )  # type: ignore[call-overload]
 
     pytest.raises(TypeError, SignalProxyProto)
-    pytest.raises(NotImplementedError, SignalProxyProto.proxy, None, None)
-    pytest.raises(NotImplementedError, SignalProxyProto.discard_proxy, None, None)
+    pytest.raises(NotImplementedError, SignalProxyProto.proxy, None, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, SignalProxyProto.discard_proxy, None, None)  # type: ignore[call-overload]
 
 
 class TestSignal:

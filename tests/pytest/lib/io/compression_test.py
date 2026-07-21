@@ -14,8 +14,8 @@ from pyknic.lib.io.compression import BZip2Compressor, LZMACompressor
 
 def test_abstract() -> None:
     pytest.raises(TypeError, CompressorProto)
-    pytest.raises(NotImplementedError, CompressorProto.compress, None, None)
-    pytest.raises(NotImplementedError, CompressorProto.decompress, None, None)
+    pytest.raises(NotImplementedError, CompressorProto.compress, None, None)  # type: ignore[call-overload]
+    pytest.raises(NotImplementedError, CompressorProto.decompress, None, None)  # type: ignore[call-overload]
 
 
 class TestCompressor:

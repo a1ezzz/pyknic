@@ -436,7 +436,7 @@ async def cag(source: typing.Union[IOGenerator, IOAsyncGenerator]) -> int:
     result = 0
 
     async for data in (source if inspect.isasyncgen(source) else as_ag(source)):  # type: ignore[arg-type]
-        result += len(data)
+        result += len(data)  # type: ignore[arg-type]  # mypy issue
     return result
 
 

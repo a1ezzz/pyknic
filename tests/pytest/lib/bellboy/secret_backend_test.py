@@ -16,8 +16,12 @@ from pyknic.lib.fastapi.models.lobby import LobbyEncodedJWT, LobbyPublicKeyModel
 
 def test_abstract() -> None:
     pytest.raises(TypeError, SecretBackendImplementationProto)
-    pytest.raises(NotImplementedError, SecretBackendImplementationProto.receive_secrets, None)
-    pytest.raises(NotImplementedError, SecretBackendImplementationProto.save_secrets, None, '')
+    pytest.raises(
+        NotImplementedError, SecretBackendImplementationProto.receive_secrets, None
+    )  # type: ignore[call-overload]
+    pytest.raises(
+        NotImplementedError, SecretBackendImplementationProto.save_secrets, None, ''
+    )  # type: ignore[call-overload]
 
 
 class TestSecretBackend:
