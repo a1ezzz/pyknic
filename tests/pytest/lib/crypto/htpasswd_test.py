@@ -10,7 +10,7 @@ from pyknic.lib.crypto.htpasswd import HTPasswdHashCheckerProto, HTPasswdBCrypt,
 
 def test_abstract() -> None:
     pytest.raises(TypeError, HTPasswdHashCheckerProto)
-    pytest.raises(NotImplementedError, HTPasswdHashCheckerProto.match, None, '', '', '')
+    pytest.raises(NotImplementedError, HTPasswdHashCheckerProto.match, None, '', '', '')  # type: ignore[call-overload]
 
 
 @pytest.mark.parametrize('checker_cls, password, hash_method, password_hash, result', [

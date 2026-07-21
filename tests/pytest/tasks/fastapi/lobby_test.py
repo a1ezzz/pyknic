@@ -117,7 +117,7 @@ class TestLobbyApp:
         async with session.post(f'http://localhost:8000{lobby_path}', headers=headers, data=ping_request) as response:
             assert(response.status == 200)
 
-        await fastapi_module_fixture.flush_async(module_event_loop)
+        await fastapi_module_fixture.flush_async(module_event_loop)  # type: ignore[arg-type]  # test issue
         fastapi_module_fixture.setup_fastapi(LobbyApp, self.__lobby_yaml__)
 
         async with session.post(f'http://localhost:8000{lobby_path}', headers=headers, data=ping_request) as response:
@@ -153,7 +153,7 @@ class TestLobbyApp:
 
         extra_config_txt = yaml.dump(base_config)
 
-        await fastapi_module_fixture.flush_async(module_event_loop)
+        await fastapi_module_fixture.flush_async(module_event_loop)  # type: ignore[arg-type]  # test issue
         fastapi_module_fixture.setup_fastapi(LobbyApp, extra_config_txt)
 
         lobby_path = fastapi_module_fixture.app_config["pyknic"]["fastapi"]["lobby"]["main_url_path"]
@@ -186,7 +186,7 @@ class TestLobbyApp:
         async with session.post(f'http://localhost:8000{lobby_path}', headers=headers, data=ping_request) as response:
             assert(response.status == 200)
 
-        await fastapi_module_fixture.flush_async(module_event_loop)
+        await fastapi_module_fixture.flush_async(module_event_loop)  # type: ignore[arg-type]  # test issue
         fastapi_module_fixture.setup_fastapi(LobbyApp, extra_config_txt)
 
         async with session.post(f'http://localhost:8000{lobby_path}', headers=headers, data=ping_request) as response:
