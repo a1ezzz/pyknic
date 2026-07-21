@@ -74,6 +74,7 @@ class LobbyPublicKeyModel(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra='forbid')  # just to be sure that everything attributes are known
 
     pem: str  # RSA public key in PEM container
+    sign_hash_method: str  # hash method that is used for lobby's response signing
 
 
 class LobbyEncodedJWT(pydantic.BaseModel):

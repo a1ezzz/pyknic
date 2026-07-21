@@ -40,6 +40,8 @@ from pyknic.lib.bellboy.app import BellBoyCommandHandler, register_bellboy_comma
 from pyknic.lib.fastapi.models.lobby import LobbyCommandResult, LobbyKeyValueFeedbackResult, LobbyStrFeedbackResult
 from pyknic.lib.uri import URI
 
+from pyknic.lib.integrated_commands.commands_version import __plugin_version__
+
 
 class BackupSource(pydantic_settings.CliMutuallyExclusiveGroup):
     """ These settings define which data should be backed up
@@ -205,17 +207,20 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
         header = archiver.extract_header_meta(archive_uri)
         tail = archiver.extract_tail_meta(archive_uri)
 
-        return LobbyKeyValueFeedbackResult(kv_result={
-            "archiver_version": header.version,
-            "archive_type": header.type.value,
-            "created": header.created,
-            "compression": header.compression.value,
-            "cipher": header.cipher,
-            "write_rate": tail.write_rate,
-            "duration": tail.duration,
-            "hashes": {x.algorithm.value: base64.b64encode(x.digest) for x in tail.hashes},
-            "extra": header.extra,
-        })
+        return LobbyKeyValueFeedbackResult(
+            kv_result={
+                "archiver_version": header.version,
+                "archive_type": header.type.value,
+                "created": header.created,
+                "compression": header.compression.value,
+                "cipher": header.cipher,
+                "write_rate": tail.write_rate,
+                "duration": tail.duration,
+                "hashes": {x.algorithm.value: base64.b64encode(x.digest) for x in tail.hashes},
+                "extra": header.extra,
+            },
+            plugin_version=__plugin_version__
+        )
 
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
@@ -262,7 +267,10 @@ class BellBoyArchiveValidateCommand(BellBoyCommandHandler):
 
         archive_uri = URI.parse(self._args.archive)
         BackupArchiveV1.validate_archive(archive_uri, throttling=self._args.throttling)
-        return LobbyStrFeedbackResult(str_result='The archive is consistent!')
+        return LobbyStrFeedbackResult(
+            str_result='The archive is consistent!',
+            plugin_version=__plugin_version__
+        )
 
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
@@ -334,7 +342,8 @@ class BellBoyRestoreCommand(BellBoyCommandHandler):
             cg(IOThrottler.sync_writer(unarchiver, restore_file, throttling=self._args.throttling))
 
         return LobbyStrFeedbackResult(
-            str_result=f'The archive has been restored to the "{restore_location}" file'
+            str_result=f'The archive has been restored to the "{restore_location}" file',
+            plugin_version=__plugin_version__
         )
 
     async def exec(self) -> LobbyCommandResult:

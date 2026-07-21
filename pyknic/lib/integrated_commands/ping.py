@@ -23,13 +23,14 @@ import typing
 
 import pydantic
 
-from pyknic.lib.bellboy.app import BellBoyCommandHandler, register_bellboy_command, LobbyClient
-from pyknic.lib.bellboy.models import OptionalBellBoyCommandModel
+from pyknic.lib.bellboy.app import BellBoyCommandHandler, register_bellboy_command
+from pyknic.lib.bellboy.models import OptionalMainBellBoyCommandModel
 from pyknic.lib.fastapi.lobby import LobbyCommandHandler, register_lobby_command
 from pyknic.lib.fastapi.models.base import NullableModel
 from pyknic.lib.fastapi.models.lobby import LobbyCommandResult, LobbyStrFeedbackResult, LobbyCommandRequest
 
 from pyknic.version import __version__
+from pyknic.lib.integrated_commands.commands_version import __plugin_version__
 
 
 @register_lobby_command()
@@ -53,7 +54,7 @@ class LobbyPingCommand(LobbyCommandHandler):
         """ The :meth:`.LobbyCommandHandler.exec` method implementation
         """
         return LobbyStrFeedbackResult(
-            str_result=f"pong... Version is {__version__}"
+            str_result=f"pong... Version is {__version__}", plugin_version=__plugin_version__
         )
 
 
@@ -73,25 +74,25 @@ class BellBoyPingCommand(BellBoyCommandHandler):
     def command_model(cls) -> typing.Type[pydantic.BaseModel]:
         """ The :meth:`.BellBoyCommandHandler.command_model` method implementation
         """
-        return OptionalBellBoyCommandModel
+        return OptionalMainBellBoyCommandModel
 
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        assert(isinstance(self._args, OptionalBellBoyCommandModel))
+        assert(isinstance(self._args, OptionalMainBellBoyCommandModel))
 
         if self._args.server is None:
             result = await LobbyPingCommand.prepare_command(NullableModel()).exec()
             result.str_result = f"Client response: {result.str_result}"  # type: ignore[union-attr]
             return result
 
-        auth_data = self.auth_data(self._args.server.secret_backend, self._args.server.lobby_url)
+        client = self.create_client(self._args.server.secret_backend, self._args.server.lobby_url)
 
-        client = LobbyClient(self._args.server.lobby_url, auth_data.server_fingerprint, auth_data.token)
         result = await client.command_request(
             LobbyCommandRequest(
                 name=LobbyPingCommand.command_name(),
-                args=NullableModel().model_dump()
+                args=NullableModel().model_dump(),
+                plugin_version=__plugin_version__
             )
         )
 

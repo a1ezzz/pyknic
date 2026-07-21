@@ -51,7 +51,7 @@ class TestBellboyConsole:
     def test_str_feedback(self, capsys: 'CaptureFixture[typing.Any]') -> None:
         console = BellboyConsole()
         msg = 'some random message'
-        console.str_feedback(LobbyStrFeedbackResult(str_result=msg))
+        console.str_feedback(LobbyStrFeedbackResult(str_result=msg, plugin_version='test-plugin'))
         assert(msg in capsys.readouterr().out)
 
     def test_null_feedback(self, capsys: 'CaptureFixture[typing.Any]') -> None:
@@ -64,7 +64,7 @@ class TestBellboyConsole:
 
         msg = {'foo': 'bar'}
 
-        console.kv_feedback(LobbyKeyValueFeedbackResult(kv_result=msg))
+        console.kv_feedback(LobbyKeyValueFeedbackResult(kv_result=msg, plugin_version='test-plugin'))
         captured_out = capsys.readouterr().out
         assert('foo' in captured_out)
         assert('bar' in captured_out)
@@ -72,16 +72,16 @@ class TestBellboyConsole:
     def test_list_feedback(self, capsys: 'CaptureFixture[typing.Any]') -> None:
         console = BellboyConsole()
 
-        console.list_feedback(LobbyListValueFeedbackResult(list_result=['foo', 'bar']))
+        console.list_feedback(LobbyListValueFeedbackResult(list_result=['foo', 'bar'], plugin_version='test-plugin'))
         captured_out = capsys.readouterr().out
         assert('foo' in captured_out)
         assert('bar' in captured_out)
 
     @pytest.mark.parametrize('result', [
         NullableModel(),
-        LobbyStrFeedbackResult(str_result='some string result'),
-        LobbyKeyValueFeedbackResult(kv_result={'foo': 'bar', 'bar': 'foo'}),
-        LobbyListValueFeedbackResult(list_result=['foo', 'bar'])
+        LobbyStrFeedbackResult(str_result='some string result', plugin_version='test-plugin'),
+        LobbyKeyValueFeedbackResult(kv_result={'foo': 'bar', 'bar': 'foo'}, plugin_version='test-plugin'),
+        LobbyListValueFeedbackResult(list_result=['foo', 'bar'], plugin_version='test-plugin')
     ])
     def test_process_result(self, capsys: 'CaptureFixture[typing.Any]', result: LobbyCommandResult) -> None:
         console = BellboyConsole()

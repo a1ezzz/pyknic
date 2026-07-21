@@ -29,7 +29,6 @@ import keyring
 import keyring.errors
 import pydantic
 
-from pyknic.lib.crypto.rsa import RSAPublicKey
 from pyknic.lib.fastapi.models.lobby import LobbyPublicKeyModel, LobbyEncodedJWT
 
 
@@ -37,7 +36,7 @@ class SecretTokenModel(pydantic.BaseModel):
     """This model describes a single credential that is required for a single server connection
     """
     public_key: LobbyPublicKeyModel  # server's public certificate
-    jwt_token: LobbyEncodedJWT       # server's access token
+    jwt_token:  LobbyEncodedJWT      # server's access token
 
 
 class PyknicLobbySecrets(pydantic.BaseModel):
@@ -93,12 +92,12 @@ class SecretBackend:
 
         return PyknicLobbySecrets(secrets=dict())
 
-    def set_secret(self, url: str, public_key: RSAPublicKey, jwt_token: LobbyEncodedJWT) -> None:
+    def set_secret(self, url: str, lobby_public_key: LobbyPublicKeyModel, jwt_token: LobbyEncodedJWT) -> None:
         """Save secrets in backend.
         """
         secrets = self.get_secrets()
         secrets.secrets[url] = SecretTokenModel(
-            public_key=LobbyPublicKeyModel(pem=public_key.export_pem().decode('ascii')),
+            public_key=lobby_public_key,
             jwt_token=jwt_token
         )
         self.__backend.save_secrets(secrets.model_dump_json())

@@ -30,7 +30,7 @@ import fastapi.security
 import fastapi.security.http
 
 from pyknic.lib.config import Config
-from pyknic.lib.crypto.htpasswd import HTPasswd
+from pyknic.lib.crypto.htpasswd import HTPasswd, HTPasswdEntry
 from pyknic.lib.registry import APIRegistry, register_api
 
 
@@ -150,21 +150,25 @@ class BearerStaticTokenProvider(AuthenticationProviderProto):
         return cls(provider_name, config)
 
 
-@register_api(__default_fastapi_aaa_registry__, 'htpasswd')
-class HTPasswdProvider(AuthenticationProviderProto):
-    """ This provider uses a htpasswd-file for authentication
+class _BaseHTPasswdProvider(AuthenticationProviderProto):
+    """ A base class that helps to implement authentication provider that work in conjunction with HTPasswd-database
     """
 
-    def __init__(self, provider_name: str, config: Config):
-        """ Create a provider
+    def __init__(self, provider_name: str, htpasswd: typing.Optional[HTPasswd] = None):
+        """ Create a helper
 
         :param provider_name: unique provider name
-        :param config: provider settings
+        :param htpasswd: a password database to use (if is not defined then a new one will be created)
         """
-        self.__provider = provider_name
-        self.__file = config['file'].as_str()
+        AuthenticationProviderProto.__init__(self)
 
-        self.__htpasswd = HTPasswd.read_file(self.__file)
+        self.__provider = provider_name
+        self.__htpasswd = htpasswd if htpasswd else HTPasswd()
+
+    def _htpasswd(self) -> HTPasswd:
+        """ Return database this provider is using
+        """
+        return self.__htpasswd
 
     def fastapi_handler(self) -> typing.Optional[typing.Type[fastapi.security.http.HTTPBase]]:
         """ :meth:`.AuthenticationProviderProto.fastapi_handler` implementation """
@@ -180,6 +184,44 @@ class HTPasswdProvider(AuthenticationProviderProto):
                 return FastAPIIdentity(provider=self.__provider, identity=http_creds.username)
 
         return None
+
+
+@register_api(__default_fastapi_aaa_registry__, 'htpasswd')
+class HTPasswdProvider(_BaseHTPasswdProvider):
+    """ This provider uses a htpasswd-file for authentication
+    """
+
+    def __init__(self, provider_name: str, config: Config):
+        """ Create a provider
+
+        :param provider_name: unique provider name
+        :param config: provider settings
+        """
+        _BaseHTPasswdProvider.__init__(self, provider_name, HTPasswd.read_file(config['file'].as_str()))
+
+    @classmethod
+    def create(cls, provider_name: str, config: Config) -> AuthenticationProviderProto:
+        """ :meth:`.AuthenticationProviderProto.create` implementation """
+        return cls(provider_name, config)
+
+
+@register_api(__default_fastapi_aaa_registry__, 'inline_htpasswd')
+class InlineHTPasswdProvider(_BaseHTPasswdProvider):
+    """ This provider uses a htpasswd-lines defined in a configuration
+    """
+
+    def __init__(self, provider_name: str, config: Config):
+        """ Create a provider
+
+        :param provider_name: unique provider name
+        :param config: provider settings
+        """
+        _BaseHTPasswdProvider.__init__(self, provider_name)
+
+        for line in config['credentials'].iterate_list():
+            self._htpasswd().add_entry(
+                HTPasswdEntry.parse(line.as_str())
+            )
 
     @classmethod
     def create(cls, provider_name: str, config: Config) -> AuthenticationProviderProto:

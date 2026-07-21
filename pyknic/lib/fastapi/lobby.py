@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import enum
 import typing
 
 from abc import ABCMeta, abstractmethod
@@ -27,6 +28,18 @@ import pydantic
 
 from pyknic.lib.registry import APIRegistry, register_api
 from pyknic.lib.fastapi.models.lobby import LobbyCommandResult
+
+
+@enum.unique
+class URLPath(enum.Enum):
+    """ This enum specifies URL paths that lobby uses
+    """
+
+    login_basic = "login/basic"
+    login_bearer = "login/bearer"
+    login_trust = "login/trust"
+
+    public_key = "public_key"
 
 
 class LobbyCommandError(Exception):

@@ -11,7 +11,7 @@ import keyring.errors
 from pyknic.lib.bellboy.secret_backend import PyknicLobbySecrets, SecretBackendImplementationProto, SecretBackend
 from pyknic.lib.bellboy.secret_backend import KeyringSecretBackendImplementation, SharedMemorySecretBackend
 from pyknic.lib.crypto.rsa import RSAPrivateKey
-from pyknic.lib.fastapi.models.lobby import LobbyEncodedJWT
+from pyknic.lib.fastapi.models.lobby import LobbyEncodedJWT, LobbyPublicKeyModel
 
 
 def test_abstract() -> None:
@@ -54,8 +54,22 @@ class TestSecretBackend:
 
         storage = SecretBackend(backend)
         storage.purge()
-        storage.set_secret('http://localhost/', private_key.public_key(), localhost_secret)
-        storage.set_secret('http://somehost/', private_key.public_key(), some_host_secret)
+        storage.set_secret(
+            'http://localhost/',
+            LobbyPublicKeyModel(
+                pem=private_key.public_key().export_pem().decode('ascii'),
+                sign_hash_method='some-hash-method'
+            ),
+            localhost_secret
+        )
+        storage.set_secret(
+            'http://somehost/',
+            LobbyPublicKeyModel(
+                pem=private_key.public_key().export_pem().decode('ascii'),
+                sign_hash_method='some-hash-method'
+            ),
+            some_host_secret
+        )
 
         secrets = storage.get_secrets()
         assert(isinstance(secrets, PyknicLobbySecrets))

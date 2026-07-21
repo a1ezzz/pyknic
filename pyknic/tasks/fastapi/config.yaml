@@ -11,10 +11,20 @@ pyknic:
 
         tgbot_word_games:
             url_path: /tgbot/word_games
+
         lobby:
-            modules: []
-            secret_token:
+
+            jwt:
+                algorithm: 'RS256'
+                audience: 'pyknic::lobby::user'
+                leeway: 10
+                ttl: 1800
+
+            private_key_location:
+            private_key_default_size: 4096
+
+            response_signing_hash: sha512
+
             main_url_path: /api/v1/lobby
-            fingerprint_url_path: /api/v1/lobby/fingerprint
-            contexts_url_path: /api/v1/lobby/contexts
-            commands: []
+
+            aaa_policies: {}

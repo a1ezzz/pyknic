@@ -11,7 +11,7 @@ import pytest
 
 from pyknic.lib.config import Config
 from pyknic.lib.fastapi.fastapi_aaa import FastAPIIdentity, AuthenticationProviderProto, TrustProvider
-from pyknic.lib.fastapi.fastapi_aaa import BearerStaticTokenProvider, HTPasswdProvider
+from pyknic.lib.fastapi.fastapi_aaa import BearerStaticTokenProvider, HTPasswdProvider, InlineHTPasswdProvider
 
 from fixtures.asyncio import pyknic_async_test
 
@@ -82,6 +82,10 @@ class TestBearerStaticTokenProvider:
             # no bearer header
             _ = await provider.authenticate(RequestMock())  # type: ignore[arg-type]  # this is a mock
 
+        assert(await provider.authenticate(
+            RequestMock({"Authorization": "Bearer unknown-token"})  # type: ignore[arg-type]  # this is a mock
+        ) is None)
+
         identity = await provider.authenticate(
             RequestMock({"Authorization": "Bearer tkn"})  # type: ignore[arg-type]  # this is a mock
         )
@@ -114,6 +118,50 @@ class TestHTPasswdProvider:
         with pytest.raises(fastapi.exceptions.HTTPException):
             # no bearer header
             _ = await provider.authenticate(RequestMock())  # type: ignore[arg-type]  # this is a mock
+
+        assert(await provider.authenticate(
+            RequestMock(  # type: ignore[arg-type]  # this is a mock
+                {"Authorization": f"Basic {base64.b64encode(b'foo:invalid-pass').decode('ascii')}"}
+            )
+        ) is None)
+
+        identity = await provider.authenticate(
+            RequestMock(  # type: ignore[arg-type]  # this is a mock
+                {"Authorization": f"Basic {base64.b64encode(b'foo:bar').decode('ascii')}"}
+            )
+        )
+
+        assert(isinstance(identity, FastAPIIdentity))
+        assert(identity.provider == 'test-provider')
+        assert(identity.identity == 'foo')
+        assert(identity.groups == [])
+        assert(identity.full_name is None)
+        assert(identity.email is None)
+
+
+class TestInlineHTPasswdProvider:
+
+    __htpasswd_yaml__ = """
+    credentials:
+      - foo:$2y$05$Z7/3diNsWaUZ1JtEqQRdu.78F86tPEzPn/nEBTSVVyIugQtkAyRVK
+    """
+
+    @pyknic_async_test
+    async def test(self, module_event_loop: asyncio.AbstractEventLoop, tmp_path: pathlib.Path) -> None:
+
+        config = Config(file_obj=io.StringIO(self.__htpasswd_yaml__))
+        provider = InlineHTPasswdProvider.create('test-provider', config)
+        assert(provider.fastapi_handler() is fastapi.security.HTTPBasic)
+
+        with pytest.raises(fastapi.exceptions.HTTPException):
+            # no bearer header
+            _ = await provider.authenticate(RequestMock())  # type: ignore[arg-type]  # this is a mock
+
+        assert(await provider.authenticate(
+            RequestMock(  # type: ignore[arg-type]  # this is a mock
+                {"Authorization": f"Basic {base64.b64encode(b'foo:invalid-pass').decode('ascii')}"}
+            )
+        ) is None)
 
         identity = await provider.authenticate(
             RequestMock(  # type: ignore[arg-type]  # this is a mock

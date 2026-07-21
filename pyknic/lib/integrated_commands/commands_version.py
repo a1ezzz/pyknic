@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/fastapi/headers.py
+# pyknic/lib/integrated_commands/commands_version.py
 #
-# Copyright (C) 2025 the pyknic authors and contributors
+# Copyright (C) 2026 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -19,10 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import enum
 
+from pyknic.version import __version__
 
-@enum.unique
-class FastAPIHeaders(enum.Enum):
-    # List of custom headers
-    signature = "Pyknic-Lobby-Result-Sign"  # is used for result signing
+__plugin_version__ = f'pyknic:{__version__}'

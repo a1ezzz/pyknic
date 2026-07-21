@@ -29,7 +29,7 @@ import typing
 from types import FrameType
 
 try:
-    import boto3
+    import boto3  # noqa: F401 # read bellow
 
     # This early import (if any) fixes the following error:
     #

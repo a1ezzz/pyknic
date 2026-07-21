@@ -27,6 +27,8 @@ from pyknic.lib.bellboy.app import register_bellboy_command, BellBoyCommandHandl
 from pyknic.lib.bellboy.models import SecretBackendBellBoyCommandModel
 from pyknic.lib.fastapi.models.lobby import LobbyCommandResult, LobbyStrFeedbackResult
 
+from pyknic.lib.integrated_commands.commands_version import __plugin_version__
+
 
 @register_bellboy_command()
 class LogoutAllCommand(BellBoyCommandHandler):
@@ -52,4 +54,7 @@ class LogoutAllCommand(BellBoyCommandHandler):
 
         count = secret_backend.get_secrets().secrets.keys()
         secret_backend.purge()
-        return LobbyStrFeedbackResult(str_result=f'Login credentials for {count} sites has been forgotten')
+        return LobbyStrFeedbackResult(
+            str_result=f'Login credentials for {count} sites has been forgotten',
+            plugin_version=__plugin_version__
+        )

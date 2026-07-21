@@ -27,6 +27,8 @@ from pyknic.lib.bellboy.app import register_bellboy_command, BellBoyCommandHandl
 from pyknic.lib.bellboy.models import SecretBackendBellBoyCommandModel
 from pyknic.lib.fastapi.models.lobby import LobbyCommandResult, LobbyListValueFeedbackResult
 
+from pyknic.lib.integrated_commands.commands_version import __plugin_version__
+
 
 @register_bellboy_command()
 class ListLoginsCommand(BellBoyCommandHandler):
@@ -52,5 +54,6 @@ class ListLoginsCommand(BellBoyCommandHandler):
 
         all_secrets = backend.get_secrets()
         return LobbyListValueFeedbackResult(
-            list_result=[x for x in all_secrets.secrets.keys()]
+            list_result=[x for x in all_secrets.secrets.keys()],
+            plugin_version=__plugin_version__
         )
