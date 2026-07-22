@@ -5,6 +5,8 @@ set -o pipefail
 
 PYTHON_VERSION="${PYTHON_VERSION:?}"
 BRANCH="${BRANCH:?}"
+REPO_URI="${REPO_URI:?}"
+SOURCES_DIR="${SOURCES_DIR:?}"
 
 CONCOURSE_HOST="${CONCOURSE_HOST:?}"
 CONCOURSE_USER="${CONCOURSE_USER:?}"
@@ -15,7 +17,7 @@ _SLEEP=5
 
 _CONCOURSE_TARGET="local"
 _CONCOURSE_PIPELINE_NAME="main-pipeline"
-_CONCOURSE_PIPELINE_FILE="/concourse-pipeline.yml"
+_CONCOURSE_PIPELINE_FILE="${SOURCES_DIR}/concourse-ci/pyknic-test.yml"
 _JOB_NAME="pyknic-test-job-py-${PYTHON_VERSION}"
 
 # ------------------------------------------------------------------
@@ -66,6 +68,7 @@ fly --target "${_CONCOURSE_TARGET}" set-pipeline \
     --var "tg_chat=" \
     --var "tg_api_host=" \
     --var "pytest_s3_test_uri=" \
+    --var "repo_uri=${REPO_URI}" \
     --config "${_CONCOURSE_PIPELINE_FILE}"
 
 echo "==> Unpausing pipeline..."

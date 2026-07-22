@@ -1,4 +1,6 @@
 
+repo_uri: "https://github.com/a1ezzz/pyknic"
+
 tg_api_host: "api.telegram.org"
 
 supported_python_version:

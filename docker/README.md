@@ -4,10 +4,11 @@ This directory contains a [Docker Compose](https://docs.docker.com/compose/) set
 
 ## Overview
 
-The Compose file [`local-tests-compose.yaml`](local-tests-compose.yaml) defines three services:
+The Compose file [`local-tests-compose.yaml`](local-tests-compose.yaml) defines four services:
 
 | Service | Description |
 | --- | --- |
+| `git-server` | A lightweight Git repository server that serves project sources over HTTP for Concourse pipeline tests |
 | `concourse-ci-psql` | PostgreSQL database used by Concourse for storing pipeline state and build logs |
 | `concourse-ci` | The Concourse CI server (web + worker in `quickstart` mode) |
 | `local-test` | A temporary container that runs the `fly` CLI to execute a pipeline test against the Concourse server |
@@ -16,10 +17,17 @@ All services are connected via the `concourse-ci-net` network and are isolated f
 
 ## Docker Compose services
 
+### git-server
+
+- **Build context**: [`./git-server`](git-server)
+- **Static IP**: `172.10.0.10` — used by Concourse as the Git repository URI (`http://172.10.0.10:8000`)
+- **Environment variables**:
+  - `SOURCES_DIR` — path inside the container where host sources are mounted (default: `/sources`)
+  - `BRANCH` — the Git branch name to create (default: `test-branch`)
+
 ### concourse-ci-psql
 
 - **Build context**: [`./local-concourse-pgsql`](local-concourse-pgsql)
-- **Ports**: none exposed to host
 
 ### concourse-ci
 
@@ -40,16 +48,13 @@ All services are connected via the `concourse-ci-net` network and are isolated f
 
 ```bash
 # From the project root (or the docker/ directory)
-docker compose -f docker/local-tests-compose.yaml run \
-  -e BRANCH=main \
-  -e PYTHON_VERSION="3.13" \
-  local-test
+PYTHON_VERSION="3.13" LOCAL_FILES="$(pwd)" docker compose -f docker/local-tests-compose.yaml run local-test
 ```
 
 This will:
 
 1. Build or pull the required images
-2. Start PostgreSQL and Concourse
+2. Start web-server (git), PostgreSQL and Concourse
 3. Set up the pipeline and run test via `fly`
 
 ### Build images without running
@@ -75,17 +80,13 @@ docker compose -f docker/local-tests-compose.yaml down -v
 All commands above use `-f docker/local-tests-compose.yaml` so they can be run from the project root directory. Alternatively, you can `cd` into the `docker/` directory and omit the `-f` flag:
 
 ```bash
-cd docker
-docker compose -f local-tests-compose.yaml run -e BRANCH=main -e PYTHON_VERSION="3.13" local-test
+PYTHON_VERSION="3.13" LOCAL_FILES="$(pwd)" docker compose -f docker/local-tests-compose.yaml run local-test
 ```
 
 ### Running with different Python versions
 
 ```bash
-docker compose -f docker/local-tests-compose.yaml run \
-  -e BRANCH=feature/my-branch \
-  -e PYTHON_VERSION="3.12" \
-  local-test
+PYTHON_VERSION="3.12" LOCAL_FILES="$(pwd)" docker compose -f docker/local-tests-compose.yaml run local-test
 ```
 
 ### Accessing the Concourse UI
@@ -99,9 +100,12 @@ While the stack is running, open [http://localhost:8080](http://localhost:8080) 
 
 | File | Description |
 | --- | --- |
-| [`local-tests-compose.yaml`](local-tests-compose.yaml) | Docker Compose service definitions |
-| [`local-concourse-pgsql/Dockerfile`](local-concourse-pgsql/Dockerfile) | PostgreSQL image with Concourse schema initialization |
-| [`local-concourse-pgsql/concourse_ci_init.sql`](local-concourse-pgsql/concourse_ci_init.sql) | SQL script to bootstrap the Concourse database |
+| [`git-server/Dockerfile`](git-server/Dockerfile) | Debian-based image with Python HTTP server and Git |
+| [`git-server/entrypoint.sh`](git-server/entrypoint.sh) | Entrypoint that creates a bare Git repo from bind-mounted sources and starts the HTTP server |
 | [`local-concourse-ci-fly/Dockerfile`](local-concourse-ci-fly/Dockerfile) | Image with `fly` CLI and test entrypoint |
 | [`local-concourse-ci-fly/entrypoint.sh`](local-concourse-ci-fly/entrypoint.sh) | Entrypoint that waits for Concourse and runs the pipeline test |
+| [`local-concourse-pgsql/Dockerfile`](local-concourse-pgsql/Dockerfile) | PostgreSQL image with Concourse schema initialization |
+| [`local-concourse-pgsql/concourse_ci_init.sql`](local-concourse-pgsql/concourse_ci_init.sql) | SQL script to bootstrap the Concourse database |
+| [`local-tests-compose.yaml`](local-tests-compose.yaml) | Docker Compose service definitions |
 | [`pyknic-concourse-base-image/Dockerfile`](pyknic-concourse-base-image/Dockerfile) | Base image used by the Concourse pipeline tasks themselves |
+| [`pyknic-concourse-base-image/test-feedback.sh`](pyknic-concourse-base-image/test-feedback.sh) | Script that processes test results and provides feedback over Telegram |
