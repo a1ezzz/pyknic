@@ -1,5 +1,6 @@
 
 # input vars:
+#   repo_uri -- a git repository URI (default: https://github.com/a1ezzz/pyknic)
 #   branch -- a name of a git branch this pipeline is running on
 #   github-access-token -- a token for PR status updates
 #   pull_request_id -- a number of PR
@@ -27,21 +28,21 @@ resources:
     type: git
     icon: github
     source:
-      uri: https://github.com/a1ezzz/pyknic
+      uri: ((repo_uri))
       branch: ((branch))
 
   - name: extra-branch
     type: git
     icon: github
     source:
-      uri: https://github.com/a1ezzz/pyknic
+      uri: ((repo_uri))
       branch: ((extra_branch))
 
   - name: pr-code
     type: git
     icon: github
     source:
-      uri: https://github.com/a1ezzz/pyknic
+      uri: ((repo_uri))
       branch: ((pull_request_branch_name))
 
   - name: metadata
