@@ -1,5 +1,20 @@
-
 services:
+
+  git-server:
+    build:
+      context: ./git-server
+    restart: unless-stopped
+    networks:
+      concourse-ci-net:
+        ipv4_address: 172.10.0.10
+
+    environment:
+      SOURCES_DIR: "/sources"
+      BRANCH: "test-branch"
+    volumes:
+      - type: bind
+        source: "${LOCAL_FILES}"
+        target: /sources
 
   concourse-ci-psql:
 
@@ -17,6 +32,7 @@ services:
     restart: unless-stopped
     depends_on:
       - concourse-ci-psql
+      - git-server
     networks:
       - concourse-ci-net
     ports:
@@ -49,10 +65,22 @@ services:
       CONCOURSE_USER: concourse
       CONCOURSE_PASS: concourse
 
-      BRANCH: "${BRANCH}"
+      BRANCH: "test-branch"
       PYTHON_VERSION: "${PYTHON_VERSION}"
+      REPO_URI: "http://172.10.0.10:8000"
+      SOURCES_DIR: "/sources"
+
+    volumes:
+      - type: bind
+        source: "${LOCAL_FILES}"
+        target: /sources
 
 networks:
 
   concourse-ci-net:
     name: concourse-ci-net
+    ipam:
+      config:
+        - subnet: 172.10.0.0/24
+          ip_range: 172.10.0.128/25
+          gateway: 172.10.0.1
