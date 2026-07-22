@@ -5,7 +5,7 @@ resources:
     type: git
     icon: github
     source:
-      uri: https://github.com/a1ezzz/pyknic
+      uri: ((repo_uri))
       branch: "main"
 
   - name: timer-trigger
@@ -78,3 +78,4 @@ jobs:
                 tg_chat: ((tg_chat))
                 tg_api_host: "((tg_api_host))"
                 pytest_s3_test_uri: ((pytest_s3_test_uri))
+                repo_uri: ((repo_uri))
