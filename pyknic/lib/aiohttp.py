@@ -27,7 +27,9 @@ import typing
 import aiohttp
 
 
-async def aiohttp_request[C: typing.Any](
+C = typing.TypeVar('C')
+
+async def aiohttp_request(
     request: typing.Callable[[aiohttp.ClientSession], typing.Awaitable[C]],
     session: typing.Optional[aiohttp.ClientSession] = None
 ) -> C:
