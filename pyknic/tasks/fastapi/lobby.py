@@ -109,12 +109,11 @@ class LobbyApp(BaseFastAPIApp):
         else:
             pk_location = pk_location_opt.as_str()
 
-            pk_path = pathlib.Path(pk_location)
-            if not pk_path.is_absolute():
-                pk_path = root_path / pk_path
+            # there is no pk_path.exists(follow_symlinks=False) in python 3.11 =( so resolve it now
+            pk_path = pathlib.Path(pk_location).resolve()
 
-            if pk_path.exists(follow_symlinks=False):
-                pk_stat = pk_path.stat(follow_symlinks=False)
+            if pk_path.exists():
+                pk_stat = pk_path.stat()
                 pk_permissions = pk_stat.st_mode & 0o7777
                 if pk_permissions != 0o0600:
                     raise ValueError(
