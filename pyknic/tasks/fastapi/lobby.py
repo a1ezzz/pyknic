@@ -42,7 +42,6 @@ from pyknic.lib.fastapi.models.lobby import LobbyCommandResult
 from pyknic.lib.gettext import GetTextWrapper
 from pyknic.lib.fastapi.base import BaseFastAPIApp
 from pyknic.lib.fastapi.lobby import LobbyCommandError, __default_lobby_commands_registry__, URLPath
-from pyknic.lib.path import root_path
 from pyknic.lib.fastapi.headers import FastAPIHeaders
 from pyknic.lib.log import Logger
 from pyknic.lib.fastapi.fastapi_aaa import __default_fastapi_aaa_registry__, FastAPIIdentity
