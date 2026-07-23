@@ -5,7 +5,7 @@ import typing
 
 from pyknic.lib.fastapi.models.base import NullableModel
 from pyknic.lib.fastapi.models.lobby import LobbyStrFeedbackResult
-from pyknic.lib.bellboy.models import OptionalBellBoyCommandModel, GeneralBellBoyCommandModel, SecretBackendType
+from pyknic.lib.bellboy.models import OptionalMainBellBoyCommandModel, SecretBackendType, MainBellBoyCommandModel
 from pyknic.lib.integrated_commands.ping import LobbyPingCommand, BellBoyPingCommand
 from pyknic.tasks.fastapi.lobby import LobbyApp
 
@@ -27,38 +27,43 @@ class TestLobbyPingCommand:
 
 class TestBellBoyPingCommand:
 
-    __secret_token__ = 'secret-token'
-    __secret_token_yaml__ = f"""
+    __lobby_yaml__ = """
     pyknic:
         fastapi:
             lobby:
-                secret_token: {__secret_token__}
+                aaa_policies:
+                    allow_all:
+                        handler: trust  # no auth!
+                        handler_settings:
+                            as_user: 'admin'
+                        allowed_commands: []  # list of allowed commands
+                        denied_commands: []  # list of denied commands
     """
 
     @pyknic_async_test
     async def test_client_side(self, module_event_loop: asyncio.AbstractEventLoop) -> None:
         assert(len(BellBoyPingCommand.command_name()) > 0)  # check that there is a name
-        assert(BellBoyPingCommand.command_model() is OptionalBellBoyCommandModel)
+        assert(BellBoyPingCommand.command_model() is OptionalMainBellBoyCommandModel)
 
-        result = await BellBoyPingCommand.prepare_command(OptionalBellBoyCommandModel()).exec()
+        result = await BellBoyPingCommand.prepare_command(OptionalMainBellBoyCommandModel()).exec()
         assert(isinstance(result, LobbyStrFeedbackResult))
         assert(len(result.str_result) > 0)  # check that there is a response
 
-    @AsyncFastAPIFixture.base_config(LobbyApp, __secret_token_yaml__)
+    @AsyncFastAPIFixture.base_config(LobbyApp, __lobby_yaml__)
     @pyknic_async_test
     async def test_server_side(
         self,
         module_event_loop: asyncio.AbstractEventLoop,
         fastapi_module_fixture: AsyncFastAPIFixture,
-        lobby_shm_secrets: typing.Callable[[str, str], typing.Coroutine[None, None, None]]
+        lobby_shm_secrets: typing.Callable[[str], typing.Coroutine[None, None, None]]
     ) -> None:
         lobby_path = fastapi_module_fixture.app_config["pyknic"]["fastapi"]["lobby"]["main_url_path"]
         lobby_url = f'http://localhost:8000{lobby_path}'
 
-        await lobby_shm_secrets(lobby_url, self.__secret_token__)
+        await lobby_shm_secrets(lobby_url)
 
-        lobby_options = OptionalBellBoyCommandModel(
-            server=GeneralBellBoyCommandModel(
+        lobby_options = OptionalMainBellBoyCommandModel(
+            server=MainBellBoyCommandModel(
                 lobby_url=lobby_url,
                 secret_backend=SecretBackendType.shm
             )

@@ -149,7 +149,7 @@ class ThreadedTask(TaskProto, CriticalResource):
 
         :note: Use this method without timeout as a last resort only. Since it blocks other methods of this class
         """
-        with self.critical_context():
+        with self.critical_context(description=repr(self.wait)):
 
             if self.__thread is not None:
                 if timeout is None:

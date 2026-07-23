@@ -129,7 +129,7 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
         task_id = task.task_name() if task.task_name() else str(task)
         result = ThreadedTask(task, self.__thread_cr_timeout, thread_name=f'pyknic:thexec:{task_id}')  # noqa: E231
 
-        with self.critical_context():
+        with self.critical_context(description=repr(self.__submit_task)):
             if task in self.__running_threads:
                 raise TaskStartError('A task has been submitted already')
 
@@ -161,7 +161,7 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
     def complete_task(self, task: TaskProto) -> bool:
         """ The :meth:`.TaskExecutorProto.complete_task` implementation
         """
-        with self.critical_context():
+        with self.critical_context(description=repr(self.complete_task)):
             if task not in self.__running_threads:
                 raise NoSuchTaskError('Unable to find a task')
             threaded_task = self.__running_threads[task]
@@ -186,7 +186,7 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
     def tasks(self) -> typing.Generator[TaskProto, None, None]:
         """ Return started tasks
         """
-        with self.critical_context():
+        with self.critical_context(description=repr(self.tasks)):
             tasks = list(self.__running_threads.keys())
 
         for i in tasks:
@@ -195,7 +195,7 @@ class ThreadExecutor(TaskExecutorProto, CriticalResource, SignalSource):
     def wait_task(self, task: TaskProto, timeout: typing.Union[int, float, None] = None) -> bool:
         """ The :meth:`.TaskExecutorProto.wait_task` implementation
         """
-        with self.critical_context():
+        with self.critical_context(description=repr(self.wait_task)):
             if task not in self.__running_threads:
                 raise NoSuchTaskError('Unable to find a task')
             threaded_task = self.__running_threads[task]

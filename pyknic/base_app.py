@@ -23,9 +23,22 @@
 # TODO: write tests for the code
 
 import signal
+import threading
 import typing
 
 from types import FrameType
+
+try:
+    import boto3  # noqa: F401 # read bellow
+
+    # This early import (if any) fixes the following error:
+    #
+    #   File "/usr/lib/python3.13/threading.py", line 1506, in _register_atexit
+    #     raise RuntimeError("can't register atexit after shutdown")
+    # RuntimeError: can't register atexit after shutdown
+
+except ImportError:
+    pass
 
 import pyknic.tasks  # noqa: F401  # force tasks loading
 
@@ -39,6 +52,7 @@ from pyknic.environment import PyknicEnvVars, PyknicLogLevel
 class BaseApp(TaskProto):
 
     __instance__: typing.Optional[ThreadedTask] = None
+    __instance_lock__ = threading.Lock()
 
     def __init__(
         self,
@@ -87,14 +101,17 @@ class BaseApp(TaskProto):
 
     @classmethod
     def terminate_app(cls, sig: int, frame: typing.Optional[FrameType]) -> None:
-        if BaseApp.__instance__:
-            BaseApp.__instance__.stop()
-            BaseApp.__instance__ = None
+        with cls.__instance_lock__:
+            if BaseApp.__instance__:
+                BaseApp.__instance__.stop()
+                BaseApp.__instance__.wait()
+                BaseApp.__instance__ = None
 
     @classmethod
-    def start_app(cls, thread_name: str, *args: typing.Any, **kwargs: typing.Any) -> None:
+    def start_app(cls, thread_name: str, *args: typing.Any, **kwargs: typing.Any) -> ThreadedTask:
         signal.signal(signal.SIGINT, cls.terminate_app)
+        signal.signal(signal.SIGTERM, cls.terminate_app)
 
         BaseApp.__instance__ = ThreadedTask(cls(*args, **kwargs), thread_name=thread_name)
         BaseApp.__instance__.start()
-        BaseApp.__instance__.wait()
+        return BaseApp.__instance__

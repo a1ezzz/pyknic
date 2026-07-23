@@ -159,7 +159,7 @@ class S3Client(VirtualDirectoryClient):
         self.__client = self.__session.client(
             service_name='s3',
             endpoint_url=str(connection_uri),
-            use_ssl=secure,
+            use_ssl=secure
         )
 
         try:

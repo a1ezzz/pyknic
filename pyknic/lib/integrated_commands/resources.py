@@ -26,11 +26,13 @@ import typing
 
 import pydantic
 
-from pyknic.lib.bellboy.app import BellBoyCommandHandler, register_bellboy_command, LobbyClient
-from pyknic.lib.bellboy.models import GeneralBellBoyCommandModel
+from pyknic.lib.bellboy.app import BellBoyCommandHandler, register_bellboy_command
+from pyknic.lib.bellboy.models import RequiredMainBellBoyCommandModel
 from pyknic.lib.fastapi.lobby import LobbyCommandHandler, register_lobby_command
 from pyknic.lib.fastapi.models.base import NullableModel
 from pyknic.lib.fastapi.models.lobby import LobbyCommandResult, LobbyKeyValueFeedbackResult, LobbyCommandRequest
+
+from pyknic.lib.integrated_commands.commands_version import __plugin_version__
 
 
 @register_lobby_command()
@@ -60,9 +62,15 @@ class LobbyResourcesCommand(LobbyCommandHandler):
 
         pythreads = threading.active_count()
 
-        return LobbyKeyValueFeedbackResult(kv_result={
-            "mem_total": int(total), "mem_resident": int(resident), "mem_shared": int(shared), "py_threads": pythreads
-        })
+        return LobbyKeyValueFeedbackResult(
+            kv_result={
+                "mem_total": int(total),
+                "mem_resident": int(resident),
+                "mem_shared": int(shared),
+                "py_threads": pythreads
+            },
+            plugin_version=__plugin_version__
+        )
 
 
 @register_bellboy_command()
@@ -80,18 +88,19 @@ class BellBoyResourcesCommand(BellBoyCommandHandler):
     def command_model(cls) -> typing.Type[pydantic.BaseModel]:
         """ The :meth:`.BellBoyCommandHandler.command_model` method implementation
         """
-        return GeneralBellBoyCommandModel
+        return RequiredMainBellBoyCommandModel
 
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        assert(isinstance(self._args, GeneralBellBoyCommandModel))
-        auth_data = self.auth_data(self._args.secret_backend, self._args.lobby_url)
+        assert(isinstance(self._args, RequiredMainBellBoyCommandModel))
 
-        client = LobbyClient(self._args.lobby_url, auth_data.server_fingerprint, auth_data.token)
+        client = self.create_client(self._args.server.secret_backend, self._args.server.lobby_url)
+
         return await client.command_request(
             LobbyCommandRequest(
                 name=LobbyResourcesCommand.command_name(),
-                args=NullableModel().model_dump()
+                args=NullableModel().model_dump(),
+                plugin_version=__plugin_version__
             )
         )

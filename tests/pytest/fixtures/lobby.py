@@ -22,19 +22,22 @@
 import typing
 import pytest
 
-from pyknic.lib.bellboy.app import LobbyClient
+from pyknic.lib.bellboy.app import LobbyClientAuth
 from pyknic.lib.bellboy.secret_backend import SharedMemorySecretBackend, SecretBackend
 
 
 @pytest.fixture
 def lobby_shm_secrets() -> typing.Generator[
-    typing.Callable[[str, str], typing.Coroutine[None, None, None]], None, None
+    typing.Callable[[str], typing.Coroutine[None, None, None]], None, None
 ]:
     secret_backend = SecretBackend(SharedMemorySecretBackend())
     saved_urls = []
 
-    async def secret_saver(lobby_url: str, token: str) -> None:
-        secret_backend.set_secret(lobby_url, await LobbyClient.fingerprint(lobby_url), token)
+    async def secret_saver(lobby_url: str) -> None:
+        auth_client = LobbyClientAuth(lobby_url)
+        client = await auth_client.login_with_trust()
+
+        secret_backend.set_secret(lobby_url, client.lobby_public_key(), client.jwt_token())
         saved_urls.append(lobby_url)
 
     yield secret_saver

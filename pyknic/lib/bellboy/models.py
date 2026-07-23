@@ -76,9 +76,13 @@ class SecretBackendBellBoyCommandModel(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(validate_by_alias=True, validate_by_name=True)
 
 
-class GeneralBellBoyCommandModel(LobbyUrlBellBoyCommandModel, SecretBackendBellBoyCommandModel):
+class MainBellBoyCommandModel(LobbyUrlBellBoyCommandModel, SecretBackendBellBoyCommandModel):
     model_config = pydantic.ConfigDict(validate_by_alias=True, validate_by_name=True)
 
 
-class OptionalBellBoyCommandModel(pydantic.BaseModel):
-    server: typing.Optional[GeneralBellBoyCommandModel] = None
+class RequiredMainBellBoyCommandModel(pydantic.BaseModel):
+    server: MainBellBoyCommandModel
+
+
+class OptionalMainBellBoyCommandModel(pydantic.BaseModel):
+    server: typing.Optional[MainBellBoyCommandModel] = None

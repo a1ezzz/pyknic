@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# pyknic/lib/fastapi/headers.py
+# pyknic/lib/aiohttp.py
 #
-# Copyright (C) 2025 the pyknic authors and contributors
+# Copyright (C) 2026 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -19,10 +19,23 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-import enum
+# TODO: document the code
+# TODO: write tests for the code
+
+import typing
+
+import aiohttp
 
 
-@enum.unique
-class FastAPIHeaders(enum.Enum):
-    # List of custom headers
-    signature = "Pyknic-Lobby-Result-Sign"  # is used for result signing
+C = typing.TypeVar('C')
+
+
+async def aiohttp_request(
+    request: typing.Callable[[aiohttp.ClientSession], typing.Awaitable[C]],
+    session: typing.Optional[aiohttp.ClientSession] = None
+) -> C:
+    if session is not None:
+        return await request(session)
+
+    async with aiohttp.ClientSession() as new_session:
+        return await request(new_session)

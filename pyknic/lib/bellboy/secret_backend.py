@@ -29,15 +29,14 @@ import keyring
 import keyring.errors
 import pydantic
 
-from pyknic.lib.fastapi.lobby_fingerprint import LobbyFingerprint
-from pyknic.lib.fastapi.models.lobby import LobbyFingerprintModel
+from pyknic.lib.fastapi.models.lobby import LobbyPublicKeyModel, LobbyEncodedJWT
 
 
 class SecretTokenModel(pydantic.BaseModel):
     """This model describes a single credential that is required for a single server connection
     """
-    server_fingerprint: LobbyFingerprintModel  # server's fingerprint info
-    token: str                                 # server's token  # TODO: better make it with a session key!
+    public_key: LobbyPublicKeyModel  # server's public certificate
+    jwt_token:  LobbyEncodedJWT      # server's access token
 
 
 class PyknicLobbySecrets(pydantic.BaseModel):
@@ -93,17 +92,21 @@ class SecretBackend:
 
         return PyknicLobbySecrets(secrets=dict())
 
-    def set_secret(self, url: str, fingerprint: LobbyFingerprint, token: str) -> None:
+    def set_secret(self, url: str, lobby_public_key: LobbyPublicKeyModel, jwt_token: LobbyEncodedJWT) -> None:
         """Save secrets in backend.
         """
         secrets = self.get_secrets()
         secrets.secrets[url] = SecretTokenModel(
-            server_fingerprint=LobbyFingerprintModel(fingerprint=str(fingerprint)),
-            token=token
+            public_key=lobby_public_key,
+            jwt_token=jwt_token
         )
         self.__backend.save_secrets(secrets.model_dump_json())
 
     def pop_secret(self, url: str) -> SecretTokenModel:
+        """ Retrieve and remove a token from this backend.
+
+        :param url: URL for which a token should be retrieved
+        """
         secrets = self.get_secrets()
         secret_data = secrets.secrets.pop(url)
         self.__backend.save_secrets(secrets.model_dump_json())

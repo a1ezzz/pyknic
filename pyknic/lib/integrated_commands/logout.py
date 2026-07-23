@@ -25,8 +25,10 @@ import typing
 import pydantic
 
 from pyknic.lib.bellboy.app import register_bellboy_command, BellBoyCommandHandler
-from pyknic.lib.bellboy.models import GeneralBellBoyCommandModel
+from pyknic.lib.bellboy.models import RequiredMainBellBoyCommandModel
 from pyknic.lib.fastapi.models.lobby import LobbyCommandResult, LobbyStrFeedbackResult
+
+from pyknic.lib.integrated_commands.commands_version import __plugin_version__
 
 
 @register_bellboy_command()
@@ -42,20 +44,22 @@ class LogoutCommand(BellBoyCommandHandler):
     @classmethod
     def command_model(cls) -> typing.Type[pydantic.BaseModel]:
         """The :meth:`.BellBoyCommandHandler.command_model` method implementation"""
-        return GeneralBellBoyCommandModel
+        return RequiredMainBellBoyCommandModel
 
     async def exec(self) -> LobbyCommandResult:
         """The :meth:`.BellBoyInternalCommand.exec_from_cli` method implementation
         """
-        assert(isinstance(self._args, GeneralBellBoyCommandModel))
+        assert(isinstance(self._args, RequiredMainBellBoyCommandModel))
 
-        secret_backend = self.secret_backend(self._args.secret_backend)
+        secret_backend = self.secret_backend(self._args.server.secret_backend)
 
         with contextlib.suppress(KeyError):
-            secret_backend.pop_secret(self._args.lobby_url)
+            secret_backend.pop_secret(self._args.server.lobby_url)
             return LobbyStrFeedbackResult(
-                str_result=f'Login credential for the {self._args.lobby_url} site has been forgotten'
+                str_result=f'Login credential for the {self._args.server.lobby_url} site has been forgotten',
+                plugin_version=__plugin_version__
             )
         return LobbyStrFeedbackResult(
-            str_result=f'There is no credential for the {self._args.lobby_url} site'
+            str_result=f'There is no credential for the {self._args.server.lobby_url} site',
+            plugin_version=__plugin_version__
         )

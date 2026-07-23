@@ -24,6 +24,7 @@
 
 import asyncio
 import pathlib
+import threading
 import typing
 
 import pydantic
@@ -47,6 +48,8 @@ from pyknic.base_app import BaseApp  # noqa: E402
 
 
 class BellboyApp(BaseApp):
+
+    __app_completed__ = threading.Event()
 
     class BaseCommand(pydantic.BaseModel):
         bellboy: typing.Optional[CommonBellBoyCommandModel] = pydantic.Field(
@@ -87,9 +90,10 @@ class BellboyApp(BaseApp):
 
     def start(self) -> None:
 
-        BaseApp.start(self)
-
         try:
+
+            BaseApp.start(self)
+
             tasks_source = self.tasks_source()
             tasks_source.execute('plugins_task')
             tasks_source.wait_for(tasks_source.datalog(), 'plugins_task')
@@ -132,13 +136,20 @@ class BellboyApp(BaseApp):
                 console.process_result(result)
 
         finally:
-            self.stop()
+            self.__app_completed__.set()
 
     @classmethod
     def main(cls) -> None:
         # TODO: custom verbosity levels!
 
         BellboyApp.start_app('bellboy:starter', log_level=PyknicLogLevel.INFO)
+        cls.__app_completed__.wait()
+
+        with BaseApp.__instance_lock__:
+            if BaseApp.__instance__:
+                BaseApp.__instance__.stop()
+                BaseApp.__instance__.wait()
+                BaseApp.__instance__ = None
 
 
 if __name__ == "__main__":

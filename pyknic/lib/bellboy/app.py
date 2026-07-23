@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # pyknic/lib/bellboy/app.py
 #
-# Copyright (C) 2025 the pyknic authors and contributors
+# Copyright (C) 2025-2026 the pyknic authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of pyknic.
@@ -19,20 +19,26 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import base64
 import typing
 from abc import ABCMeta
 
 import aiohttp
+import jwt
 import pydantic
 
+from pyknic.lib.aiohttp import aiohttp_request
 from pyknic.lib.bellboy.models import SecretBackendType
 from pyknic.lib.bellboy.secret_backend import SecretBackend, KeyringSecretBackendImplementation, SecretTokenModel
 from pyknic.lib.bellboy.secret_backend import SharedMemorySecretBackend, SecretBackendImplementationProto
-from pyknic.lib.fastapi.lobby import LobbyCommandHandler
-from pyknic.lib.fastapi.lobby_fingerprint import LobbyFingerprint
+from pyknic.lib.crypto.rsa import RSAPublicKey
+from pyknic.lib.fastapi.lobby import LobbyCommandHandler, URLPath
 from pyknic.lib.fastapi.headers import FastAPIHeaders
-from pyknic.lib.fastapi.models.lobby import LobbyCommandRequest, LobbyFingerprintModel, LobbyCommandResult
+from pyknic.lib.fastapi.models.lobby import LobbyCommandRequest, LobbyCommandResult, LobbyPublicKeyModel
+from pyknic.lib.fastapi.models.lobby import LobbyEncodedJWT
 from pyknic.lib.registry import APIRegistry, register_api
+from pyknic.lib.log import Logger
+
 
 __default_bellboy_commands_registry__ = APIRegistry()  # default registry for all commands
 
@@ -91,27 +97,52 @@ class BellBoyCommandHandler(LobbyCommandHandler, metaclass=ABCMeta):
 
         return all_secrets.secrets[lobby_url]
 
+    @classmethod
+    def create_client(cls, secret_backend_type: SecretBackendType, lobby_url: str) -> 'LobbyClient':
+        """ Retrieve an auth info and create a client
+
+        :param secret_backend_type: backend that holds secret
+        :param lobby_url: URL which secret should be retrieved
+        """
+        auth_data = cls.auth_data(secret_backend_type, lobby_url)
+        return LobbyClient(lobby_url, auth_data.public_key, auth_data.jwt_token)
+
 
 class LobbyClient:
     """This class wraps API calls routine.
     """
 
-    def __init__(self, url: str, fingerprint: typing.Union[LobbyFingerprint | LobbyFingerprintModel], token: str):
+    def __init__(self, url: str, lobby_public_key: LobbyPublicKeyModel, jwt_token: LobbyEncodedJWT):
         """Create a new client.
 
         :param url: URL to connect to.
-        :param fingerprint: allowed server's fingerprint to check a response
-        :param token: token to authenticate with.
+        :param lobby_public_key: public key information tha has been received from a server
+        :param jwt_token: authentication token
         """
-        is_lobby_fingerprint = isinstance(fingerprint, LobbyFingerprint)
 
         self.__url = url
-        self.__fingerprint = fingerprint if is_lobby_fingerprint else LobbyFingerprint.from_model(fingerprint)
-        self.__token = token
+        self.__lobby_public_key = lobby_public_key
+        self.__public_key = RSAPublicKey.import_pem(lobby_public_key.pem.encode('ascii'))
+        self.__sign_hash_method = lobby_public_key.sign_hash_method
+        self.__jwt_token = jwt_token
+
+    def jwt_token(self) -> LobbyEncodedJWT:
+        """ Return JWT that is used by this client
+        """
+        return self.__jwt_token
+
+    def public_key(self) -> RSAPublicKey:
+        """ Return public key this client is used for data verification
+        """
+        return self.__public_key
+
+    def lobby_public_key(self) -> LobbyPublicKeyModel:
+        """ Return public key and signing method this client is used for data verification
+        """
+        return self.__lobby_public_key
 
     async def secure_request(
         self,
-        fingerprint: LobbyFingerprint,
         session: aiohttp.ClientSession,
         method_name: str,
         path: str | None = None,
@@ -119,27 +150,29 @@ class LobbyClient:
     ) -> bytes:
         """Make a secure request and return bytes that this request returns.
 
-        :param fingerprint: allowed server's fingerprint to check a response
         :param session: HTTP-client to use
         :param method_name: HTTP-method to use (like 'get' or 'post')
         :param path: URL path
         :param data: Data to send with request
         """
-        auth_headers = {"Authorization": f"Bearer {self.__token}"}
+        headers = {
+            "Authorization": f"Bearer {self.__jwt_token.token_data}",
+            "Content-Type": "application/json",
+        }
 
         session_method = getattr(session, method_name)
-        async with session_method(f'{self.__url}{path if path else ""}', headers=auth_headers, data=data) as response:
+        async with session_method(f'{self.__url}{path if path else ""}', headers=headers, data=data) as response:
             if response.status != 200:
                 raise BellboyCLIError(f'API request failed with status code {response.status}')
 
-            binary_body = await response.content.read()
-            signature = fingerprint.sign(binary_body, encode_base64=True).decode('ascii')
+            binary_body: bytes = await response.content.read()
 
-            if response.headers[FastAPIHeaders.fingerprint.value] != signature:
-                raise BellboyCLIError(
-                    'Response signature mismatch! Consider to restart session and validate connectivity'
-                )
-            return binary_body  # type: ignore[no-any-return]
+            sign_str = response.headers[FastAPIHeaders.signature.value]
+            sign_bin = base64.b64decode(sign_str)
+
+            self.__public_key.verify(sign_bin, binary_body, self.__sign_hash_method)
+
+            return binary_body
 
     async def command_request(
         self, command: LobbyCommandRequest, session: typing.Optional[aiohttp.ClientSession] = None
@@ -151,37 +184,138 @@ class LobbyClient:
 
         async def cmd_request(s: aiohttp.ClientSession) -> LobbyCommandResult:
             request_json = command.model_dump_json()
-            result = await self.secure_request(
-                self.__fingerprint, s, 'post', data=request_json  # type: ignore[arg-type]
-            )
+            result = await self.secure_request(s, 'post', data=request_json)
             return pydantic.TypeAdapter(LobbyCommandResult).validate_json(result.decode())
 
-        if session:
-            return await cmd_request(session)
+        return await aiohttp_request(cmd_request, session)
 
-        async with aiohttp.ClientSession() as new_session:
-            return await cmd_request(new_session)
 
-    @staticmethod
-    async def fingerprint(url: str, session: typing.Optional[aiohttp.ClientSession] = None) -> LobbyFingerprint:
-        """Return server's fingerprint.
+class LobbyClientAuth:
+    """ This class helps to authenticate a client on a remote lobby server.
+    """
 
-        :param url: URL to connect to.
-        :param session: HTTP-client to use
+    def __init__(
+        self,
+        url: str,
+        session: typing.Optional[aiohttp.ClientSession] = None,
+        jwt_algorithm: typing.Optional[str] = None
+    ):
+        """Create an authentication handler
+
+        :param url: remote lobby URL
+        :param session: aiohttp session to use for HTTP-requests
+        :param jwt_algorithm: JWT algorithm to use (RS256 is used by default)
         """
-        # TODO: persist it from a server side
+        self.__url = url
+        self.__session = session
+        self.__jwt_algorithm = jwt_algorithm if jwt_algorithm else 'RS256'
 
-        async def fp_by_session(s: aiohttp.ClientSession) -> LobbyFingerprint:
-            async with s.get(f'{url}/fingerprint') as response:
+        self.__lobby_public_key: typing.Optional[LobbyPublicKeyModel] = None
+        self.__public_key: typing.Optional[RSAPublicKey] = None
+
+    async def lobby_public_key(self) -> LobbyPublicKeyModel:
+        """ Fetch and return server's public key. Public key is retrieved only once, later call will return
+        cached value
+        """
+
+        if self.__lobby_public_key is not None:
+            return self.__lobby_public_key
+
+        async def pk_by_session(s: aiohttp.ClientSession) -> LobbyPublicKeyModel:
+            async with s.get(f'{self.__url}/{URLPath.public_key.value}') as response:
 
                 if response.status != 200:
-                    raise BellboyCLIError('Unable to fetch fingerprint')
+                    raise BellboyCLIError('Unable to fetch public key')
 
-                fingerprint_model = LobbyFingerprintModel.model_validate(await response.json())
-                return LobbyFingerprint.deserialize(fingerprint_model.fingerprint.encode('ascii'))
+                self.__lobby_public_key = LobbyPublicKeyModel.model_validate(await response.json())
+                self.__public_key = RSAPublicKey.import_pem(self.__lobby_public_key.pem.encode('ascii'))
+                assert(self.__lobby_public_key)
+                return self.__lobby_public_key
 
-        if session is not None:
-            return await fp_by_session(session)
+        return await aiohttp_request(pk_by_session, self.__session)
 
-        async with aiohttp.ClientSession() as new_session:
-            return await fp_by_session(new_session)
+    async def __encoded_jwt(self, dict_obj: typing.Dict[str, typing.Any]) -> LobbyEncodedJWT:
+        """ Parse a json-a-like object into JWT, verify it and return it
+
+        :param dict_obj: object to parse
+        """
+
+        if self.__public_key is None:
+            await self.lobby_public_key()
+        assert(self.__public_key is not None)
+
+        encoded_jwt = LobbyEncodedJWT.model_validate(dict_obj)
+
+        try:
+            # just to check signature
+            _ = jwt.decode(
+                encoded_jwt.token_data,
+                self.__public_key.export_pem(),
+                algorithms=[self.__jwt_algorithm],
+                options={"verify_aud": False}  # this is OK, since we check signature
+            )
+
+        except jwt.DecodeError as e:
+            Logger.error(f'Unable to decode a JWT -- {e}')
+            raise
+
+        return encoded_jwt
+
+    async def __client_by_jwt(self, jwt_token: LobbyEncodedJWT) -> LobbyClient:
+        """ Create a :class:`.LobbyClient` instance by JWT
+
+        :param jwt_token: lobby's credential
+        """
+        return LobbyClient(
+            self.__url,
+            await self.lobby_public_key(),
+            jwt_token
+        )
+
+    async def login_with_trust(self) -> LobbyClient:
+        """ Try to authenticate with "trust" method
+        """
+
+        async def get_jwt(s: aiohttp.ClientSession) -> LobbyEncodedJWT:
+            async with s.post(f'{self.__url}/{URLPath.login_trust.value}') as response:
+                if response.status != 200:
+                    raise BellboyCLIError('Unable to authorize with the "trust" method!')
+
+                return await self.__encoded_jwt(await response.json())
+
+        jwt_token = await aiohttp_request(get_jwt, self.__session)
+        return await self.__client_by_jwt(jwt_token)
+
+    async def login_with_token(self, secret: str) -> LobbyClient:
+        """ Try to authenticate with a beacon
+        """
+
+        async def get_jwt(s: aiohttp.ClientSession) -> LobbyEncodedJWT:
+            auth_headers = {"Authorization": f"Bearer {secret}"}
+
+            async with s.post(f'{self.__url}/{URLPath.login_bearer.value}', headers=auth_headers) as response:
+                if response.status != 200:
+                    raise BellboyCLIError('Unable to authorize with the "token" method!')
+
+                return await self.__encoded_jwt(await response.json())
+
+        jwt_token = await aiohttp_request(get_jwt, self.__session)
+        return await self.__client_by_jwt(jwt_token)
+
+    async def login_with_basic(self, login: str, secret: str) -> LobbyClient:
+        """ Try to authenticate with login and password
+        """
+
+        async def get_jwt(s: aiohttp.ClientSession) -> LobbyEncodedJWT:
+
+            async with s.post(
+                f'{self.__url}/{URLPath.login_basic.value}',
+                auth=aiohttp.BasicAuth(login, secret)
+            ) as response:
+                if response.status != 200:
+                    raise BellboyCLIError('Unable to authorize with the "basic" method!')
+
+                return await self.__encoded_jwt(await response.json())
+
+        jwt_token = await aiohttp_request(get_jwt, self.__session)
+        return await self.__client_by_jwt(jwt_token)

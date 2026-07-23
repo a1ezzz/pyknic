@@ -10,7 +10,8 @@ import keyring.errors
 
 from pyknic.lib.bellboy.secret_backend import PyknicLobbySecrets, SecretBackendImplementationProto, SecretBackend
 from pyknic.lib.bellboy.secret_backend import KeyringSecretBackendImplementation, SharedMemorySecretBackend
-from pyknic.lib.fastapi.lobby_fingerprint import LobbyFingerprint
+from pyknic.lib.crypto.rsa import RSAPrivateKey
+from pyknic.lib.fastapi.models.lobby import LobbyEncodedJWT, LobbyPublicKeyModel
 
 
 def test_abstract() -> None:
@@ -50,28 +51,43 @@ class TestSecretBackend:
         if not enable_test:
             return
 
-        localhost_secret = 'foo-bar'
-        some_host_secret = 'bar-foo'
-        fingerprint = LobbyFingerprint.generate_fingerprint()
+        localhost_secret = LobbyEncodedJWT(token_data='foo-bar')
+        some_host_secret = LobbyEncodedJWT(token_data='bar-foo')
+        private_key = RSAPrivateKey.generate(1024)
+        public_key_pem = private_key.public_key().export_pem().decode('ascii')
 
         storage = SecretBackend(backend)
         storage.purge()
-        storage.set_secret('http://localhost/', fingerprint, localhost_secret)
-        storage.set_secret('http://somehost/', fingerprint, some_host_secret)
+        storage.set_secret(
+            'http://localhost/',
+            LobbyPublicKeyModel(
+                pem=private_key.public_key().export_pem().decode('ascii'),
+                sign_hash_method='some-hash-method'
+            ),
+            localhost_secret
+        )
+        storage.set_secret(
+            'http://somehost/',
+            LobbyPublicKeyModel(
+                pem=private_key.public_key().export_pem().decode('ascii'),
+                sign_hash_method='some-hash-method'
+            ),
+            some_host_secret
+        )
 
         secrets = storage.get_secrets()
         assert(isinstance(secrets, PyknicLobbySecrets))
         assert(len(secrets.secrets.keys()) == 2)
 
-        assert(secrets.secrets['http://localhost/'].token == localhost_secret)
-        assert(secrets.secrets['http://localhost/'].server_fingerprint.fingerprint == str(fingerprint))
-        assert(secrets.secrets['http://somehost/'].token == some_host_secret)
-        assert(secrets.secrets['http://somehost/'].server_fingerprint.fingerprint == str(fingerprint))
+        assert(secrets.secrets['http://localhost/'].jwt_token == localhost_secret)
+        assert(secrets.secrets['http://localhost/'].public_key.pem == public_key_pem)
+        assert(secrets.secrets['http://somehost/'].jwt_token == some_host_secret)
+        assert(secrets.secrets['http://somehost/'].public_key.pem == public_key_pem)
 
         storage.pop_secret('http://somehost/')
         secrets = storage.get_secrets()
         assert(len(secrets.secrets.keys()) == 1)
-        assert(secrets.secrets['http://localhost/'].token == localhost_secret)
+        assert(secrets.secrets['http://localhost/'].jwt_token == localhost_secret)
 
     @pytest.mark.parametrize('backend, enable_test', [
         [KeyringSecretBackendImplementation(), 'DBUS_SESSION_BUS_ADDRESS' in os.environ],

@@ -35,6 +35,8 @@ from pyknic.lib.io.aio_wrapper import AsyncWrapper
 from pyknic.lib.io.clients import IOVirtualClient, IOClientProto
 from pyknic.lib.uri import URI
 
+from pyknic.lib.integrated_commands.commands_version import __plugin_version__
+
 
 class CopierCommandModel(pydantic.BaseModel):
     """ These settings define main backup options
@@ -102,7 +104,8 @@ class BellBoyCopyCommand(BellBoyCommandHandler):
                 destination_client.upload_file(destination_file, sync_throttler)
 
                 return LobbyStrFeedbackResult(
-                    str_result=f'File from the {self._args.source} copied successfully to the {self._args.destination}'
+                    str_result=f'File from the {self._args.source} copied successfully to the {self._args.destination}',
+                    plugin_version=__plugin_version__
                 )
 
     async def exec(self) -> LobbyCommandResult:
