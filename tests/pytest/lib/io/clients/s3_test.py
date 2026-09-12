@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 
+import base64
+import json
 import os
 import pathlib
+import typing
 import uuid
 
 import pytest
@@ -12,18 +15,32 @@ from pyknic.lib.io.clients.proto import IOClientProto, DirectoryNotEmptyError
 from pyknic.lib.io.clients.s3 import S3Client
 
 
-S3ConnectionEnvVar = "S3_TEST_URI"
+# TODO: migrate this code elsewhere!
+
+def decode_pytest_secret(key: str) -> typing.Any:
+    if 'PYTEST_EXTRA_SECRETS' in os.environ:
+        decoded_b64_msg = base64.b64decode(os.environ['PYTEST_EXTRA_SECRETS'])
+        secrets = json.loads(decoded_b64_msg.decode())
+
+        if not isinstance(secrets, dict):
+            raise RuntimeError('!')
+
+        return secrets.get(key, None)
+    return None
+
+
+__s3_connection_uri__ = decode_pytest_secret('s3_test_uri')
 
 
 # TODO: make it to run on concourse!
 @pytest.mark.skipif(
-    S3ConnectionEnvVar not in os.environ or os.environ[S3ConnectionEnvVar] == "",
-    reason=f"Setup S3 connection URL with {S3ConnectionEnvVar} env var",
+    __s3_connection_uri__ is None,
+    reason='Setup S3 connection URL with the "PYTEST_EXTRA_SECRETS" env var',
 )
 class TestS3Client:
 
     def test(self) -> None:
-        client = S3Client(URI.parse(os.environ[S3ConnectionEnvVar]))
+        client = S3Client(URI.parse(__s3_connection_uri__))
         client.connect()
         assert(client.session_path() == pathlib.PosixPath('/'))
 
@@ -40,7 +57,7 @@ class TestS3Client:
         assert(iscapable(client, IOClientProto.file_size) is True)
 
     def test_new_path(self) -> None:
-        uri_obj = URI.parse(os.environ[S3ConnectionEnvVar])
+        uri_obj = URI.parse(__s3_connection_uri__)
         original_client = S3Client(uri_obj)
         original_client.connect()
         test_dir = f'pytest-directory-{uuid.uuid4()}'
@@ -55,7 +72,7 @@ class TestS3Client:
         original_client.remove_directory(test_dir)
 
     def test_dir(self) -> None:
-        client = S3Client(URI.parse(os.environ[S3ConnectionEnvVar]))
+        client = S3Client(URI.parse(__s3_connection_uri__))
         client.connect()
 
         test_dir = f'pytest-directory-{uuid.uuid4()}'
@@ -119,7 +136,7 @@ class TestS3Client:
         assert(client.is_directory(test_dir) is False)
 
     def test_file(self) -> None:
-        client = S3Client(URI.parse(os.environ[S3ConnectionEnvVar]))
+        client = S3Client(URI.parse(__s3_connection_uri__))
         client.connect()
 
         test_data = b'Test data'
@@ -144,7 +161,7 @@ class TestS3Client:
         client.remove_directory(test_dir)
 
     def test_invalid_remove_dir(self) -> None:
-        client = S3Client(URI.parse(os.environ[S3ConnectionEnvVar]))
+        client = S3Client(URI.parse(__s3_connection_uri__))
         client.connect()
 
         test_dir = f'pytest-directory-{uuid.uuid4()}'
@@ -161,7 +178,7 @@ class TestS3Client:
         client.remove_directory(test_dir)
 
     def test_receive_file_with_offset(self) -> None:
-        client = S3Client(URI.parse(os.environ[S3ConnectionEnvVar]))
+        client = S3Client(URI.parse(__s3_connection_uri__))
         client.connect()
 
         test_dir = f'pytest-directory-{uuid.uuid4()}'
@@ -179,7 +196,7 @@ class TestS3Client:
         client.remove_directory(test_dir)
 
     def test_upload_by_part(self) -> None:
-        client = S3Client(URI.parse(os.environ[S3ConnectionEnvVar]))
+        client = S3Client(URI.parse(__s3_connection_uri__))
         client.connect()
 
         test_dir = f'pytest-directory-{uuid.uuid4()}'
