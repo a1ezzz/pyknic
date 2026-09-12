@@ -5,8 +5,8 @@ resources:
     type: git
     icon: github
     source:
-      uri: ((repo_uri))
-      branch: main
+      uri: ((ci_repo_uri))
+      branch: ((ci_repo_branch))
 
   - name: timer-trigger
     type: time
@@ -110,10 +110,6 @@ jobs:
             file: pull-request-details/from_ref.txt
             format: trim
 
-          - load_var: pull_request_head_sha
-            file: pull-request-details/from_sha.txt
-            format: trim
-
           - across:
               - var: python_version
                 values: ((supported_python_version))
@@ -124,7 +120,6 @@ jobs:
               pull_request_id: ((.:pull_request_id))
             vars:
               branch: ((.:pull_request_base_name))
-              commit: ((.:pull_request_head_sha))
               github-access-token: ((github-access-token))
               pull_request_id: ((.:pull_request_id))
               pull_request_branch_name: ((.:pull_request_head_name))
@@ -133,5 +128,5 @@ jobs:
               tg_bot_token: ((tg_bot_token))
               tg_chat: ((tg_chat))
               tg_api_host: "((tg_api_host))"
-              pytest_s3_test_uri: ((pytest_s3_test_uri))
               repo_uri: ((repo_uri))
+              repo_name: ((repo_name))
