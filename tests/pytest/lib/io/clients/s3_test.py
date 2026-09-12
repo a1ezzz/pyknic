@@ -14,25 +14,12 @@ from pyknic.lib.capability import iscapable
 from pyknic.lib.io.clients.proto import IOClientProto, DirectoryNotEmptyError
 from pyknic.lib.io.clients.s3 import S3Client
 
-
-# TODO: migrate this code elsewhere!
-
-def decode_pytest_secret(key: str) -> typing.Any:
-    if 'PYTEST_EXTRA_SECRETS' in os.environ:
-        decoded_b64_msg = base64.b64decode(os.environ['PYTEST_EXTRA_SECRETS'])
-        secrets = json.loads(decoded_b64_msg.decode())
-
-        if not isinstance(secrets, dict):
-            raise RuntimeError('!')
-
-        return secrets.get(key, None)
-    return None
+from fixtures.secrets import TestSecrets, decode_pytest_secret
 
 
-__s3_connection_uri__ = decode_pytest_secret('s3_test_uri')
+__s3_connection_uri__ = decode_pytest_secret(TestSecrets.s3_test_uri)
 
 
-# TODO: make it to run on concourse!
 @pytest.mark.skipif(
     __s3_connection_uri__ is None,
     reason='Setup S3 connection URL with the "PYTEST_EXTRA_SECRETS" env var',
