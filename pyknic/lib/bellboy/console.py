@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import copy
 import typing
 
 import rich.console
@@ -29,7 +30,7 @@ import rich.text
 
 from pyknic.lib.bellboy.app import BellboyCLIError
 from pyknic.lib.fastapi.models.lobby import LobbyStrFeedbackResult, LobbyKeyValueFeedbackResult, LobbyCommandResult
-from pyknic.lib.fastapi.models.lobby import LobbyListValueFeedbackResult
+from pyknic.lib.fastapi.models.lobby import LobbyListValueFeedbackResult, LobbyTableFeedbackResult
 from pyknic.lib.fastapi.models.base import NullableModel
 
 
@@ -104,13 +105,50 @@ class BellboyConsole:
         self.__console.print(rich.text.Text('<command succeeded without feedback>'))
 
     def list_feedback(self, feedback: LobbyListValueFeedbackResult) -> None:
-        """Process null result.
+        """Process a list result.
 
-        :param feedback: None as is =)
+        :param feedback: list result
         """
         self.__console.print(rich.text.Text('Values received:'))
         for i in feedback.list_result:
             self.__console.print(rich.padding.Padding.indent(i, 4))
+
+    def table_feedback(self, feedback: LobbyTableFeedbackResult) -> None:
+        """Process a table result.
+
+        :param feedback: table result
+        """
+        table = rich.table.Table(title='Values received')
+
+        tables_copy = copy.deepcopy(feedback.table_result)
+
+        keys = list(tables_copy.keys())
+        keys.sort()
+
+        def generate_row() -> typing.Generator[typing.List[str], None, None]:
+            fetch_more = True
+
+            row_to_cancel = ([None] * len(keys))
+
+            while fetch_more:
+                row = []
+
+                for k in keys:
+                    row_k = tables_copy[k]
+                    row.append(row_k.pop(0) if len(row_k) else None)
+
+                if row != row_to_cancel:
+                    yield [str(x) if x is not None else '' for x in row]
+                else:
+                    fetch_more = False
+
+        for c in keys:
+            table.add_column(c, style='bold', justify='right')
+
+        for r in generate_row():
+            table.add_row(*r)
+
+        self.__console.print(table)
 
     def process_result(
         self,
@@ -126,6 +164,8 @@ class BellboyConsole:
             self.kv_feedback(command_result)
         elif isinstance(command_result, LobbyListValueFeedbackResult):
             self.list_feedback(command_result)
+        elif isinstance(command_result, LobbyTableFeedbackResult):
+            self.table_feedback(command_result)
         elif isinstance(command_result, NullableModel):
             self.null_feedback(command_result)
         else:

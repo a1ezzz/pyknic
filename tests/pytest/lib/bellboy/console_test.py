@@ -8,7 +8,7 @@ if typing.TYPE_CHECKING:
 
 from pyknic.lib.bellboy.app import BellboyCLIError
 from pyknic.lib.fastapi.models.lobby import LobbyStrFeedbackResult, LobbyKeyValueFeedbackResult, LobbyCommandResult
-from pyknic.lib.fastapi.models.lobby import LobbyListValueFeedbackResult
+from pyknic.lib.fastapi.models.lobby import LobbyListValueFeedbackResult, LobbyTableFeedbackResult
 from pyknic.lib.fastapi.models.base import NullableModel
 from pyknic.lib.bellboy.console import BellboyConsole
 
@@ -77,11 +77,32 @@ class TestBellboyConsole:
         assert('foo' in captured_out)
         assert('bar' in captured_out)
 
+    def test_table_feedback(self, capsys: 'CaptureFixture[typing.Any]') -> None:
+        console = BellboyConsole()
+
+        console.table_feedback(LobbyTableFeedbackResult(
+            plugin_version='test-plugin',
+            table_result={
+                "alphabet": ["a", "b", "c", "d"],
+                "letter_number": [1, None, 3]
+            }
+        ))
+        captured_out = capsys.readouterr().out
+        assert('alphabet' in captured_out)
+        assert('letter_number' in captured_out)
+
     @pytest.mark.parametrize('result', [
         NullableModel(),
         LobbyStrFeedbackResult(str_result='some string result', plugin_version='test-plugin'),
         LobbyKeyValueFeedbackResult(kv_result={'foo': 'bar', 'bar': 'foo'}, plugin_version='test-plugin'),
-        LobbyListValueFeedbackResult(list_result=['foo', 'bar'], plugin_version='test-plugin')
+        LobbyListValueFeedbackResult(list_result=['foo', 'bar'], plugin_version='test-plugin'),
+        LobbyTableFeedbackResult(
+            plugin_version='test-plugin',
+            table_result={
+                "alphabet": ["a", "b", "c", "d"],
+                "letter_number": [1, None, 3]
+            }
+        )
     ])
     def test_process_result(self, capsys: 'CaptureFixture[typing.Any]', result: LobbyCommandResult) -> None:
         console = BellboyConsole()

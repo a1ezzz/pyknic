@@ -63,9 +63,20 @@ class LobbyListValueFeedbackResult(pydantic.BaseModel):
     list_result: typing.List[typing.Any]                # a command result
 
 
+class LobbyTableFeedbackResult(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra='forbid')       # just to be sure that everything attributes are known
+    server_version: str = __version__                        # a description of a server that receives a request
+    plugin_version: str                                      # a version of a plugin that processed a request
+    table_result: typing.Dict[str, typing.List[typing.Any]]  # a command result
+
+
 # possible command results
 LobbyCommandResult = typing.Union[
-    NullableModel, LobbyStrFeedbackResult, LobbyKeyValueFeedbackResult, LobbyListValueFeedbackResult
+    NullableModel,
+    LobbyStrFeedbackResult,
+    LobbyKeyValueFeedbackResult,
+    LobbyListValueFeedbackResult,
+    LobbyTableFeedbackResult
 ]
 
 
