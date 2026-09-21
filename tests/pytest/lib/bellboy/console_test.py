@@ -77,7 +77,7 @@ class TestBellboyConsole:
         assert('foo' in captured_out)
         assert('bar' in captured_out)
 
-    def test_list_feedback(self, capsys: 'CaptureFixture[typing.Any]') -> None:
+    def test_table_feedback(self, capsys: 'CaptureFixture[typing.Any]') -> None:
         console = BellboyConsole()
 
         console.table_feedback(LobbyTableFeedbackResult(
