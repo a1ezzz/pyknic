@@ -9,16 +9,7 @@ Add a posibility to detect pyknic servers over the network on the client and on 
 
 1. Application-level rate limiting (including login/*); exponential backoff after N failures.
 
-2. Assert may be skipped
-
-```
-assert(self.__private_key)
-```
-(lobby.py:206,215,223,303)
-
-May be turned off with "python -O"
-
-3. Timing Attack.
+2. Timing Attack.
 
 File: pyknic/lib/crypto/htpasswd.py (rows 166–185).
 
@@ -37,27 +28,27 @@ def match(self, user_name: str, password: str) -> bool:
 ```
 Issues:
 
-3.1 Logical error: the `user_name_matched` variable is never set to `True`. The `secrets.compare_digest(b'', b'')` call is executed whenever the password is incorrect or the user is not found.
+2.1 Logical error: the `user_name_matched` variable is never set to `True`. The `secrets.compare_digest(b'', b'')` call is executed whenever the password is incorrect or the user is not found.
 
-3.2. Timing Oracle: `secrets.compare_digest(b'', b'')` executes in a fraction of a nanosecond, whereas hash computation using Argon2 or BCrypt takes 50–300 ms. An attacker can use response times to definitively enumerate valid usernames in the system (Username Enumeration).
+2.2. Timing Oracle: `secrets.compare_digest(b'', b'')` executes in a fraction of a nanosecond, whereas hash computation using Argon2 or BCrypt takes 50–300 ms. An attacker can use response times to definitively enumerate valid usernames in the system (Username Enumeration).
 
-3.3. Linear search: iterating through the `self.__entries` list causes the response time to depend on the record's position in the file.
+2.3. Linear search: iterating through the `self.__entries` list causes the response time to depend on the record's position in the file.
 
-3.4 Try to limit digest algorithm to argon2id
+2.4 Try to limit digest algorithm to argon2id
 
-4. Invalid "sub" type
+3. Invalid "sub" type
 `sub` is declared as `Union[str, int]` (models/lobby.py:101), even though RFC 7519 requires a string.
 
-5. Unsafe shared memory access
+4. Unsafe shared memory access
 File: pyknic/lib/bellboy/secret_backend.py (row 154).
 
 Using POSIX shared memory at `/dev/shm/pyknic-secrets` makes stored tokens and public keys accessible to other processes and users on the local machine if permissive access masks (umask) are in effect.
 
-6. Request size limit
+5. Request size limit
 
 No request body size limit → potential DoS via parsing.
 
-7. Dangerous "Default-Allow" model for command validation
+6. Dangerous "Default-Allow" model for command validation
 
 File: pyknic/tasks/fastapi/lobby.py (rows 372–378)
 
@@ -159,3 +150,7 @@ Ignoring roles and groups: The FastAPIIdentity structure contains a `groups` fie
 1. Migrate concourse-ci/* and docker/* to pyknic-build code
 
 As an example -- pyknic-todo project
+
+# AI
+
+1. Ask for a code review

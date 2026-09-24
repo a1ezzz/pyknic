@@ -79,7 +79,8 @@ class BellBoyPingCommand(BellBoyCommandHandler):
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        assert(isinstance(self._args, OptionalMainBellBoyCommandModel))
+        if not isinstance(self._args, OptionalMainBellBoyCommandModel):
+            raise TypeError('Invalid command arguments type')
 
         if self._args.server is None:
             result = await LobbyPingCommand.prepare_command(NullableModel()).exec()

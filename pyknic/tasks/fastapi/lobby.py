@@ -203,7 +203,8 @@ class LobbyApp(BaseFastAPIApp):
 
         :param json_data: API result to sign
         """
-        assert(self.__private_key)
+        if self.__private_key is None:
+            raise RuntimeError('A private key was not loaded')
 
         response_headers = dict()
         signature = self.__private_key.sign(json_data.encode(), self.__signing_hash)
@@ -212,7 +213,9 @@ class LobbyApp(BaseFastAPIApp):
         return fastapi.Response(content=json_data, media_type="application/json", headers=response_headers)
 
     async def public_key(self) -> LobbyPublicKeyModel:
-        assert(self.__private_key)
+        if self.__private_key is None:
+            raise RuntimeError('A private key was not loaded')
+
         return LobbyPublicKeyModel(
             pem=self.__private_key.public_key().export_pem().decode('ascii'),
             sign_hash_method=self.__signing_hash
@@ -220,7 +223,8 @@ class LobbyApp(BaseFastAPIApp):
 
     def __generate_auth_token(self, user_id: FastAPIIdentity, policy_name: str) -> LobbyEncodedJWT:
 
-        assert(self.__private_key)
+        if self.__private_key is None:
+            raise RuntimeError('A private key was not loaded')
 
         jwt_payload = LobbyJWTPayload.generate(
             ttl=self.__jwt_ttl,
@@ -300,7 +304,8 @@ class LobbyApp(BaseFastAPIApp):
         :param auth: authentication parameters
         """
 
-        assert(self.__private_key)
+        if self.__private_key is None:
+            raise RuntimeError('A private key was not loaded')
 
         try:
             decoded_jwt = jwt.decode(

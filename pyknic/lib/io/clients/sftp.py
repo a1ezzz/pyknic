@@ -51,20 +51,24 @@ class _SFTPPartsUploader(BasePartsUploader):
         self.__opened_file: typing.Optional[typing.IO[bytes]] = None
 
     def __enter__(self) -> BasePartsUploader:
-        assert(self.__opened_file is None)
+        if self.__opened_file is None:
+            raise RuntimeError('A file has been opened already')
 
         self.__opened_file = self.__sftp_client.open(self.__remote_file_name, 'wb')  # type: ignore[assignment]
         return self
 
     def _upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
-        assert(self.__opened_file)
+        if self.__opened_file is None:
+            raise RuntimeError('A file has not been opened')
 
         offset = part_number * self.__part_size
         self.__opened_file.seek(offset, os.SEEK_SET)
         self.__opened_file.write(data)
 
     def _finalize(self, exc_val: typing.Optional[BaseException] = None) -> None:
-        assert(self.__opened_file)
+        if self.__opened_file is None:
+            raise RuntimeError('A file has not been opened')
+
         self.__opened_file.close()
 
 
@@ -108,7 +112,8 @@ class SFTPClient(VirtualDirectoryClient):
         """Synchronous implementation of the `.IOClientProto.connect` method
         """
 
-        assert(self.__uri.hostname is not None)
+        if self.__uri.hostname is None:
+            raise ValueError('Unable to connect -- a hostname was not set')
 
         try:
             self.__ssh_client = paramiko.SSHClient()
@@ -147,7 +152,9 @@ class SFTPClient(VirtualDirectoryClient):
     def change_directory(self, path: str) -> str:
         """Synchronous implementation of the `.IOClientProto.change_directory` method
         """
-        assert(self.__sftp_client is not None)
+
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
 
         if path in ('.', ''):
             return str(self.session_path())
@@ -169,7 +176,9 @@ class SFTPClient(VirtualDirectoryClient):
     def make_directory(self, directory_name: str) -> None:
         """Synchronous implementation of the `.IOClientProto.make_directory` method
         """
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
+
         new_dir_path = self.entry_path(directory_name)
         self.__sftp_client.mkdir(str(new_dir_path))
 
@@ -177,20 +186,24 @@ class SFTPClient(VirtualDirectoryClient):
     def remove_directory(self, directory_name: str) -> None:
         """Synchronous implementation of the `.IOClientProto.remove_directory` method
         """
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
+
         rm_dir_path = self.entry_path(directory_name)
         self.__sftp_client.rmdir(str(rm_dir_path))
 
     def list_directory(self) -> typing.Tuple[str, ...]:
         """Synchronous implementation of the `.IOClientProto.list_directory` method
         """
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
 
         dir_to_list = str(self.session_path())
         return tuple(self.__sftp_client.listdir(dir_to_list))
 
     def is_directory(self, directory_name: str) -> bool:
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
 
         dir_path = self.entry_path(directory_name)
 
@@ -208,7 +221,8 @@ class SFTPClient(VirtualDirectoryClient):
     def upload_file(self, remote_file_name: str, source: IOProducer) -> None:
         """Synchronous implementation of the `.IOClientProto.upload_file` method
         """
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
 
         new_file_path = self.entry_path(remote_file_name)
         self.__sftp_client.putfo(ReadFileObject(source), str(new_file_path))  # type: ignore[arg-type]
@@ -216,7 +230,9 @@ class SFTPClient(VirtualDirectoryClient):
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def append_file(self, remote_file_name: str, source: IOProducer) -> None:
         """The :meth:`.IOClientProto.append_file` method implementation."""
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
+
         file_path = self.entry_path(remote_file_name)
         with self.__sftp_client.open(str(file_path), 'ab') as sftp_file:
             cg(IOThrottler().sync_writer(source, sftp_file))  # type: ignore[arg-type]
@@ -224,7 +240,9 @@ class SFTPClient(VirtualDirectoryClient):
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def update_file(self, remote_file_name: str, source: IOProducer, offset: int = 0) -> None:
         """The :meth:`.IOClientProto.update_file` method implementation."""
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
+
         file_path = self.entry_path(remote_file_name)
         with self.__sftp_client.open(str(file_path), 'rb+') as sftp_file:
             sftp_file.seek(offset, os.SEEK_SET)
@@ -233,7 +251,9 @@ class SFTPClient(VirtualDirectoryClient):
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def truncate_file(self, remote_file_name: str, offset: int = 0) -> None:
         """The :meth:`.IOClientProto.truncate_file` method implementation."""
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
+
         path = self.entry_path(remote_file_name)
         with self.__sftp_client.open(str(path), mode='rb+') as f_remote:
             f_remote.truncate(offset)
@@ -242,7 +262,9 @@ class SFTPClient(VirtualDirectoryClient):
     def remove_file(self, file_name: str) -> None:
         """Synchronous implementation of the `.IOClientProto.remove_file` method
         """
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
+
         rm_file_path = self.entry_path(file_name)
         self.__sftp_client.remove(str(rm_file_path))
 
@@ -250,7 +272,8 @@ class SFTPClient(VirtualDirectoryClient):
     def receive_file(self, remote_file_name: str) -> IOGenerator:
         """Synchronous implementation of the `.IOClientProto.receive_file` method
         """
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
 
         file_path = self.entry_path(remote_file_name)
 
@@ -263,7 +286,8 @@ class SFTPClient(VirtualDirectoryClient):
         self, remote_file_name: str, offset: int = 0, length: typing.Optional[int] = None
     ) -> IOGenerator:
         """The :meth:`.IOClientProto.receive_file_with_offset` method implementation."""
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
 
         file_path = self.entry_path(remote_file_name)
 
@@ -276,7 +300,8 @@ class SFTPClient(VirtualDirectoryClient):
     def file_size(self, remote_file_name: str) -> int:
         """Synchronous implementation of the `.IOClientProto.file_size` method
         """
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
 
         file_path = self.entry_path(remote_file_name)
         stat = self.__sftp_client.lstat(str(file_path))
@@ -287,5 +312,7 @@ class SFTPClient(VirtualDirectoryClient):
         raise IOError('File size not available')
 
     def upload_by_part(self, remote_file_name: str, part_size: int) -> PartsUploaderProto:
-        assert(self.__sftp_client is not None)
+        if self.__sftp_client is None:
+            raise RuntimeError('A client has not been connected')
+
         return _SFTPPartsUploader(self.__sftp_client, str(self.entry_path(remote_file_name)), part_size)

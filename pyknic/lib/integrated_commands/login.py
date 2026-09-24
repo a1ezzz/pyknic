@@ -93,7 +93,8 @@ class LoginCommand(BellBoyCommandHandler):
         return LoginCommandModel
 
     def __read_secret(self) -> str:
-        assert(isinstance(self._args, LoginCommandModel))
+        if not isinstance(self._args, LoginCommandModel):
+            raise TypeError('Invalid command arguments type')
 
         if self._args.secret is None:
             raise ValueError('A secret is required!')
@@ -118,7 +119,8 @@ class LoginCommand(BellBoyCommandHandler):
     async def exec(self) -> LobbyCommandResult:
         """The :meth:`.BellBoyInternalCommand.exec_from_cli` method implementation
         """
-        assert(isinstance(self._args, LoginCommandModel))
+        if not isinstance(self._args, LoginCommandModel):
+            raise TypeError('Invalid command arguments type')
 
         if self._args.authentication == AuthenticationMode.trust:
             if self._args.login is not None or self._args.secret is not None:
@@ -127,7 +129,9 @@ class LoginCommand(BellBoyCommandHandler):
             if self._args.login is not None or self._args.secret is None:
                 raise ValueError('A login was submitted and/or secret was not set for the "token" method')
         else:
-            assert(self._args.authentication == AuthenticationMode.basic)
+            if self._args.authentication != AuthenticationMode.basic:
+                raise ValueError('Unknown authentication mode specified')
+
             if self._args.login is None or self._args.secret is None:
                 raise ValueError('A login and/or secret were not set for the "basic" method')
 
@@ -140,12 +144,17 @@ class LoginCommand(BellBoyCommandHandler):
             secret = self.__read_secret()
             test_client = await client_auth.login_with_token(secret)
         else:
-            assert(self._args.authentication == AuthenticationMode.basic)
-            assert(self._args.login)
+            if self._args.authentication != AuthenticationMode.basic:
+                raise ValueError('Unknown authentication mode specified')
+
+            if self._args.login is None:
+                raise ValueError('Login was not specified')
+
             secret = self.__read_secret()
             test_client = await client_auth.login_with_basic(self._args.login, secret)
 
-        assert(test_client is not None)
+        if test_client is None:
+            raise RuntimeError('Unable to check authentication')
 
         # just to check that auth is ok
         await test_client.command_request(

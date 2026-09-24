@@ -228,8 +228,12 @@ class LobbyClientAuth:
                     raise BellboyCLIError('Unable to fetch public key')
 
                 self.__lobby_public_key = LobbyPublicKeyModel.model_validate(await response.json())
+
+                if self.__lobby_public_key is None:
+                    raise RuntimeError('Unable to load a public key')
+
                 self.__public_key = RSAPublicKey.import_pem(self.__lobby_public_key.pem.encode('ascii'))
-                assert(self.__lobby_public_key)
+
                 return self.__lobby_public_key
 
         return await aiohttp_request(pk_by_session, self.__session)
@@ -242,7 +246,9 @@ class LobbyClientAuth:
 
         if self.__public_key is None:
             await self.lobby_public_key()
-        assert(self.__public_key is not None)
+
+        if self.__public_key is None:
+            raise RuntimeError('Public key was not loaded')
 
         encoded_jwt = LobbyEncodedJWT.model_validate(dict_obj)
 

@@ -236,7 +236,8 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
     def __execution_row(self, api_id: str) -> None:
         """ Execute a task with api id and it's dependencies
         """
-        assert(self.__queue_proxy.is_inside())
+        if not self.__queue_proxy.is_inside():
+            raise RuntimeError('Unable to run this method outside of a proxy thread')
 
         if self.started_task(api_id) is not None:
             raise ValueError(f'The task "{api_id}" has been started already')
@@ -278,12 +279,17 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
 
         :param record: a record to start and track
         """
-        assert(self.__queue_proxy.is_inside())
+        if not self.__queue_proxy.is_inside():
+            raise RuntimeError('Unable to run this method outside of a proxy thread')
 
         if not self.__scheduler:
             raise ValueError('Scheduler has not registered yet')
 
-        assert(record.postpone_policy() == ScheduledTaskPostponePolicy.drop)
+        if record.postpone_policy() != ScheduledTaskPostponePolicy.drop:
+            raise RuntimeError(
+                'This internal method is not supported any postpone policy except the drop one. '
+                f'The expected one -- "drop", but the "{record.postpone_policy().name}" was submitted'
+            )
 
         waiter = SignalWaiter(
             self.__scheduler, SchedulerProto.scheduled_task_started, value_matcher=lambda x: x == record
@@ -298,7 +304,8 @@ class ChainedTasksSource(ScheduleSourceProto, TaskProto):
     def __exec(self, api_id: str) -> None:
         """ Just execute a task with the specified api id
         """
-        assert(self.__queue_proxy.is_inside())
+        if not self.__queue_proxy.is_inside():
+            raise RuntimeError('Unable to run this method outside of a proxy thread')
 
         task_cls = self.__registry.get(api_id)
         task_uid = uuid.uuid4()

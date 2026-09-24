@@ -134,7 +134,10 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
         :param str command_str: the command to start
         """
         with subprocess.Popen(shlex.split(command_str), stdout=subprocess.PIPE) as pipe:
-            assert(pipe.stdout is not None)
+
+            if pipe.stdout is None:
+                raise RuntimeError('stdout was not openned for popen!')
+
             yield from IOThrottler.sync_reader(pipe.stdout)
 
     def __read_files_by_command(self, command_str: str) -> typing.Generator[str, None, None]:
@@ -143,7 +146,9 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
         :param command_str: the command to start
         """
         with subprocess.Popen(shlex.split(command_str), stdout=subprocess.PIPE) as pipe:
-            assert(pipe.stdout is not None)
+            if pipe.stdout is None:
+                raise RuntimeError('stdout was not openned for popen!')
+
             next_line = pipe.stdout.readline()
             while next_line != b'':
                 yield next_line.decode().rstrip('\n')
@@ -173,7 +178,8 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
                     yield str(os.path.join(search_dir, i))
 
     def __backup(self) -> LobbyCommandResult:
-        assert(isinstance(self._args, BackupCommandModel))
+        if not isinstance(self._args, BackupCommandModel):
+            raise TypeError('Invalid command arguments type')
 
         archiver = BackupArchiveV1(
             hash_algorithms=self._args.hash_algorithms,
@@ -263,7 +269,8 @@ class BellBoyArchiveValidateCommand(BellBoyCommandHandler):
     def __validate(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        assert(isinstance(self._args, ArchiveValidateCommandModel))
+        if not isinstance(self._args, ArchiveValidateCommandModel):
+            raise TypeError('Invalid command arguments type')
 
         archive_uri = URI.parse(self._args.archive)
         BackupArchiveV1.validate_archive(archive_uri, throttling=self._args.throttling)
@@ -330,7 +337,8 @@ class BellBoyRestoreCommand(BellBoyCommandHandler):
     def __restore(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        assert(isinstance(self._args, RestoreCommandModel))
+        if not isinstance(self._args, RestoreCommandModel):
+            raise TypeError('Invalid command arguments type')
 
         restore_location = self._args.restore_location
         archive_uri = URI.parse(self._args.archive)

@@ -176,7 +176,6 @@ class TarFileEntry(TarWriterEntryProto):
             self.__cached_tar_info = _TarInfoGenerator.tar_info_by_file(self.__file_path)
             self.__cached_tar_info.size = -1  # forces size to recalculate
 
-        assert(self.__cached_tar_info)
         return self.__cached_tar_info
 
     def data(self) -> IOGenerator:
@@ -341,7 +340,11 @@ class IOTarArchiveWriter(TarArchiveWriterProto):
             tar_info.size = data_size
             tar_info = _TarInfoGenerator.tar_info_pax_padding(tar_info, len(pre_gen_info))
             patched_tar_info = tar_info.tobuf()
-            assert(len(pre_gen_info) == len(patched_tar_info))
+
+            if len(pre_gen_info) != len(patched_tar_info):
+                raise RuntimeError(
+                    f'Corrupted patch size. Expected -- {len(pre_gen_info)}, patch size -- {len(patched_tar_info)}'
+                )
 
             self.__destination.seek(start_pos, os.SEEK_SET)
             self.__destination.write(patched_tar_info)
@@ -459,7 +462,11 @@ class _PartedTarWriter:
             """
 
             for page in self.__cleaned_pages:
-                assert(len(page.data) == self.__part_size)
+                if len(page.data) != self.__part_size:
+                    raise RuntimeError(
+                        f'Invalid page size. Expected -- {self.__part_size}, page size -- {len(page.data)}'
+                    )
+
                 yield page.data, page.index
             self.__cleaned_pages.clear()
 
@@ -471,15 +478,16 @@ class _PartedTarWriter:
 
             if with_final_chunk:
                 if self.__dirty_pages:
-                    assert(not self.__cache)
-                    assert(len(self.__dirty_pages) == 1)
+                    if self.__cache or len(self.__dirty_pages) != 1:
+                        raise RuntimeError('Unexpected inner state!')
 
                     self.__flushed_bytes += len(self.__dirty_pages[0].data)
                     yield self.__dirty_pages[0].data, self.__dirty_pages[0].index
                     self.__dirty_pages.clear()
 
                 elif self.__cache:
-                    assert(not self.__dirty_pages)
+                    if self.__dirty_pages:
+                        raise RuntimeError('Unexpected inner state! Dirty pages spotted!')
 
                     self.__flushed_bytes += len(self.__cache)
                     yield self.__cache, self.__part_number
@@ -500,7 +508,8 @@ class _PartedTarWriter:
                 dirty_cache_delta = len(last_dirty_page.data) % self.__part_size
 
                 if dirty_cache_delta:
-                    assert(not self.__cache)
+                    if self.__cache:
+                        raise RuntimeError('Unexpected inner state!')
 
                     extra_bytes = self.__part_size - dirty_cache_delta
                     offset = len(last_dirty_page.data)
@@ -514,7 +523,10 @@ class _PartedTarWriter:
 
             if dirty_data:
                 offset = len(self.__cache)
-                assert(offset < self.__part_size)
+                if offset >= self.__part_size:
+                    raise RuntimeError(
+                        f'Offset is not smaller than a part size. Offset -- {offset}, part size -- {self.__part_size}'
+                    )
 
                 next_dirty_cache = self.__cache + dirty_data
                 self.__cache = bytearray()
@@ -543,7 +555,10 @@ class _PartedTarWriter:
             """
 
             entry_info = self.__dirty_entries[dirty_entry_index]
-            assert(entry_info.length == len(patched_data))
+            if entry_info.length != len(patched_data):
+                raise RuntimeError(
+                    f'Invalid patch size. Expected -- {entry_info.length}, patch size -- {len(patched_data)}'
+                )
 
             page_found = False
             for dirty_page in self.__dirty_pages:
@@ -574,11 +589,14 @@ class _PartedTarWriter:
                                 patched_data = patched_data[len(page_fix):]
                                 span_dirty_page.data = bytearray(page_fix) + span_dirty_page.data[len(page_fix):]
 
-                        assert(span_page_found)
+                        if not span_page_found:
+                            raise RuntimeError('Unable to find a span page!')
 
                     break
 
-            assert(page_found)
+            if not page_found:
+                raise RuntimeError('Unable to find a page!')
+
             self.__flush_dirty_pages()
 
         def __flush_dirty_pages(self) -> None:
@@ -639,7 +657,14 @@ class _PartedTarWriter:
             tar_header.size = data_size
             tar_header = _TarInfoGenerator.tar_info_pax_padding(tar_header, len(binary_tar_header))
             patched_tar_header = tar_header.tobuf()
-            assert(len(binary_tar_header) == len(patched_tar_header))
+
+            if len(binary_tar_header) != len(patched_tar_header):
+                bin_len = len(binary_tar_header)
+                patch_len = len(patched_tar_header)
+                raise RuntimeError(
+                    f'Corrupted patch size. Expected -- {bin_len}, patch size -- {patch_len}'
+                )
+
             cache.fix_dirty_entry(dirty_entry, patched_tar_header)
             yield from cache.flush_cache()
 

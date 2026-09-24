@@ -126,7 +126,8 @@ class SchedulerExecutor(SignalSource):
         :param signal: it will be the "ThreadExecutor.task_completed" signal
         :param value: it will be a task (:class:`.TaskProto`) that about to complete
         """
-        assert(self.__proxy.is_inside())
+        if not self.__proxy.is_inside():
+            raise RuntimeError('Unable to run this method outside of a proxy thread')
 
         self.__thread_executor.wait_task(value)
         self.__thread_executor.complete_task(value)
@@ -137,7 +138,8 @@ class SchedulerExecutor(SignalSource):
     def __run_postponed_tasks(self) -> None:
         """ This callback is for postponed tasks execution
         """
-        assert(self.__proxy.is_inside())
+        if not self.__proxy.is_inside():
+            raise RuntimeError('Unable to run this method outside of a proxy thread')
 
         while True:
             try:
@@ -155,7 +157,8 @@ class SchedulerExecutor(SignalSource):
         :param record: a record to execute
         :param context: context with which a slot for execution has been allocated
         """
-        assert(self.__proxy.is_inside())
+        if not self.__proxy.is_inside():
+            raise RuntimeError('Unable to run this method outside of a proxy thread')
 
         task = record.task()
         self.__tasks[task].state = SchedulerExecutor.TaskState.started
@@ -167,7 +170,8 @@ class SchedulerExecutor(SignalSource):
 
         :param record: a record to postpone
         """
-        assert(self.__proxy.is_inside())
+        if not self.__proxy.is_inside():
+            raise RuntimeError('Unable to run this method outside of a proxy thread')
 
         if record.postpone_policy() == ScheduledTaskPostponePolicy.drop:
             self.__tasks.pop(record.task())
@@ -183,7 +187,8 @@ class SchedulerExecutor(SignalSource):
 
         :param record: a record that should be executed
         """
-        assert(self.__proxy.is_inside())
+        if not self.__proxy.is_inside():
+            raise RuntimeError('Unable to run this method outside of a proxy thread')
 
         ttl = record.ttl()
         if ttl is not None and ttl < datetime.now(timezone.utc).timestamp():
@@ -268,7 +273,8 @@ class SchedulerExecutor(SignalSource):
     def __cancel_postponed_tasks(self) -> None:
         """ Cancel all the pending tasks
         """
-        assert (self.__proxy.is_inside())
+        if not self.__proxy.is_inside():
+            raise RuntimeError('Unable to run this method outside of a proxy thread')
 
         next_record = self.__scheduler_queue.next_record()
         while next_record:
@@ -284,7 +290,8 @@ class SchedulerExecutor(SignalSource):
     def __stop_running_tasks(self) -> None:
         """ Cancel all the pending tasks
         """
-        assert(self.__proxy.is_inside())
+        if not self.__proxy.is_inside():
+            raise RuntimeError('Unable to run this method outside of a proxy thread')
 
         for task in self.__tasks:
             if iscapable(task, TaskProto.stop):
@@ -306,7 +313,8 @@ class SchedulerExecutor(SignalSource):
         :param filter_fn: filter function that checks descriptors, this function must return True
         for every suitable task
         """
-        assert(self.__proxy.is_inside())
+        if not self.__proxy.is_inside():
+            raise RuntimeError('Unable to run this method outside of a proxy thread')
 
         return tuple((x for x, y in self.__tasks.items() if filter_fn(y)))
 

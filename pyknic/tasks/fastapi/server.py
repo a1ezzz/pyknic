@@ -106,9 +106,8 @@ class FastAPILoaderTask(ChainedTask):
         config_result = self.wait_for('config_task')
         gettext_result = self.wait_for('gettext_task')
 
-        assert(fastapi_init)
-        assert(config_result)
-        assert(gettext_result)
+        if fastapi_init is None or config_result is None or gettext_result is None:
+            raise RuntimeError('Required tasks were not started')
 
         config = config_result.result
 
@@ -144,7 +143,8 @@ class FastAPIServerTask(ChainedTask):
         self.__uvicorn_server: typing.Optional[uvicorn.Server] = None
 
     async def __stop_request(self) -> None:
-        assert(self.__uvicorn_server)
+        if self.__uvicorn_server is None:
+            raise RuntimeError('Server was not started')
 
         self.__uvicorn_server.should_exit = True
         await self.__uvicorn_server.shutdown()
@@ -153,10 +153,14 @@ class FastAPIServerTask(ChainedTask):
         """ The :meth:`.TaskProto.start` method implementation
         """
         Logger.info('Starting fastAPI')
-        assert(self.__loop)
+
+        if self.__loop is None:
+            raise RuntimeError('AsyncIO loop is not available')
 
         fastapi_init = self.wait_for('fastapi-init')
-        assert(fastapi_init)
+
+        if fastapi_init is None:
+            raise RuntimeError('Required task was not started')
 
         self.__uvicorn_server = fastapi_init.result.uvicorn_server
         self.__loop.run_until_complete(self.__uvicorn_server.serve())

@@ -85,8 +85,8 @@ class TGBotCityGame(TgBotBaseFastAPIApp):
         return None
 
     async def process_command(self, command: str, tg_update: Update) -> TgBotResponseType | None:
-        assert(tg_update.message is not None)
-        assert(tg_update.message.from_ is not None)
+        if tg_update.message is None or tg_update.message.from_ is None:
+            raise RuntimeError('Unable to process invalid message!')
 
         last_city_name = self.last_city(tg_update.message.from_.id_)
         lang = self.user_lang(tg_update.message.from_)
@@ -117,9 +117,8 @@ class TGBotCityGame(TgBotBaseFastAPIApp):
         return self.reply(tg_update.message, lang.gettext('Unknown command -- "%(c)s"') % {'c': command})
 
     async def process_message(self, tg_update: Update) -> TgBotResponseType:
-        assert(tg_update.message is not None)
-        assert(tg_update.message.from_ is not None)
-        assert(tg_update.message.text is not None)
+        if tg_update.message is None or tg_update.message.from_ is None or tg_update.message.text is None:
+            raise RuntimeError('Unable to process invalid message!')
 
         mentioned_cities = self.__sessions.setdefault(tg_update.message.from_.id_, [])
         msg = tg_update.message.text.lower().strip()

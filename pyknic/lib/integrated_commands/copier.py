@@ -75,7 +75,8 @@ class BellBoyCopyCommand(BellBoyCommandHandler):
         return client, original_uri, fname
 
     def __copy(self) -> LobbyCommandResult:
-        assert (isinstance(self._args, CopierCommandModel))
+        if not isinstance(self._args, CopierCommandModel):
+            raise TypeError('Invalid command arguments type')
 
         source_client, source_uri, source_file = self.__client_by_uri(self._args.source)
         destination_client, destination_uri, destination_file = self.__client_by_uri(

@@ -50,8 +50,9 @@ class TGBotWordGames(TgBotBaseFastAPIApp):
         self.__city_game = TGBotCityGame(config, translations)
 
     async def process_command(self, msg: str, tg_update: Update) -> TgBotResponseType | None:
-        assert(tg_update.message is not None)
-        assert(tg_update.message.from_ is not None)
+
+        if tg_update.message is None or tg_update.message.from_ is None:
+            raise RuntimeError('Unable to process invalid message!')
 
         lang = self.user_lang(tg_update.message.from_)
 
@@ -68,8 +69,8 @@ class TGBotWordGames(TgBotBaseFastAPIApp):
         return None
 
     async def process_message(self, tg_update: Update) -> TgBotResponseType | None:
-        assert(tg_update.message is not None)
-        assert(tg_update.message.from_ is not None)
+        if tg_update.message is None or tg_update.message.from_ is None:
+            raise RuntimeError('Unable to process invalid message!')
 
         lang = self.user_lang(tg_update.message.from_)
 
@@ -80,7 +81,8 @@ class TGBotWordGames(TgBotBaseFastAPIApp):
             return await self.__city_game.process_request(tg_update)
 
     async def callback_query(self,  tg_update: Update) -> MethodAnswerCallbackQuery:
-        assert(tg_update.callback_query is not None)
+        if tg_update.callback_query is None:
+            raise RuntimeError('Unable to process invalid callback query!')
 
         if tg_update.callback_query.data is not None and tg_update.callback_query.from_ is not None:
             if tg_update.callback_query.data == "/reset-to-cities":

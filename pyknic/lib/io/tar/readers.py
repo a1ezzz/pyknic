@@ -111,7 +111,10 @@ class TarReaderEntry:
             max_chunks = (bytes_left // tarfile.BLOCKSIZE) + (0 if bytes_left % tarfile.BLOCKSIZE == 0 else 1)
             next_chunk = self.__chunk_reader.next_chunk(1, max_chunks)
 
-            assert((len(next_chunk) % tarfile.BLOCKSIZE) == 0)
+            if (len(next_chunk) % tarfile.BLOCKSIZE) != 0:
+                raise RuntimeError(
+                    f'Invalid chunk size. Expected -- {tarfile.BLOCKSIZE}, chunk size -- {len(next_chunk)}'
+                )
 
             if len(next_chunk) > bytes_left:
                 self.__data_read += bytes_left
@@ -167,7 +170,11 @@ class _FilthyTarEntry:
             max_chunks = (counter // tarfile.BLOCKSIZE) + (0 if counter % tarfile.BLOCKSIZE == 0 else 1)
             next_chunk = self.source.next_chunk(1, max_chunks)
 
-            assert((len(next_chunk) % tarfile.BLOCKSIZE) == 0)
+            if (len(next_chunk) % tarfile.BLOCKSIZE) != 0:
+                raise RuntimeError(
+                    f'Invalid chunk size. Expected -- {tarfile.BLOCKSIZE}, chunk size -- {len(next_chunk)}'
+                )
+
             yield next_chunk
             counter -= len(next_chunk)
 
@@ -271,7 +278,10 @@ class _TarReader:
             extended_head_data += next_entry.binary_info
 
             combined_head = tarfile.TarFile(fileobj=io.BytesIO(extended_head_data)).next()
-            assert(combined_head is not None)
+
+            if combined_head is None:
+                raise RuntimeError('Unable to generate a tar header!')
+
             return _FilthyTarEntry(next_entry.source, extended_head_data, combined_head, start_offset)
 
         raise ValueError(f'Unknown tar entry spotted -- {str(tar_head.type)} (file -- {str(tar_head.name)})')
