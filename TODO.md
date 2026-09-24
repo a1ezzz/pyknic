@@ -1,4 +1,10 @@
 
+# Features
+
+1. Add pyknic discovery
+
+Add a posibility to detect pyknic servers over the network on the client and on the server sides
+
 # Security issues
 
 1. Application-level rate limiting (including login/*); exponential backoff after N failures.
@@ -147,3 +153,13 @@ The client disables the token audience check, which—given the presence of mult
 15. [Potential issue] No RBAC
 
 Ignoring roles and groups: The FastAPIIdentity structure contains a `groups` field, but it is discarded when the token is issued. Authorization does not take user groups or roles into account.
+
+# CI/CD
+
+1. Migrate concourse-ci/* and docker/* to pyknic-build code
+
+As an example -- pyknic-todo project
+
+# AI
+
+1. Add AGENTS.md
