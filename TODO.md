@@ -159,7 +159,3 @@ Ignoring roles and groups: The FastAPIIdentity structure contains a `groups` fie
 1. Migrate concourse-ci/* and docker/* to pyknic-build code
 
 As an example -- pyknic-todo project
-
-# AI
-
-1. Add AGENTS.md
