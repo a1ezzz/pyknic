@@ -1,9 +1,30 @@
 
 # Features
 
-1. Add pyknic discovery
+1. ZeroConf / LAN Auto-Discovery (pyknic discovery)
 
-Add a posibility to detect pyknic servers over the network on the client and on the server sides
+Allows the server to advertise itself on the local network (via mDNS, SSDP, or HMAC-signed UDP broadcast) and enables the bellboy client to automatically discover instances without manually specifying `--server.lobby-url` (using `bellboy discover`).
+
+2. Persistent Task Queue (Stateful Tasks Store)
+
+Optional SQLite/PostgreSQL backend for persisting the queue, execution statuses, and task results across restarts of the pyknic-server daemon.
+
+3. Real-time streaming output (Streaming RPC via WebSockets / SSE)
+
+For long-running operations (backups, copying, external scripts), stream stdout/stderr, completion percentage, and metrics to Bellboy in real time, rather than waiting for a single final JSON response.
+
+
+4. Prometheus metrics endpoint (/metrics)
+
+Export of standard metrics: task execution time, queue sizes, IOThrottler throughput, cryptography errors, and the number of active sessions.
+
+5. Webhooks
+
+Configurable notifications (Telegram, Discord, Slack, Generic Webhook) for system events: scheduled task failure, successful backup, unauthorized login attempt.
+
+6. Integration with external secret stores
+
+In bellboy, in addition to shm and keyring, add backends for HashiCorp Vault or system TPM 2.0 / Apple Keychain.
 
 # Security issues
 
