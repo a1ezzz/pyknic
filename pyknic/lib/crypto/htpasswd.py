@@ -23,7 +23,6 @@ import abc
 import contextlib
 import pathlib
 import re
-import secrets
 import typing
 
 import argon2
@@ -151,6 +150,12 @@ class HTPasswd:
     """ This class describes a password database
     """
 
+    __dummy_entry__ = HTPasswdEntry(
+        'dummy',
+        'argon2id',
+        'v=19$m=65536,t=3,p=4$UApGmGquFqiR437toww+yA$AE/er1QSas7N5UihYqfel4DqjI9j1PiJg+CXt0Wtr9M'
+    )  # this make a constant-a-like pause
+
     def __init__(self) -> None:
         """ Create an empty database
         """
@@ -170,18 +175,18 @@ class HTPasswd:
         :param user_name: a user identity
         :param password: password to check
         """
-        user_name_matched = False
+        password_match = False
 
         for entry in self.__entries:
-            if entry.user_name() == user_name:
+
+            if not password_match and entry.user_name() == user_name:
                 if entry.match(password):
-                    return True
+                    password_match = True
+            else:
+                # make a pause
+                self.__dummy_entry__.match(password)
 
-        if not user_name_matched:
-            # make a pause
-            secrets.compare_digest(b'', b'')
-
-        return False
+        return password_match
 
     @classmethod
     def read_file(cls, file_path: typing.Union[str, pathlib.Path]) -> 'HTPasswd':
