@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import stat
 
 import pytest
 
@@ -103,3 +104,10 @@ class TestSecretBackend:
         storage = SecretBackend(backend)
         secrets = storage.get_secrets()
         assert(len(secrets.secrets.keys()) == 0)
+
+    def test_shm_file_mode(self) -> None:
+        backend = SharedMemorySecretBackend()
+        backend.save_secrets('{"secrets": {}}')
+        shm_file = '/dev/shm/pyknic-secrets'
+        assert(os.path.exists(shm_file))
+        assert(stat.S_IMODE(os.stat(shm_file).st_mode) == 0o600)
