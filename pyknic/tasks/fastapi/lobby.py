@@ -43,7 +43,7 @@ from pyknic.lib.gettext import GetTextWrapper
 from pyknic.lib.fastapi.base import BaseFastAPIApp
 from pyknic.lib.fastapi.lobby import LobbyCommandError, __default_lobby_commands_registry__, URLPath
 from pyknic.lib.fastapi.headers import FastAPIHeaders
-from pyknic.lib.log import Logger
+from pyknic.lib.log import Logger, log_safe_escaping
 from pyknic.lib.fastapi.fastapi_aaa import __default_fastapi_aaa_registry__, FastAPIIdentity
 from pyknic.lib.fastapi.fastapi_aaa import AuthenticationProviderProto
 
@@ -357,7 +357,10 @@ class LobbyApp(BaseFastAPIApp):
 
         jwt_payload: LobbyJWTPayload = LobbyJWTPayload.model_validate(decoded_jwt)
 
-        Logger.info(f'User "{jwt_payload.sub}" authenticated for lobby command with "{jwt_payload.policy_name}" policy')
+        Logger.info(
+            f'User "{log_safe_escaping(jwt_payload.sub)}" authenticated for lobby command with '
+            f'{log_safe_escaping(jwt_payload.policy_name)}" policy'
+        )
 
         # TODO: check versions in client requests and the server's one. If they are differ, then result should have
         #   a warning about it. In future there may be plugins that has versions other than pyknic's

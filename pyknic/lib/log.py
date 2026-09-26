@@ -29,3 +29,16 @@ Logger: logging.Logger = create_singleton(  # type: ignore[assignment]  # metacl
 )
 
 # TODO: check it out -- https://docs.python.org/3/library/logging.config.html
+
+
+def log_safe_escaping(unsafe_value: object) -> str:
+    """ Escape an unsafe value for safe logging to prevent log injection
+
+    Converts the value to a string and escapes non-ASCII characters and
+    control characters (such as newlines and carriage returns) using the
+    unicode_escape codec.
+
+    :param unsafe_value: an object or value to be escaped
+    :return: an escaped ASCII string safe for log output
+    """
+    return str(unsafe_value).encode("unicode_escape").decode("ascii")
