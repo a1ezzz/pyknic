@@ -36,7 +36,8 @@ class TestLobbyApp:
                         handler: trust  # no auth!
                         handler_settings:
                             as_user: 'admin'
-                        allowed_commands: []  # list of allowed commands
+                        allowed_commands:
+                          - '*'
                         denied_commands: []  # list of denied commands
 
                     token_test:
@@ -44,7 +45,8 @@ class TestLobbyApp:
                         handler_settings:
                             secret_token: 'some-token!'
                             as_user: 'admin'
-                        allowed_commands: []  # list of allowed commands
+                        allowed_commands:
+                          - '*'
                         denied_commands: []  # list of denied commands
     """
 

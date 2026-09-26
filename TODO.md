@@ -46,25 +46,13 @@ Such health checks may be run in one of the following modes:
 
 1. Application-level rate limiting (including login/*); exponential backoff after N failures.
 
-2. Dangerous "Default-Allow" model for command validation
-
-File: pyknic/tasks/fastapi/lobby.py (rows 372–378)
-
-```
-if policy.allowed_commands and command_request.name not in policy.allowed_commands:
-    raise fastapi.HTTPException(status_code=403, detail=...)
-```
-If the administrator leaves `allowed_commands: []` (the default value in many configurations and tests) and `denied_commands: []`, the condition `if policy.allowed_commands` evaluates to false, and any registered command is permitted for execution.
-
-Recommendation. The principle of least privilege (Default-Deny) requires explicit command authorization (whitelisting). If `allowed_commands` is empty, access to all commands should be blocked (or allowed only via the special wildcard `*`).
-
-3. Revocation / Blacklist (Replay Attacks)
+2. Revocation / Blacklist (Replay Attacks)
 
 The `logout` and `logout_all` commands (pyknic/lib/integrated_commands/logout*.py) remove the token only on the client side. On the server, the token remains fully valid until its time-to-live (TTL) expires (defaulting to 1800 seconds). If a token is compromised, it is impossible to terminate the session without changing the server's master key.
 
 The `jti` (JWT ID) field is generated using `uuid.uuid4()`, but the server does not cache it or verify its uniqueness. An intercepted token can be replayed multiple times until the `exp` time is reached.
 
-4. [Potential issue] Critical error calling the command handler (exec)
+3. [Potential issue] Critical error calling the command handler (exec)
 
 File: pyknic/tasks/fastapi/lobby.py (row 384).
 
@@ -79,7 +67,7 @@ command_result = await command_handler.exec(command_args)
 The `command_handler` class is retrieved from the registry (it is a class, not an instance). The `exec(self)` method in the `LobbyCommandHandler` protocol is an instance method that takes no arguments (`self._args` is populated in `prepare_command`). Calling `command_handler.exec(command_args)` passes the validated `command_args` model instead of `self`. If the command attempts to access `self._args`, an `AttributeError` will occur. The call should be made via the factory:
 `command_handler.prepare_command(command_args).exec()`.
 
-5. [Potential issue] Sensitive information leakage
+4. [Potential issue] Sensitive information leakage
 
 (LobbyApp.lobby_command:)
 
@@ -90,7 +78,7 @@ except LobbyCommandError as e:
 
 The text of the internal exception is passed to the client without filtering. This may expose system paths, module names, environment details, or internal database or OS errors.
 
-6. [Potenial issue] Incorrect policy selection during authentication
+5. [Potenial issue] Incorrect policy selection during authentication
 
 File: pyknic/tasks/fastapi/lobby.py (rows 248–267).
 
@@ -103,7 +91,7 @@ for policy in suitable_policies:
 
 The `__login` method searches for suitable policies based solely on a match with `fastapi_handler()` and applies the first one it encounters. If multiple policies with the same provider type are configured (e.g., two `bearer_static_token` or `htpasswd` policies with different access rights), the token will always be issued with the permissions of the policy found first in the dictionary. This breaks the separation of access rights between different static tokens or user groups.
 
-7. [Potenial issue] FastAPI dependency type mismatch
+6. [Potenial issue] FastAPI dependency type mismatch
 
 File: pyknic/tasks/fastapi/lobby.py (rows 288–290).
 
@@ -111,7 +99,7 @@ The method signature specifies:
 auth: typing.Annotated[HTTPAuthorizationCredentials, fastapi.Depends(HTTPBasic())]
 The fastapi.security.HTTPBasic() dependency returns an HTTPBasicCredentials object (with .username and .password fields), not HTTPAuthorizationCredentials. Furthermore, the auth argument itself is ignored within __login, and the request is re-parsed inside _BaseHTPasswdProvider.authenticate.
 
-8. [Potenial issue] Removed policy may lead to 500
+7. [Potenial issue] Removed policy may lead to 500
 
 Files:
 - pyknic/lib/fastapi/models/lobby.py (row 109)
@@ -119,7 +107,7 @@ Files:
 
 Denial of Service (DoS / 500 Error): If a policy is deleted or renamed in the server configuration, a request with a valid token will trigger a `KeyError` at the line `self.__aaa_policies[jwt_payload.policy_name]`, resulting in an unhandled 500 Internal Server Error.
 
-9. [Potential issue] Disabling client-side Audience validation
+8. [Potential issue] Disabling client-side Audience validation
 
 File: pyknic/lib/bellboy/app.py (row 255).
 
@@ -129,11 +117,11 @@ options={"verify_aud": False}
 
 The client disables the token audience check, which—given the presence of multiple services in the infrastructure—could allow a token from a different service to be used.
 
-10. [Potential issue] No RBAC
+9. [Potential issue] No RBAC
 
 Ignoring roles and groups: The FastAPIIdentity structure contains a `groups` field, but it is discarded when the token is issued. Authorization does not take user groups or roles into account.
 
-11. [Potential issue] Try to limit digest algorithm to argon2id
+10. [Potential issue] Try to limit digest algorithm to argon2id
 
 # CI/CD
 

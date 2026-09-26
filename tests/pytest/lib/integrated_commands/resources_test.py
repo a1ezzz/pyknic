@@ -36,7 +36,8 @@ class TestBellBoyResourcesCommand:
                         handler: trust  # no auth!
                         handler_settings:
                             as_user: 'admin'
-                        allowed_commands: []  # list of allowed commands
+                        allowed_commands:
+                          - '*'
                         denied_commands: []  # list of denied commands
     """
 

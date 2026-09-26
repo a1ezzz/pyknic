@@ -27,7 +27,8 @@ class TestLoginCommand:
                         handler: trust  # no auth!
                         handler_settings:
                             as_user: 'admin'
-                        allowed_commands: []  # list of allowed commands
+                        allowed_commands:
+                          - '*'
                         denied_commands: []  # list of denied commands
     """
 
@@ -41,7 +42,8 @@ class TestLoginCommand:
                             handler_settings:
                                 secret_token: 'secret-token'
                                 as_user: 'admin'
-                            allowed_commands: []  # list of allowed commands
+                            allowed_commands:
+                              - '*'
                             denied_commands: []  # list of denied commands
         """
 
@@ -55,7 +57,8 @@ class TestLoginCommand:
                             handler_settings:
                                 credentials:
                                     - 'foo:$2y$05$Z7/3diNsWaUZ1JtEqQRdu.78F86tPEzPn/nEBTSVVyIugQtkAyRVK'
-                            allowed_commands: []  # list of allowed commands
+                            allowed_commands:
+                              - '*'
                             denied_commands: []  # list of denied commands
         """
 

@@ -65,6 +65,9 @@ class LobbyAAAPolicy:
     denied_commands: typing.List[str]
 
 
+__allow_everything_rule__ = "*"
+
+
 @register_api(__default_fastapi_apps_registry__, "lobby")
 class LobbyApp(BaseFastAPIApp):
     """This web-app executes commands on remote server."""
@@ -369,6 +372,15 @@ class LobbyApp(BaseFastAPIApp):
 
             policy = self.__aaa_policies[jwt_payload.policy_name]
 
+            if not policy.denied_commands and not policy.allowed_commands:
+                pn = policy.policy_name
+                err_msg = f'The policy "{pn}" does not have any command rule and "default-deny" restriction is applied'
+                Logger.error(err_msg)
+                raise fastapi.HTTPException(
+                    status_code=fastapi.status.HTTP_403_FORBIDDEN,
+                    detail=err_msg
+                )
+
             if command_request.name in policy.denied_commands:
                 err_msg = f'The "{command_request.name}" command is disabled by the policy "{policy.policy_name}"'
                 Logger.error(err_msg)
@@ -377,13 +389,15 @@ class LobbyApp(BaseFastAPIApp):
                     detail=err_msg
                 )
 
-            if policy.allowed_commands and command_request.name not in policy.allowed_commands:
-                err_msg = f'The "{command_request.name}" command is not allowed by the policy "{policy.policy_name}"'
-                Logger.error(err_msg)
-                raise fastapi.HTTPException(
-                    status_code=fastapi.status.HTTP_403_FORBIDDEN,
-                    detail=err_msg
-                )
+            if policy.allowed_commands and __allow_everything_rule__ not in policy.allowed_commands:
+                if command_request.name not in policy.allowed_commands:
+                    pn = policy.policy_name
+                    err_msg = f'The "{command_request.name}" command is not allowed by the policy "{pn}"'
+                    Logger.error(err_msg)
+                    raise fastapi.HTTPException(
+                        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+                        detail=err_msg
+                    )
 
             command_handler = self.__lobby_registry.get(command_request.name)
             command_args_class = command_handler.command_model()
