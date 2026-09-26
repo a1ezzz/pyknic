@@ -21,6 +21,7 @@ It includes:
 - [Configuration](#configuration)
 - [Quick Start](#quick-start)
   - [1. Running the Server (`pyknic-server`)](#1-running-the-server-pyknic-server)
+    - [Reverse Proxy (Required for Production)](#reverse-proxy-required-for-production)
   - [2. Using the CLI Client (`bellboy`)](#2-using-the-cli-client-bellboy)
 - [Core Library Modules](#core-library-modules)
 - [Development and Testing](#development-and-testing)
@@ -170,6 +171,42 @@ pyknic-server -c config.yaml -vv
 ```
 
 When started, the daemon boots up the scheduler, registers configured background tasks, and launches the FastAPI HTTP server.
+
+#### Reverse Proxy (Required for Production)
+
+The built-in HTTP server is intended to run behind a reverse proxy such as
+[nginx](https://nginx.org/). Do not expose `pyknic-server` directly to the
+network. The reverse proxy **must**:
+
+- **Terminate TLS**: serve all client traffic over HTTPS and forward requests
+  to the backend over a trusted network. `pyknic-server` itself does not provide
+  TLS.
+- **Limit the HTTP request body size** (e.g. via nginx `client_max_body_size`)
+  to reject oversized `Content-Length` requests before they reach the
+  application and exhaust server resources.
+
+Example nginx configuration:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name pyknic.example.com;
+
+    ssl_certificate     /etc/nginx/ssl/pyknic.crt;
+    ssl_certificate_key /etc/nginx/ssl/pyknic.key;
+
+    # Enforce a maximum request body size
+    client_max_body_size 1m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
 
 ---
 
