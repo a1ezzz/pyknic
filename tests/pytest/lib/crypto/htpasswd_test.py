@@ -133,7 +133,7 @@ class TestHTPasswd:
         calls = []
         original_fn = HTPasswd.__dummy_entry__.match
 
-        def patched_match_call(*args, **kwargs):
+        def patched_match_call(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
             calls.append((args, kwargs))
             return original_fn(*args, **kwargs)
 
