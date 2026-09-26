@@ -91,7 +91,10 @@ class ChunkReader:
         :param max_blocks: maximum number of blocks to read
         """
 
-        assert(max_blocks >= min_blocks)
+        if max_blocks < min_blocks:
+            raise ValueError(
+                f'The max_blocks argument ({max_blocks}) is lower than the min_blocks one ({min_blocks})'
+            )
 
         if self.__stop_reading or (self.__generator_exhausted and not self.__cached_chunk):
             self.__stop_reading = True

@@ -63,7 +63,10 @@ class BellboyApp(BaseApp):
         commands_annotations: typing.Dict[str, typing.Any] = dict()
 
         for command, handler in __default_bellboy_commands_registry__:
-            assert(isinstance(command, str))
+
+            if not isinstance(command, str):
+                raise TypeError(f'Invalid command type -- {command.__class__}')
+
             handler_model: typing.Type[pydantic.BaseModel] = handler.command_model()
 
             class CustomModel(BellboyApp.BaseCommand, handler_model):  # type: ignore[misc,valid-type]
@@ -110,9 +113,12 @@ class BellboyApp(BaseApp):
                 raise SystemExit(-1)
 
             subcommand_obj = pydantic_settings.get_subcommand(cmd)
-            assert(subcommand_obj is not None)
+            if subcommand_obj is None:
+                raise RuntimeError('Unable to find a subcommand')
 
-            assert(isinstance(subcommand_obj, BellboyApp.BaseCommand))
+            if not isinstance(subcommand_obj, BellboyApp.BaseCommand):
+                raise TypeError(f'Invalid subcommand type -- {subcommand_obj.__class__}')
+
             if subcommand_obj.bellboy is not None:
                 if subcommand_obj.bellboy.config is not None:
                     with pathlib.Path().open(subcommand_obj.bellboy.config) as f:
@@ -128,7 +134,8 @@ class BellboyApp(BaseApp):
                     if subcommand_obj.bellboy.formatting == FormattingMode.json:
                         json_mode = True
                     else:
-                        assert(subcommand_obj.bellboy.formatting == FormattingMode.rich)
+                        if subcommand_obj.bellboy.formatting != FormattingMode.rich:
+                            raise RuntimeError('Unknown formatting settings spotted')
 
             if json_mode:
                 print(result.model_dump_json())

@@ -87,7 +87,9 @@ class VirtualDirectoryClient(IOClientProto):
 
         :param entry: inner file/directory name
         """
-        assert(self.__session_path.is_absolute())
+        if not self.__session_path.is_absolute():
+            raise RuntimeError('Inner session path must be absolute!')
+
         return normalize_path(self.__session_path / entry)
 
     def current_directory(self) -> str:

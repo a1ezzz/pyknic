@@ -134,8 +134,8 @@ class QueueProxy(SignalProxy, TaskProto):
         ) -> None:
             """ Setup this wrapper. Without this setup a wrapper will crash
             """
-            assert(not self.__queue)
-            assert(not self.__stop_event)
+            if self.__queue or self.__stop_event:
+                raise RuntimeError('This wrapper has been initialized already')
 
             self.__queue = queue_value
             self.__stop_event = stop_event
@@ -151,8 +151,8 @@ class QueueProxy(SignalProxy, TaskProto):
             :param signal: emitted signal
             :param value: a value of an emitted signal
             """
-            assert(self.__queue)
-            assert(self.__stop_event)
+            if not self.__queue or not self.__stop_event:
+                raise RuntimeError('This wrapper has not been initialized')
 
             if not self.__stop_event.is_set():
                 self.__queue.put(QueueProxy.Item(functools.partial(

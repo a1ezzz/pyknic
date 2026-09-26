@@ -86,7 +86,7 @@ class TestLockFreeContext:
 
         def thread_fn_increase() -> None:
             for i in range(repeats):
-                with sr.critical_context(timeout=1) as c1:
+                with sr.critical_context() as c1:
                     c1.increase()
 
         threads = [threading.Thread(target=thread_fn_increase) for x in range(threads_num)]

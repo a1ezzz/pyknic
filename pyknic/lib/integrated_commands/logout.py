@@ -49,7 +49,8 @@ class LogoutCommand(BellBoyCommandHandler):
     async def exec(self) -> LobbyCommandResult:
         """The :meth:`.BellBoyInternalCommand.exec_from_cli` method implementation
         """
-        assert(isinstance(self._args, RequiredMainBellBoyCommandModel))
+        if not isinstance(self._args, RequiredMainBellBoyCommandModel):
+            raise TypeError('Invalid command arguments type')
 
         secret_backend = self.secret_backend(self._args.server.secret_backend)
 

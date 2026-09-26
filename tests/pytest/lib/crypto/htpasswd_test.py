@@ -4,6 +4,7 @@ import pathlib
 import typing
 
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 
 from pyknic.lib.crypto.htpasswd import HTPasswdHashCheckerProto, HTPasswdBCrypt, HTPasswdArgon2, HTPasswdEntry, HTPasswd
 
@@ -121,3 +122,28 @@ class TestHTPasswd:
 
         assert(htpasswd.match('aaa', '') is False)
         assert(htpasswd.match('aaa', 'bar') is True)
+
+    def test_timing_oracle_mitigation(self, tmp_path: pathlib.Path, monkeypatch: MonkeyPatch) -> None:
+        htpasswd_path = tmp_path / "htpasswd"
+        with htpasswd_path.open('w') as f:
+            f.write("foo:$2y$05$Z7/3diNsWaUZ1JtEqQRdu.78F86tPEzPn/nEBTSVVyIugQtkAyRVK\n")
+
+        htpasswd = HTPasswd.read_file(str(htpasswd_path))
+
+        calls = []
+        original_fn = HTPasswd.__dummy_entry__.match
+
+        def patched_match_call(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+            calls.append((args, kwargs))
+            return original_fn(*args, **kwargs)
+
+        monkeypatch.setattr(HTPasswd.__dummy_entry__, 'match', patched_match_call)
+
+        assert htpasswd.match('foo', 'wrong') is False
+        assert(len(calls) == 0)
+
+        assert htpasswd.match('foo', 'bar') is True
+        assert(len(calls) == 0)
+
+        assert htpasswd.match('unknown-user', 'some-password') is False
+        assert(calls == [(('some-password',), dict())])

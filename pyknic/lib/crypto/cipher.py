@@ -83,7 +83,8 @@ class CBCMode(CipherModeModel):
         """The :meth:`.CipherModeModel.generate` method implementation
         """
         block_size = cipher.algo_block_size()
-        assert(block_size is not None)
+        if block_size is None:
+            raise ValueError('Block size is required, but it was not set')
         return CBCMode(initialization_vector=base64.b64encode(random_bytes(block_size)))
 
     @classmethod
@@ -118,7 +119,8 @@ class CTRMode(CipherModeModel):
         """The :meth:`.CipherModeModel.generate` method implementation
         """
         block_size = cipher.algo_block_size()
-        assert(block_size is not None)
+        if block_size is None:
+            raise ValueError('Block size is required, but it was not set')
         return CTRMode(nonce=base64.b64encode(random_bytes(block_size)))
 
     @classmethod

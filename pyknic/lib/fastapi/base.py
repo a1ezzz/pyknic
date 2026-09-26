@@ -134,21 +134,23 @@ class TgBotBaseFastAPIApp(BaseFastAPIApp):
     async def callback_query(self,  tg_update: Update) -> MethodAnswerCallbackQuery:
         """ A request treated as a callback_query -- return a default value
         """
-        assert(tg_update.callback_query is not None)
+        if tg_update.callback_query is None:
+            raise RuntimeError('Unable to process invalid callback query!')
+
         return MethodAnswerCallbackQuery(callback_query_id=str(tg_update.callback_query.id_))
 
     async def process_command(self, command: str, tg_update: Update) -> TgBotResponseType | None:
         """ A request is a command -- return a result if command is valid and return None otherwise
         """
-        assert(tg_update.message is not None)
-        assert(tg_update.message.from_ is not None)
+        if tg_update.message is None or tg_update.message.from_ is None:
+            raise RuntimeError('Unable to process invalid message!')
         return None
 
     async def process_message(self, tg_update: Update) -> TgBotResponseType | None:
         """ A request is just a text -- try to process it
         """
-        assert(tg_update.message is not None)
-        assert(tg_update.message.from_ is not None)
+        if tg_update.message is None or tg_update.message.from_ is None:
+            raise RuntimeError('Unable to process invalid message!')
         return None
 
     def user_lang(self, user: User | None = None) -> gettext.GNUTranslations | gettext.NullTranslations:
@@ -166,7 +168,9 @@ class TgBotBaseFastAPIApp(BaseFastAPIApp):
         """
 
         tg_msg = tg_obj if isinstance(tg_obj, Message) else tg_obj.message
-        assert(tg_msg is not None)
+
+        if tg_msg is None:
+            raise RuntimeError('Unable to process invalid message!')
 
         return MethodSendMessage(
             chat_id=tg_msg.chat.id_,

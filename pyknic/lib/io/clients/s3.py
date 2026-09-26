@@ -61,7 +61,8 @@ class _S3PartsUploader(BasePartsUploader):
         self.__parts_info: typing.List[typing.Dict[str, typing.Any]] = list()
 
     def __enter__(self) -> BasePartsUploader:
-        assert(self.__mp_request is None)
+        if self.__mp_request is not None:
+            raise RuntimeError('A file has been opened already')
 
         self.__mp_request = self.__client.create_multipart_upload(
             Bucket=self.__bucket,
@@ -71,7 +72,8 @@ class _S3PartsUploader(BasePartsUploader):
         return self
 
     def _upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
-        assert(self.__mp_request)
+        if self.__mp_request is None:
+            raise RuntimeError('A file has not been opened')
 
         upload_request = self.__client.upload_part(
             Bucket=self.__bucket,
@@ -93,7 +95,8 @@ class _S3PartsUploader(BasePartsUploader):
                 UploadId=self.__mp_request["UploadId"],
             )
         else:
-            assert(self.__mp_request)
+            if self.__mp_request is None:
+                raise RuntimeError('A file has not been opened')
 
             self.__client.complete_multipart_upload(
                 Bucket=self.__bucket,
@@ -176,7 +179,8 @@ class S3Client(VirtualDirectoryClient):
             self.change_directory(self.__uri.path)
 
     def disconnect(self) -> None:
-        assert(self.__client is not None)
+        if self.__client is None:
+            raise RuntimeError('A client has not been connected')
 
         self.__client.close()
         self.__client = None
@@ -194,7 +198,8 @@ class S3Client(VirtualDirectoryClient):
 
     @verify_value(object_path=lambda x: x.is_absolute())
     def __has_entry(self, object_path: pathlib.PosixPath, directory_entry: bool = True) -> bool:
-        assert(self.__client is not None)
+        if self.__client is None:
+            raise RuntimeError('A client has not been connected')
 
         object_path_str = self.relative_path(object_path)
         if not object_path:
@@ -230,7 +235,8 @@ class S3Client(VirtualDirectoryClient):
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def make_directory(self, directory_name: str) -> None:
-        assert (self.__client is not None)
+        if self.__client is None:
+            raise RuntimeError('A client has not been connected')
 
         new_dir_path = self.entry_path(directory_name)
 
@@ -245,7 +251,8 @@ class S3Client(VirtualDirectoryClient):
 
     @verify_value(directory_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def remove_directory(self, directory_name: str) -> None:
-        assert (self.__client is not None)
+        if self.__client is None:
+            raise RuntimeError('A client has not been connected')
 
         rm_dir_path = self.entry_path(directory_name)
 
@@ -259,7 +266,8 @@ class S3Client(VirtualDirectoryClient):
 
     @verify_value(object_path=lambda x: x.is_absolute())
     def __list_generator(self, list_path: pathlib.PosixPath) -> typing.Generator[str, None, None]:
-        assert (self.__client is not None)
+        if self.__client is None:
+            raise RuntimeError('A client has not been connected')
 
         request_path_str = self.relative_path(list_path)
         if request_path_str == '.':
@@ -295,7 +303,8 @@ class S3Client(VirtualDirectoryClient):
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def upload_file(self, remote_file_name: str, source: IOProducer) -> None:
-        assert (self.__client is not None)
+        if self.__client is None:
+            raise RuntimeError('A client has not been connected')
 
         new_file_path = self.entry_path(remote_file_name)
 
@@ -310,7 +319,8 @@ class S3Client(VirtualDirectoryClient):
 
     @verify_value(file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def remove_file(self, file_name: str) -> None:
-        assert (self.__client is not None)
+        if self.__client is None:
+            raise RuntimeError('A client has not been connected')
 
         rm_file_path = self.entry_path(file_name)
 
@@ -322,7 +332,8 @@ class S3Client(VirtualDirectoryClient):
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def receive_file(self, remote_file_name: str) -> IOGenerator:
-        assert(self.__client is not None)
+        if self.__client is None:
+            raise RuntimeError('A client has not been connected')
 
         file_path = self.entry_path(remote_file_name)
 
@@ -342,7 +353,8 @@ class S3Client(VirtualDirectoryClient):
     ) -> IOGenerator:
         """The :meth:`.IOClientProto.receive_file_with_offset` method implementation."""
 
-        assert (self.__client is not None)
+        if self.__client is None:
+            raise RuntimeError('A client has not been connected')
 
         file_path = self.entry_path(remote_file_name)
 
@@ -359,7 +371,8 @@ class S3Client(VirtualDirectoryClient):
 
     @verify_value(remote_file_name=lambda x: len(pathlib.PosixPath(x).parts) == 1)
     def file_size(self, remote_file_name: str) -> int:
-        assert (self.__client is not None)
+        if self.__client is None:
+            raise RuntimeError('A client has not been connected')
 
         file_path = self.entry_path(remote_file_name)
 
@@ -370,7 +383,8 @@ class S3Client(VirtualDirectoryClient):
         return int(head_request["ContentLength"])
 
     def upload_by_part(self, remote_file_name: str, part_size: int) -> PartsUploaderProto:
-        assert(self.__client is not None)
+        if self.__client is None:
+            raise RuntimeError('A client has not been connected')
 
         file_path = self.entry_path(remote_file_name)
 

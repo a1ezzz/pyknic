@@ -44,20 +44,24 @@ class _LocalFilePartsUploader(BasePartsUploader):
         self.__opened_file: typing.Optional[typing.IO[bytes]] = None
 
     def __enter__(self) -> BasePartsUploader:
-        assert(self.__opened_file is None)
+        if self.__opened_file is not None:
+            raise RuntimeError('A file has been opened already')
 
         self.__opened_file = open(self.__remote_file_name, 'wb')
         return self
 
     def _upload_part(self, data: typing.Union[bytes, bytearray], part_number: int) -> None:
-        assert(self.__opened_file)
+        if self.__opened_file is None:
+            raise RuntimeError('A file has not been opened')
 
         offset = part_number * self.__part_size
         self.__opened_file.seek(offset, os.SEEK_SET)
         self.__opened_file.write(data)
 
     def _finalize(self, exc_val: typing.Optional[BaseException] = None) -> None:
-        assert(self.__opened_file)
+        if self.__opened_file is None:
+            raise RuntimeError('A file has not been opened')
+
         self.__opened_file.close()
 
 

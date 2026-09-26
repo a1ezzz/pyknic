@@ -43,7 +43,7 @@ from pyknic.lib.gettext import GetTextWrapper
 from pyknic.lib.fastapi.base import BaseFastAPIApp
 from pyknic.lib.fastapi.lobby import LobbyCommandError, __default_lobby_commands_registry__, URLPath
 from pyknic.lib.fastapi.headers import FastAPIHeaders
-from pyknic.lib.log import Logger
+from pyknic.lib.log import Logger, log_safe_escaping
 from pyknic.lib.fastapi.fastapi_aaa import __default_fastapi_aaa_registry__, FastAPIIdentity
 from pyknic.lib.fastapi.fastapi_aaa import AuthenticationProviderProto
 
@@ -63,6 +63,9 @@ class LobbyAAAPolicy:
     authentication_handler: AuthenticationProviderProto
     allowed_commands: typing.List[str]
     denied_commands: typing.List[str]
+
+
+__allow_everything_rule__ = "*"
 
 
 @register_api(__default_fastapi_apps_registry__, "lobby")
@@ -203,7 +206,8 @@ class LobbyApp(BaseFastAPIApp):
 
         :param json_data: API result to sign
         """
-        assert(self.__private_key)
+        if self.__private_key is None:
+            raise RuntimeError('A private key was not loaded')
 
         response_headers = dict()
         signature = self.__private_key.sign(json_data.encode(), self.__signing_hash)
@@ -212,7 +216,9 @@ class LobbyApp(BaseFastAPIApp):
         return fastapi.Response(content=json_data, media_type="application/json", headers=response_headers)
 
     async def public_key(self) -> LobbyPublicKeyModel:
-        assert(self.__private_key)
+        if self.__private_key is None:
+            raise RuntimeError('A private key was not loaded')
+
         return LobbyPublicKeyModel(
             pem=self.__private_key.public_key().export_pem().decode('ascii'),
             sign_hash_method=self.__signing_hash
@@ -220,11 +226,12 @@ class LobbyApp(BaseFastAPIApp):
 
     def __generate_auth_token(self, user_id: FastAPIIdentity, policy_name: str) -> LobbyEncodedJWT:
 
-        assert(self.__private_key)
+        if self.__private_key is None:
+            raise RuntimeError('A private key was not loaded')
 
         jwt_payload = LobbyJWTPayload.generate(
             ttl=self.__jwt_ttl,
-            subject=user_id.identity,
+            subject=str(user_id.identity),
             audience=self.__jwt_audience,
             lobby_host=self.__lobby_host,
             lobby_port=self.__lobby_port,
@@ -300,7 +307,8 @@ class LobbyApp(BaseFastAPIApp):
         :param auth: authentication parameters
         """
 
-        assert(self.__private_key)
+        if self.__private_key is None:
+            raise RuntimeError('A private key was not loaded')
 
         try:
             decoded_jwt = jwt.decode(
@@ -352,7 +360,10 @@ class LobbyApp(BaseFastAPIApp):
 
         jwt_payload: LobbyJWTPayload = LobbyJWTPayload.model_validate(decoded_jwt)
 
-        Logger.info(f'User "{jwt_payload.sub}" authenticated for lobby command with "{jwt_payload.policy_name}" policy')
+        Logger.info(
+            f'User "{log_safe_escaping(jwt_payload.sub)}" authenticated for lobby command with '
+            f'{log_safe_escaping(jwt_payload.policy_name)}" policy'
+        )
 
         # TODO: check versions in client requests and the server's one. If they are differ, then result should have
         #   a warning about it. In future there may be plugins that has versions other than pyknic's
@@ -360,6 +371,15 @@ class LobbyApp(BaseFastAPIApp):
         try:
 
             policy = self.__aaa_policies[jwt_payload.policy_name]
+
+            if not policy.denied_commands and not policy.allowed_commands:
+                pn = policy.policy_name
+                err_msg = f'The policy "{pn}" does not have any command rule and "default-deny" restriction is applied'
+                Logger.error(err_msg)
+                raise fastapi.HTTPException(
+                    status_code=fastapi.status.HTTP_403_FORBIDDEN,
+                    detail=err_msg
+                )
 
             if command_request.name in policy.denied_commands:
                 err_msg = f'The "{command_request.name}" command is disabled by the policy "{policy.policy_name}"'
@@ -369,19 +389,23 @@ class LobbyApp(BaseFastAPIApp):
                     detail=err_msg
                 )
 
-            if policy.allowed_commands and command_request.name not in policy.allowed_commands:
-                err_msg = f'The "{command_request.name}" command is not allowed by the policy "{policy.policy_name}"'
-                Logger.error(err_msg)
-                raise fastapi.HTTPException(
-                    status_code=fastapi.status.HTTP_403_FORBIDDEN,
-                    detail=err_msg
-                )
+            if policy.allowed_commands and __allow_everything_rule__ not in policy.allowed_commands:
+                if command_request.name not in policy.allowed_commands:
+                    pn = policy.policy_name
+                    err_msg = f'The "{command_request.name}" command is not allowed by the policy "{pn}"'
+                    Logger.error(err_msg)
+                    raise fastapi.HTTPException(
+                        status_code=fastapi.status.HTTP_403_FORBIDDEN,
+                        detail=err_msg
+                    )
 
-            command_handler = self.__lobby_registry.get(command_request.name)
-            command_args_class = command_handler.command_model()
+            command_handler_class = self.__lobby_registry.get(command_request.name)
+            command_args_class = command_handler_class.command_model()
             command_args = command_args_class.model_validate(command_request.args)
 
-            command_result = await command_handler.exec(command_args)
+            command_handler = command_handler_class.prepare_command(command_args)
+
+            command_result = await command_handler.exec()
             json_result = command_result.model_dump_json()
             return self.__sign_result(json_result)
 

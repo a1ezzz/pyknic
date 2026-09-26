@@ -93,7 +93,8 @@ class BellBoyResourcesCommand(BellBoyCommandHandler):
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        assert(isinstance(self._args, RequiredMainBellBoyCommandModel))
+        if not isinstance(self._args, RequiredMainBellBoyCommandModel):
+            raise TypeError('Invalid command arguments type')
 
         client = self.create_client(self._args.server.secret_backend, self._args.server.lobby_url)
 

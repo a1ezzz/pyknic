@@ -111,7 +111,9 @@ class URI:
             raise ValueError(f'File path must be in the URI -- {str(self)}')
 
         uri_path = pathlib.PosixPath(self.path)
-        assert(not uri_path.is_absolute())  # this the way URI works
+        if uri_path.is_absolute():
+            # we shouldn't rich this point
+            raise RuntimeError('Internal error! URI path became absolute')
 
         file_name, parent_path = split_file(pathlib.PosixPath('/') / uri_path)
 

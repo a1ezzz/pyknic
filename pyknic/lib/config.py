@@ -180,7 +180,8 @@ class _ConfigImplementation:
 
         :param value_types: types that storage should be suited
         """
-        assert(len(value_types) >= 1)
+        if not len(value_types):
+            raise ValueError('Arguments are required!')
 
         if not isinstance(self.__value, value_types):
             raise TypeError('Invalid type for config entry')
@@ -457,5 +458,7 @@ def _cast_implementation(value: _ConfigImplementation) -> ConfigStorageProto:
     if value.is_list():
         return ConfigList(value)
 
-    assert(value.is_plain())
+    if not value.is_plain():
+        raise ValueError('Invalid (unknown) property type!')
+
     return ConfigOption(value)
