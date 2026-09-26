@@ -13,7 +13,6 @@ Optional SQLite/PostgreSQL backend for persisting the queue, execution statuses,
 
 For long-running operations (backups, copying, external scripts), stream stdout/stderr, completion percentage, and metrics to Bellboy in real time, rather than waiting for a single final JSON response.
 
-
 4. Prometheus metrics endpoint (/metrics)
 
 Export of standard metrics: task execution time, queue sizes, IOThrottler throughput, cryptography errors, and the number of active sessions.
