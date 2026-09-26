@@ -228,7 +228,7 @@ class LobbyApp(BaseFastAPIApp):
 
         jwt_payload = LobbyJWTPayload.generate(
             ttl=self.__jwt_ttl,
-            subject=user_id.identity,
+            subject=str(user_id.identity),
             audience=self.__jwt_audience,
             lobby_host=self.__lobby_host,
             lobby_port=self.__lobby_port,

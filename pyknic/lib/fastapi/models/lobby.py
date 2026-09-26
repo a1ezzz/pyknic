@@ -98,7 +98,7 @@ class LobbyJWTPayload(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra='forbid')  # just to be sure that everything attributes are known
 
     # known JWT fields:
-    sub: typing.Union[str, int]                          # subject claim
+    sub: str                                             # subject claim (RFC 7519 requires a string)
     exp: int                                             # expiration time claim
     iat: int                                             # issued at claim
     iss: str                                             # issuer claim
@@ -113,7 +113,7 @@ class LobbyJWTPayload(pydantic.BaseModel):
     def generate(
         cls,
         ttl: int,
-        subject: typing.Union[str, int],
+        subject: str,
         policy_name: str,
         lobby_host: str,
         lobby_port: int,
