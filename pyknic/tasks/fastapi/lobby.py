@@ -399,11 +399,13 @@ class LobbyApp(BaseFastAPIApp):
                         detail=err_msg
                     )
 
-            command_handler = self.__lobby_registry.get(command_request.name)
-            command_args_class = command_handler.command_model()
+            command_handler_class = self.__lobby_registry.get(command_request.name)
+            command_args_class = command_handler_class.command_model()
             command_args = command_args_class.model_validate(command_request.args)
 
-            command_result = await command_handler.exec(command_args)
+            command_handler = command_handler_class.prepare_command(command_args)
+
+            command_result = await command_handler.exec()
             json_result = command_result.model_dump_json()
             return self.__sign_result(json_result)
 
