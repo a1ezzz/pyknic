@@ -119,8 +119,12 @@ class TestLobbyApp:
         async with session.post(f'http://localhost:8000{lobby_path}', headers=headers, data=ping_request) as response:
             assert(response.status == 200)
 
+        await session.close()
+
         await fastapi_module_fixture.flush_async(module_event_loop)  # type: ignore[arg-type]  # test issue
         fastapi_module_fixture.setup_fastapi(LobbyApp, self.__lobby_yaml__)
+
+        session = aiohttp.ClientSession()
 
         async with session.post(f'http://localhost:8000{lobby_path}', headers=headers, data=ping_request) as response:
             assert(response.status in [401, 403])
@@ -188,8 +192,12 @@ class TestLobbyApp:
         async with session.post(f'http://localhost:8000{lobby_path}', headers=headers, data=ping_request) as response:
             assert(response.status == 200)
 
+        await session.close()
+
         await fastapi_module_fixture.flush_async(module_event_loop)  # type: ignore[arg-type]  # test issue
         fastapi_module_fixture.setup_fastapi(LobbyApp, extra_config_txt)
+
+        session = aiohttp.ClientSession()
 
         async with session.post(f'http://localhost:8000{lobby_path}', headers=headers, data=ping_request) as response:
             assert(response.status == 200)
