@@ -51,7 +51,7 @@ class _SFTPPartsUploader(BasePartsUploader):
         self.__opened_file: typing.Optional[typing.IO[bytes]] = None
 
     def __enter__(self) -> BasePartsUploader:
-        if self.__opened_file is None:
+        if self.__opened_file is not None:
             raise RuntimeError('A file has been opened already')
 
         self.__opened_file = self.__sftp_client.open(self.__remote_file_name, 'wb')  # type: ignore[assignment]
