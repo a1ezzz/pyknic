@@ -690,6 +690,7 @@ class ClientTarArchiveWriter(TarArchiveWriterProto):
     """
 
     @verify_value(client=lambda x: iscapable(x, IOClientProto.upload_by_part))
+    @verify_value(part_size=lambda x: (x > 0 and (x % tarfile.BLOCKSIZE) == 0))
     def __init__(
         self,
         client: IOClientProto,

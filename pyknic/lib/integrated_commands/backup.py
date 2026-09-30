@@ -105,6 +105,14 @@ class BackupCommandModel(pydantic.BaseModel):
         description='an URI to a target path to archive file (like file:///some-dir/archive.tar)'
     )
 
+    tar_part_size: typing.Optional[int] = pydantic.Field(
+        validation_alias=pydantic.AliasChoices('tar-part-size'),
+        default=None,
+        description='a number of bytes of a single part that tar-writer will cache in a memory before '
+        'writing. Some protocols (like S3) may limit possible values, so use it with caution. Please note! '
+        'That this value must be a multiple of 512'
+    )
+
     backup_source: BackupSource = pydantic.Field(
         validation_alias=pydantic.AliasChoices('backup-source'),
         description='defines what we will backup'
@@ -193,18 +201,24 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
         archive_uri = URI.parse(self._args.archive)
 
         if self._args.backup_source.command is not None:
-            archiver.backup_io(self.__read_command(self._args.backup_source.command), archive_uri)
+            archiver.backup_io(
+                self.__read_command(self._args.backup_source.command),
+                archive_uri,
+                self._args.tar_part_size
+            )
         elif self._args.backup_source.files is not None:
             archiver.backup_files(
                 self.__walk_through_directories(self._args.backup_source.files),
-                archive_uri
+                archive_uri,
+                self._args.tar_part_size
             )
         elif self._args.backup_source.files_command is not None:
             archiver.backup_files(
                 self.__walk_through_directories(
                     self.__read_files_by_command(self._args.backup_source.files_command)
                 ),
-                archive_uri
+                archive_uri,
+                self._args.tar_part_size
             )
         else:
             raise ValueError('Unknown backup source spotted!')
