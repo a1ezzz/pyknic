@@ -397,12 +397,12 @@ class BackupArchiveV1:
         self.__cipher_name = cipher_name
 
     def __backup(
-            self,
-            archive_type: ArchiveType,
-            data_reader: IOGenerator,
-            destination: URI,
-            tar_part_size: typing.Optional[int] = None
-        ) -> None:
+        self,
+        archive_type: ArchiveType,
+        data_reader: IOGenerator,
+        destination: URI,
+        tar_part_size: typing.Optional[int] = None
+    ) -> None:
         """This method wraps backup routine
 
         :param archive_type: type of archive to create
