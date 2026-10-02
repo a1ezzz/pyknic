@@ -396,12 +396,20 @@ class BackupArchiveV1:
         self.__encryption_key = encryption_key
         self.__cipher_name = cipher_name
 
-    def __backup(self, archive_type: ArchiveType, data_reader: IOGenerator, destination: URI) -> None:
+    def __backup(
+        self,
+        archive_type: ArchiveType,
+        data_reader: IOGenerator,
+        destination: URI,
+        tar_part_size: typing.Optional[int] = None
+    ) -> None:
         """This method wraps backup routine
 
         :param archive_type: type of archive to create
         :param data_reader: data to backup
         :param destination: file target archive to write to
+        :param tar_part_size: a number of bytes of a single part that tar-writer will cache in a memory before
+        writing. Some protocols (like S3) may limit possible values, so use it with caution
         """
         helper = _BackupHelper(
             archive_type=archive_type,
@@ -422,27 +430,35 @@ class BackupArchiveV1:
         ]
 
         with IOVirtualClient.create_n_open(destination) as c:
-            writer = ClientTarArchiveWriter(c.client(), c.filename(), write_throttling=self.__throttling)
+            writer = ClientTarArchiveWriter(
+                c.client(), c.filename(), write_throttling=self.__throttling, part_size=tar_part_size
+            )
             writer.archive(sources)
 
-    def backup_io(self, source: IOGenerator, destination: URI) -> None:
+    def backup_io(self, source: IOGenerator, destination: URI, tar_part_size: typing.Optional[int] = None) -> None:
         """Backup dynamic data
 
         :param source: data to backup
         :param destination: file target archive to write to
+        :param tar_part_size: a number of bytes of a single part that tar-writer will cache in a memory before
+        writing. Some protocols (like S3) may limit possible values, so use it with caution
         """
-        self.__backup(ArchiveType.io_archive, source, destination)
+        self.__backup(ArchiveType.io_archive, source, destination, tar_part_size=tar_part_size)
 
-    def backup_files(self, files: typing.Iterable[str], destination: URI) -> None:
+    def backup_files(
+        self, files: typing.Iterable[str], destination: URI, tar_part_size: typing.Optional[int] = None
+    ) -> None:
         """Backup ordinary files
 
         :param files: files, directories, named sockets from FS to backup
         :param destination: file target archive to write to
+        :param tar_part_size: a number of bytes of a single part that tar-writer will cache in a memory before
+        writing. Some protocols (like S3) may limit possible values, so use it with caution
         """
         # TODO: add note that check that there are no duplicates inside files generator
 
         data_reader = TarFileGenerator.tar(files)
-        self.__backup(ArchiveType.file_archive, data_reader, destination)
+        self.__backup(ArchiveType.file_archive, data_reader, destination, tar_part_size=tar_part_size)
 
     @classmethod
     def extract_header_meta(cls, archive: URI) -> ArchiveV1HeaderMeta:

@@ -57,7 +57,7 @@ class ThreadedTask(TaskProto, CriticalResource):
         TaskProto.__init__(self)
         CriticalResource.__init__(self, cr_timeout)
         self.__task = task
-        self.__thread = None
+        self.__thread: typing.Optional[threading.Thread] = None
         self.__thread_name = thread_name
 
         if iscapable(self.__task, TaskProto.stop):

@@ -37,7 +37,7 @@ class VirtualDirectoryClient(IOClientProto):
     @classmethod
     def create_client(cls, uri: URI) -> 'VirtualDirectoryClient':
         """Basic client creation."""
-        return cls(uri)  # type: ignore[no-any-return]  # mypy issue
+        return cls(uri)
 
     @verify_value(start_path=lambda x: x is None or x.is_absolute())
     def __init__(

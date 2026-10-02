@@ -55,7 +55,6 @@ class _S3PartsUploader(BasePartsUploader):
         self.__client = client
         self.__bucket = bucket
         self.__remote_file_name = remote_file_name
-        self.__part_size = part_size
 
         self.__mp_request: typing.Optional[CreateMultipartUploadOutputTypeDef] = None
         self.__parts_info: typing.List[typing.Dict[str, typing.Any]] = list()
