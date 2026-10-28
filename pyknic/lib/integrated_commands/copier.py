@@ -26,6 +26,7 @@
 import typing
 
 import pydantic
+import pydantic_settings
 
 from pyknic.lib.capability import iscapable
 from pyknic.lib.io.aio_wrapper import IOThrottler
@@ -48,6 +49,11 @@ class CopierCommandModel(pydantic.BaseModel):
 
     throttling: typing.Optional[int] = pydantic.Field(
         default=None, description='target data-rate (bytes per second) for file copying'
+    )
+
+    recursive: pydantic_settings.CliImplicitFlag[bool] = pydantic.Field(
+        default=False,
+        description='recursively copy files and directories'
     )
 
 
