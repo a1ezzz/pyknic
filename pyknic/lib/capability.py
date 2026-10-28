@@ -87,29 +87,46 @@ class CapabilitiesHolderMeta(ABCMeta):
                     i.__pyknic_capability__ = CapabilityDescriptor(cls, i.__name__)
 
 
-@verify_value(obj_capability_fn=lambda x: isinstance(x.__pyknic_capability__, CapabilityDescriptor))
-def iscapable(obj: object, obj_capability_fn: typing.Callable[..., typing.Any]) -> bool:
+@verify_value(
+    obj_capability_fn=lambda x: isinstance(x.__pyknic_capability__, CapabilityDescriptor),
+    extra_capabilites_fn=lambda x: isinstance(x.__pyknic_capability__, CapabilityDescriptor)
+)
+def iscapable(
+    obj: object,
+    obj_capability_fn: typing.Callable[..., typing.Any],
+    *extra_capabilites_fn: typing.Callable[..., typing.Any],
+) -> bool:
     """ Check if the specified object (or type) is capable of something. I.e. check if a function from a descriptor
     has been overridden in the derived class. Return True if function has been overridden and False otherwise
 
     :param obj: object to check
     :param obj_capability_fn: capability descriptor
+    :param extra_capabilites_fn: additional capability descriptors that the object must be checked on
     """
 
-    obj_capability = obj_capability_fn.__pyknic_capability__  # type: ignore[attr-defined] # metaclass/decorators issues
+    def single_capability_check(cap_fn: typing.Callable[..., typing.Any]) -> bool:
+        obj_capability = cap_fn.__pyknic_capability__  # type: ignore[attr-defined] # metaclass/decorators issues
 
-    obj_method = None
-    if isinstance(obj, type):
-        if issubclass(obj, obj_capability.cls()) is True:
+        obj_method = None
+        if isinstance(obj, type):
+            if issubclass(obj, obj_capability.cls()) is True:
+                obj_method = getattr(obj, obj_capability.name())
+        elif isinstance(obj, obj_capability.cls()) is True:
             obj_method = getattr(obj, obj_capability.name())
-    elif isinstance(obj, obj_capability.cls()) is True:
-        obj_method = getattr(obj, obj_capability.name())
 
-    if obj_method:
-        return not hasattr(obj_method, '__pyknic_capability__')  # overridden methods will not have
-        # the __pyknic_capability__ attribute
+        if obj_method:
+            return not hasattr(obj_method, '__pyknic_capability__')  # overridden methods will not have
+            # the __pyknic_capability__ attribute
 
-    return False
+        return False
+
+    def all_capabilities_check() -> typing.Generator[bool, None, None]:
+        yield single_capability_check(obj_capability_fn)
+
+        for c in extra_capabilites_fn:
+            yield single_capability_check(c)
+
+    return all(all_capabilities_check())
 
 
 class CapabilitiesHolder(metaclass=CapabilitiesHolderMeta):
