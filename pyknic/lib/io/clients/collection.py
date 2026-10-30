@@ -19,6 +19,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
+import dataclasses
+import enum
+import pathlib
 import types
 import typing
 
@@ -30,6 +33,22 @@ from pyknic.lib.uri import URI
 
 
 __default_io_clients_registry__ = APIRegistry()
+
+
+@enum.unique
+class WalkEntryType(enum.Enum):
+    # TODO: add docstrings and tests
+    # TODO: add more types like symlinks when IOClientProto will have methods like "is_symlink"
+    directory = enum.auto()
+    general_file = enum.auto()
+
+
+@dataclasses.dataclass
+class WalkEntry:
+    # TODO: add docstrings and tests
+    parent_directory: str  # may be an abs or relative path
+    entry_name: str
+    entry_type: WalkEntryType
 
 
 class IOVirtualClient(IOClientProto):
@@ -51,6 +70,71 @@ class IOVirtualClient(IOClientProto):
             """ Return client this context is connected to
             """
             return self.__client
+
+        def walk(self, relative_path: bool = False) -> typing.Generator[WalkEntry, None, None]:
+            # TODO: add docstrings and tests
+
+            if not iscapable(
+                self.__client,
+                IOClientProto.list_directory,
+                IOClientProto.is_directory,
+                IOClientProto.current_directory,
+                IOClientProto.change_directory
+            ):
+                raise ValueError(
+                    f'The client does not support one feature at least: '
+                    'list_directory, is_directory, current_directory and/or change_directory'
+                )
+
+            def entry_type(is_dir: bool) -> WalkEntryType:
+                return WalkEntryType.directory if is_dir else WalkEntryType.general_file
+
+            def search_entry(parent_dir: str, sub_dir: str) -> str:
+                return str(pathlib.PosixPath('/') / parent_dir / sub_dir)
+
+            def parent_dir(abs_inner_path: str, start_path: str) -> str:
+                if not relative_path:
+                    return abs_inner_path
+
+                if abs_inner_path == start_path:
+                    return '.'
+
+                start_path += '/'
+
+                if not abs_inner_path.startswith(start_path):
+                    raise RuntimeError(f'An inner path ({abs_inner_path}) is not from a parent path ({start_path})')
+
+                return abs_inner_path[len(start_path):]
+
+            start_directory = self.__client.current_directory()
+            try:
+                inner_entries = [start_directory]
+                next_entries = []
+
+                while inner_entries:
+                    next_entries = []
+
+                    for i in inner_entries:
+
+                        self.__client.change_directory(i)
+
+                        for j in self.__client.list_directory():
+
+                            is_dir = self.__client.is_directory(j)
+
+                            yield WalkEntry(
+                                parent_directory=parent_dir(i, start_directory),
+                                entry_name=j,
+                                entry_type=entry_type(is_dir)
+                            )
+
+                            if is_dir:
+                                next_entries.append(search_entry(i, j))
+
+                    inner_entries = next_entries
+
+            finally:
+                self.__client.change_directory(start_directory)
 
         def __enter__(self) -> typing.Self:
             """ Enter the context (client connects)

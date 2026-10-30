@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyknic.  If not, see <http://www.gnu.org/licenses/>.
 
-from pyknic.lib.io.clients.collection import IOVirtualClient
+from pyknic.lib.io.clients.collection import IOVirtualClient, WalkEntry, WalkEntryType
 from pyknic.lib.io.clients.local import LocalClient
 from pyknic.lib.io.clients.proto import DirectoryNotEmptyError, IOClientProto
 from pyknic.lib.io.clients.s3 import S3Client
@@ -28,6 +28,8 @@ from pyknic.lib.io.clients.virtual_dir import VirtualDirectoryClient
 
 __all__ = [
     'IOVirtualClient',
+    'WalkEntry',
+    'WalkEntryType',
     'LocalClient',
     'DirectoryNotEmptyError',
     'IOClientProto',
