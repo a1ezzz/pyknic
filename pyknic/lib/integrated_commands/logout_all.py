@@ -36,6 +36,12 @@ class LogoutAllCommand(BellBoyCommandHandler):
     """
 
     @classmethod
+    def bellboy_command_description(cls):
+        """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
+        """
+        return 'Forget all known credential'
+
+    @classmethod
     def command_name(cls) -> str:
         """The :meth:`.BellBoyCommandHandler.command_name` method implementation"""
         return "logout-all"

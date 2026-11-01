@@ -68,6 +68,12 @@ class BellBoyCommandHandler(LobbyCommandHandler, metaclass=ABCMeta):
     """
 
     @classmethod
+    def bellboy_command_description(cls) -> typing.Optional[str]:
+        """ Return a description for this command, that will be displayed with the '--help' argument
+        """
+        return None
+
+    @classmethod
     def secret_backend(cls, secret_backend_type: SecretBackendType) -> SecretBackend:
         """ Return a backend implementation by a specified type
 
