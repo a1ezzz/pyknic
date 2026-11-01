@@ -37,7 +37,8 @@ __default_io_clients_registry__ = APIRegistry()
 
 @enum.unique
 class WalkEntryType(enum.Enum):
-    # TODO: add docstrings and tests
+    """ Type of entry discovered during directory traversal
+    """
     # TODO: add more types like symlinks when IOClientProto will have methods like "is_symlink"
     directory = enum.auto()
     general_file = enum.auto()
@@ -45,8 +46,13 @@ class WalkEntryType(enum.Enum):
 
 @dataclasses.dataclass
 class WalkEntry:
-    # TODO: add docstrings and tests
-    parent_directory: str  # may be an abs or relative path
+    """ An entry discovered during directory traversal
+
+    :param parent_directory: directory containing the entry (may be an absolute or relative path)
+    :param entry_name: name of the entry
+    :param entry_type: type of the entry (:class:`.WalkEntryType`)
+    """
+    parent_directory: str
     entry_name: str
     entry_type: WalkEntryType
 
@@ -72,7 +78,12 @@ class IOVirtualClient(IOClientProto):
             return self.__client
 
         def walk(self, relative_path: bool = False) -> typing.Generator[WalkEntry, None, None]:
-            # TODO: add docstrings and tests
+            """ Recursively traverse directory hierarchy starting from the client's current directory
+
+            :param relative_path: whether to return parent directories relative to the start directory
+            :return: generator yielding :class:`.WalkEntry` objects
+            :raises ValueError: if client does not support required directory operations
+            """
 
             if not iscapable(
                 self.__client,
@@ -82,24 +93,31 @@ class IOVirtualClient(IOClientProto):
                 IOClientProto.change_directory
             ):
                 raise ValueError(
-                    f'The client does not support one feature at least: '
+                    'The client does not support one feature at least: '
                     'list_directory, is_directory, current_directory and/or change_directory'
                 )
 
             def entry_type(is_dir: bool) -> WalkEntryType:
+                """ Determine WalkEntryType based on whether entry is a directory
+                """
                 return WalkEntryType.directory if is_dir else WalkEntryType.general_file
 
             def search_entry(parent_dir: str, sub_dir: str) -> str:
+                """ Construct child entry path from parent directory and sub-directory name
+                """
                 return str(pathlib.PosixPath('/') / parent_dir / sub_dir)
 
             def parent_dir(abs_inner_path: str, start_path: str) -> str:
+                """ Compute parent directory representation (relative or absolute)
+                """
                 if not relative_path:
                     return abs_inner_path
 
                 if abs_inner_path == start_path:
                     return '.'
 
-                start_path += '/'
+                if not start_path.endswith('/'):
+                    start_path += '/'
 
                 if not abs_inner_path.startswith(start_path):
                     raise RuntimeError(f'An inner path ({abs_inner_path}) is not from a parent path ({start_path})')
@@ -109,7 +127,7 @@ class IOVirtualClient(IOClientProto):
             start_directory = self.__client.current_directory()
             try:
                 inner_entries = [start_directory]
-                next_entries = []
+                next_entries: list[str] = []
 
                 while inner_entries:
                     next_entries = []
@@ -207,6 +225,10 @@ class IOVirtualClient(IOClientProto):
         self.__init_capability('upload_by_part')
 
     def __init_capability(self, method_name: str) -> None:
+        """ Register capability on this client if underlying client supports it
+
+        :param method_name: name of the capability method in :class:`.IOClientProto`
+        """
         cap = getattr(IOClientProto, method_name)
         if iscapable(self.__client, cap):
             self.append_capability(cap, getattr(self.__client, method_name))
