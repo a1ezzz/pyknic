@@ -125,6 +125,12 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
     """
 
     @classmethod
+    def bellboy_command_description(cls) -> typing.Optional[str]:
+        """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
+        """
+        return 'This command will make an archive as a backup copy'
+
+    @classmethod
     def command_name(cls) -> str:
         """ The :meth:`.BellBoyCommandHandler.command_name` method implementation
         """
@@ -269,6 +275,12 @@ class BellBoyArchiveValidateCommand(BellBoyCommandHandler):
     """
 
     @classmethod
+    def bellboy_command_description(cls) -> typing.Optional[str]:
+        """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
+        """
+        return 'This command will validate an archive integrity'
+
+    @classmethod
     def command_name(cls) -> str:
         """ The :meth:`.BellBoyCommandHandler.command_name` method implementation
         """
@@ -335,6 +347,13 @@ class RestoreCommandModel(pydantic.BaseModel):
 class BellBoyRestoreCommand(BellBoyCommandHandler):
     """ These settings define unarchive options
     """
+
+    @classmethod
+    def bellboy_command_description(cls) -> typing.Optional[str]:
+        """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
+        """
+        return 'This command will "restore" (convert) an encrypted and compressed archive to a plain ' \
+            'uncompressed TAR-file'
 
     @classmethod
     def command_name(cls) -> str:

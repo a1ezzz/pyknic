@@ -70,7 +70,11 @@ class BellboyApp(BaseApp):
             handler_model: typing.Type[pydantic.BaseModel] = handler.command_model()
 
             class CustomModel(BellboyApp.BaseCommand, handler_model):  # type: ignore[misc,valid-type]
-                _command_handler = handler
+                """"""  # this makes __doc__ suitable for a command description
+
+            cmd_description = handler.bellboy_command_description()
+            if cmd_description:
+                CustomModel.__doc__ = cmd_description
 
             commands_annotations[command] = pydantic_settings.CliSubCommand[CustomModel]  # type: ignore[misc]
 

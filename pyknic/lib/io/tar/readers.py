@@ -371,15 +371,10 @@ class ClientTarArchiveReader(TarArchiveReaderProto):
         self.__client = client
         self.__archive_file = archive_file
 
-        if not iscapable(self.__client, IOClientProto.receive_file):
+        if not iscapable(self.__client, IOClientProto.receive_file, IOClientProto.receive_file_with_offset):
             raise ValueError(
-                f'The client from the "{repr(self.__client)}" does not implement the "receive_file" capability'
-            )
-
-        if not iscapable(self.__client, IOClientProto.receive_file_with_offset):
-            raise ValueError(
-                f'The client from the "{repr(self.__client)}"'
-                ' does not implement the "receive_file_with_offset" capability'
+                f'The client from the "{repr(self.__client)}" does not implement the "receive_file" '
+                'or "receive_file_with_offset" capabilities'
             )
 
     def inner_entries(self, *entries_names: str) -> typing.Generator[TarReaderEntry, None, None]:

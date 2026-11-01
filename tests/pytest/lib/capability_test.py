@@ -121,31 +121,37 @@ class TestCapabilitiesHolderMeta:
         assert(iscapable(B, A.bar) is False)
         assert(iscapable(B, B.bar) is False)
         assert(iscapable(B, C.foo) is True)
+        assert(iscapable(B, A.foo, A.bar) is False)
 
         assert(iscapable(b, A.foo) is True)
         assert(iscapable(b, A.bar) is False)
         assert(iscapable(b, B.bar) is False)
         assert(iscapable(b, C.foo) is True)
+        assert(iscapable(b, A.foo, A.bar) is False)
 
         assert(iscapable(C, A.foo) is False)
         assert(iscapable(C, A.bar) is True)
         assert(iscapable(C, B.bar) is True)
         assert(iscapable(C, C.foo) is False)
+        assert(iscapable(C, A.foo, A.bar) is False)
 
         assert(iscapable(c, A.foo) is False)
         assert(iscapable(c, A.bar) is True)
         assert(iscapable(c, B.bar) is True)
         assert(iscapable(c, C.foo) is False)
+        assert(iscapable(c, A.foo, A.bar) is False)
 
         assert(iscapable(D, A.foo) is True)
         assert(iscapable(D, A.bar) is True)
         assert(iscapable(D, B.bar) is True)
         assert(iscapable(D, C.foo) is True)
+        assert(iscapable(D, A.foo, A.bar) is True)
 
         assert(iscapable(d, A.foo) is True)
         assert(iscapable(d, A.bar) is True)
         assert(iscapable(d, B.bar) is True)
         assert(iscapable(d, C.foo) is True)
+        assert(iscapable(d, A.foo, A.bar) is True)
 
 
 class TestCapabilitiesHolder:

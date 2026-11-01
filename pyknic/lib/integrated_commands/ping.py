@@ -65,6 +65,12 @@ class BellBoyPingCommand(BellBoyCommandHandler):
     """
 
     @classmethod
+    def bellboy_command_description(cls) -> typing.Optional[str]:
+        """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
+        """
+        return 'Check and return server\'s (client\'s) version. This is helpful for configuration test'
+
+    @classmethod
     def command_name(cls) -> str:
         """ The :meth:`.BellBoyCommandHandler.command_name` method implementation
         """
