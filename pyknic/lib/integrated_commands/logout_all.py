@@ -36,7 +36,7 @@ class LogoutAllCommand(BellBoyCommandHandler):
     """
 
     @classmethod
-    def bellboy_command_description(cls):
+    def bellboy_command_description(cls) -> typing.Optional[str]:
         """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
         """
         return 'Forget all known credential'

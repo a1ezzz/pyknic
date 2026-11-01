@@ -125,7 +125,7 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
     """
 
     @classmethod
-    def bellboy_command_description(cls):
+    def bellboy_command_description(cls) -> typing.Optional[str]:
         """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
         """
         return 'This command will make an archive as a backup copy'
@@ -275,7 +275,7 @@ class BellBoyArchiveValidateCommand(BellBoyCommandHandler):
     """
 
     @classmethod
-    def bellboy_command_description(cls):
+    def bellboy_command_description(cls) -> typing.Optional[str]:
         """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
         """
         return 'This command will validate an archive integrity'
@@ -349,11 +349,11 @@ class BellBoyRestoreCommand(BellBoyCommandHandler):
     """
 
     @classmethod
-    def bellboy_command_description(cls):
+    def bellboy_command_description(cls) -> typing.Optional[str]:
         """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
         """
         return 'This command will "restore" (convert) an encrypted and compressed archive to a plain ' \
-        'uncompressed TAR-file'
+            'uncompressed TAR-file'
 
     @classmethod
     def command_name(cls) -> str:

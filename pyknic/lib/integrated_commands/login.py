@@ -83,7 +83,7 @@ class LoginCommand(BellBoyCommandHandler):
     __max_secret_file_size__ = 1024
 
     @classmethod
-    def bellboy_command_description(cls):
+    def bellboy_command_description(cls) -> typing.Optional[str]:
         """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
         """
         return 'Login to a custom lobby server'

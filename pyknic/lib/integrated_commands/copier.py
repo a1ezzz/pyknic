@@ -62,12 +62,12 @@ class BellBoyCopyCommand(BellBoyCommandHandler):
     """
 
     @classmethod
-    def bellboy_command_description(cls):
+    def bellboy_command_description(cls) -> typing.Optional[str]:
         """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
         """
         return 'A general copying call. This call will be slower than general tools. And this command will be ' \
-        'copy simlinks as files. But it may be useful since supports different protocols as is, so may copy ' \
-        'files from SFTP to S3 without temporary files'
+            'copy simlinks as files. But it may be useful since supports different protocols as is, so may copy ' \
+            'files from SFTP to S3 without temporary files'
 
     @classmethod
     def command_name(cls) -> str:

@@ -36,7 +36,7 @@ class ListLoginsCommand(BellBoyCommandHandler):
     """
 
     @classmethod
-    def bellboy_command_description(cls):
+    def bellboy_command_description(cls) -> typing.Optional[str]:
         """ The :meth:`.BellBoyCommandHandler.bellboy_command_description` method implementation
         """
         return 'List known logins'
