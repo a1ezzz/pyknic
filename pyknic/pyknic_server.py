@@ -2,6 +2,7 @@
 import argparse
 import signal
 import sys
+import typing
 
 # TODO: import internal tasks the same way as it happens with external ones
 import pyknic.tasks  # noqa: F401  # force tasks loading
@@ -42,8 +43,8 @@ class App(BaseApp):
         return parser
 
     @classmethod
-    def main(cls) -> None:
-        args = App.parser().parse_args()
+    def main(cls, argv: typing.Optional[typing.Sequence[str]] = None) -> None:
+        args = App.parser().parse_args(args=argv)
 
         log_level_int = args.verbose
         log_level_str = PyknicLogLevel.ERROR.value  # default value

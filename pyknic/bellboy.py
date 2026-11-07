@@ -57,7 +57,7 @@ class BellboyApp(BaseApp):
         _command_handler: typing.Type[BellBoyCommandHandler]
 
     @classmethod
-    def args_parser_cls(cls) -> pydantic_settings.BaseSettings:
+    def args_parser_cls(cls, argv: typing.Optional[typing.Sequence[str]] = None) -> pydantic_settings.BaseSettings:
         commands_annotations: typing.Dict[str, typing.Any] = dict()
 
         for command, handler in __default_bellboy_commands_registry__:
@@ -84,7 +84,7 @@ class BellboyApp(BaseApp):
         class BellboySettings(
             CommandsSpec,
             pydantic_settings.BaseSettings,
-            cli_parse_args=True,
+            cli_parse_args=(argv if argv else True),
             cli_prog_name='bellboy',
             cli_use_class_docs_for_groups=True,
             cli_exit_on_error=False
@@ -94,6 +94,16 @@ class BellboyApp(BaseApp):
             pass
 
         return BellboySettings()
+
+    def __init__(
+        self,
+        log_level: PyknicLogLevel = PyknicLogLevel.INFO,
+        config_file: typing.Optional[str] = None,
+        config_dir: typing.Optional[str] = None,
+        argv: typing.Optional[typing.Sequence[str]] = None
+    ):
+        BellboyApp.__init__(self, log_level=log_level, config_file=config_file, config_dir=config_dir)
+        self.__argv = argv
 
     def start(self) -> None:
         BaseApp.start(self)
@@ -108,7 +118,7 @@ class BellboyApp(BaseApp):
         console = BellboyConsole()
 
         try:
-            cmd = self.args_parser_cls()
+            cmd = self.args_parser_cls(self.__argv)
         except pydantic.ValidationError as e:
             console.error(str(e))
             raise SystemExit(-1)
@@ -127,7 +137,7 @@ class BellboyApp(BaseApp):
 
         loop = asyncio.new_event_loop()
         prepared_command = subcommand_obj._command_handler.prepare_command(subcommand_obj)
-        result = loop.run_until_complete(prepared_command.exec())
+        result = loop.run_until_complete(prepared_command.exec())  # TODO: make it possible to terminate the running command!
 
         json_mode = False
         if subcommand_obj.bellboy is not None:
@@ -146,7 +156,7 @@ class BellboyApp(BaseApp):
     @classmethod
     def main(cls, argv: typing.Optional[typing.Sequence[str]] = None) -> None:
         # TODO: custom verbosity levels!
-        bellboy_app = BellboyApp(log_level=PyknicLogLevel.INFO)
+        bellboy_app = BellboyApp(argv=argv, log_level=PyknicLogLevel.INFO)
         bellboy_app.setup_singals_handler()
         bellboy_app.start()
 
