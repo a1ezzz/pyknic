@@ -251,7 +251,7 @@ class BellBoyBackupCommand(BellBoyCommandHandler):
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        caller = await AsyncWrapper.create(self.__backup)
+        caller = await AsyncWrapper.create(self.__backup, thread_name='bellboy:command:backup')
         return await caller()  # type: ignore[no-any-return]
 
 
@@ -308,7 +308,7 @@ class BellBoyArchiveValidateCommand(BellBoyCommandHandler):
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        caller = await AsyncWrapper.create(self.__validate)
+        caller = await AsyncWrapper.create(self.__validate, thread_name='bellboy:command:backup-validate')
         return await caller()  # type: ignore[no-any-return]
 
 
@@ -390,5 +390,5 @@ class BellBoyRestoreCommand(BellBoyCommandHandler):
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        caller = await AsyncWrapper.create(self.__restore)
+        caller = await AsyncWrapper.create(self.__restore, thread_name='bellboy:command:backup-restore')
         return await caller()  # type: ignore[no-any-return]

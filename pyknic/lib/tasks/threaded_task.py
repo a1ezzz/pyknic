@@ -91,6 +91,7 @@ class ThreadedTask(TaskProto, CriticalResource):
             self.emit(self.task_completed, TaskResult(exception=e))
             return
         except SystemExit as e:
+            # This signal is suitable for a main thread only! For example in signal handlers
             if e.code:
                 Logger.error(f'The "{self.__task_id()}" task failed with system exit exception. Exit code -- {e.code}')
             self.emit(self.thread_ready, self.__task)
