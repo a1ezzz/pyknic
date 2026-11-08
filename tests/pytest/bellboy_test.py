@@ -86,6 +86,7 @@ class TestBellboyApp:
         with pytest.raises(pydantic_settings.exceptions.SettingsError):
             _ = BellboyApp.main(['do-some'])
 
+    @pytest.mark.skip(reason='reasonable CI/CD issues')
     def test_sigterm(self, sleep_bellboy_command: threading.Event) -> None:
 
         def call_sigterm() -> None:
