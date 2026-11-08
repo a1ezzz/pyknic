@@ -26,6 +26,7 @@ from abc import ABCMeta, abstractmethod
 
 import pydantic
 
+from pyknic.lib.capability import CapabilitiesHolder, capability
 from pyknic.lib.registry import APIRegistry, register_api
 from pyknic.lib.fastapi.models.lobby import LobbyCommandResult
 
@@ -47,7 +48,7 @@ class LobbyCommandError(Exception):
     pass
 
 
-class LobbyCommandHandler(metaclass=ABCMeta):
+class LobbyCommandHandler(CapabilitiesHolder):
     """Prototype for a lobby command implementation."""
 
     def __init__(self, args: pydantic.BaseModel):
@@ -83,6 +84,12 @@ class LobbyCommandHandler(metaclass=ABCMeta):
     @abstractmethod
     async def exec(self) -> LobbyCommandResult:
         """ Execute the command and return its result.
+        """
+        raise NotImplementedError('This method is abstract')
+
+    @capability
+    async def terminate_command(self) -> None:
+        """ Capability that if implemented will terminate this executed command.
         """
         raise NotImplementedError('This method is abstract')
 

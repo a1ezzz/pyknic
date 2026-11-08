@@ -44,6 +44,7 @@ except ImportError:
 # TODO: import internal tasks the same way as it happens with external ones
 import pyknic.tasks  # noqa: F401  # force tasks loading
 
+from pyknic.lib.capability import iscapable
 from pyknic.lib.log import Logger
 from pyknic.lib.tasks.proto import TaskProto
 from pyknic.lib.tasks.scheduler.scheduler import Scheduler
@@ -101,20 +102,26 @@ class BaseApp(TaskProto):
             self.__main_source.execute('config_task')
 
     def stop(self) -> None:
-        self.__main_source_thread.stop()
-        self.__main_source_thread.wait(timeout=self.__stop_timeout__)
-        self.__main_source_thread.join()
+        if not self.__main_source_thread.join():
+            self.__main_source_thread.stop()
+            self.__main_source_thread.wait(timeout=self.__stop_timeout__)
+            self.__main_source_thread.join()
 
-        self.__scheduler_thread.stop()
-        self.__scheduler_thread.wait(timeout=self.__stop_timeout__)
-        self.__scheduler_thread.join()
+        if not self.__scheduler_thread.join():
+            self.__scheduler_thread.stop()
+            self.__scheduler_thread.wait(timeout=self.__stop_timeout__)
+            self.__scheduler_thread.join()
 
     def setup_singals_handler(self) -> None:
 
         def terminate_app_handler(sig: int, frame: typing.Optional[FrameType]) -> None:
 
             with self.instance_lock():
-                self.stop()
+
+                if iscapable(self, TaskProto.terminate):
+                    self.terminate()
+                else:
+                    self.stop()
 
                 running_threads = threading.enumerate()
                 if len(running_threads) > 1:

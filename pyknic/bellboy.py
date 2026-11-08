@@ -24,7 +24,9 @@
 
 import asyncio
 import pathlib
+import threading
 import typing
+import sys
 
 import pydantic
 import pydantic_settings
@@ -39,6 +41,9 @@ import pyknic.lib.integrated_commands  # noqa: F401, E402  # force commands load
 from pyknic.lib.bellboy.console import BellboyConsole  # noqa: E402
 from pyknic.lib.bellboy.models import CommonBellBoyCommandModel, FormattingMode  # noqa: E402
 from pyknic.lib.bellboy.app import __default_bellboy_commands_registry__, BellBoyCommandHandler  # noqa: E402
+from pyknic.lib.capability import iscapable  # noqa: E402
+from pyknic.lib.fastapi.lobby import LobbyCommandHandler  # noqa: E402
+from pyknic.lib.fastapi.models.lobby import LobbyCommandResult  # noqa: E402
 
 from pyknic.base_app import BaseApp  # noqa: E402
 
@@ -102,64 +107,129 @@ class BellboyApp(BaseApp):
         config_dir: typing.Optional[str] = None,
         argv: typing.Optional[typing.Sequence[str]] = None
     ):
-        BellboyApp.__init__(self, log_level=log_level, config_file=config_file, config_dir=config_dir)
+        BaseApp.__init__(self, log_level=log_level, config_file=config_file, config_dir=config_dir)
         self.__argv = argv
+        self.__loop_thread: typing.Optional[threading.Thread] = None
+        self.__started_cmd: typing.Optional[LobbyCommandHandler] = None
+        self.__stop_request_future: typing.Optional[asyncio.Future[typing.Coroutine[None, None, None]]] = None
+
+    def terminate(self) -> None:
+        if not self.instance_lock().locked():
+            raise RuntimeError('This method should be called under the lock!')
+
+        if self.__loop_thread is not threading.current_thread():
+            # Current implementation will be executed in a main thread, so as:
+            #   - BellBoyApp code
+            #   - AsyncIO-loop inside a BellBoyApp code
+            #   - terminate-request from the signal handler
+            #   - BaseApp.stop method
+            # In a future, when there will be a case to call this method from other thread, this method
+            # will be updated.
+            raise RuntimeError('This method must be called from the main thread only!')
+
+        if self.__started_cmd and self.__stop_request_future and not self.__stop_request_future.done():
+
+            if iscapable(self.__started_cmd, LobbyCommandHandler.terminate_command):
+                coro = self.__started_cmd.terminate_command()
+                self.__stop_request_future.set_result(coro)
+
+        BaseApp.stop(self)
+
+    async def __main_coro(
+        self, loop: asyncio.AbstractEventLoop, command: LobbyCommandHandler
+    ) -> typing.Optional[LobbyCommandResult]:
+
+        async def stop_request_coro() -> None:
+            assert(self.__stop_request_future)
+            term_cmd_coro = await self.__stop_request_future
+            await term_cmd_coro
+
+        command_task = asyncio.create_task(command.exec(), name='pyknic:bellboy:command-task')
+        future_cancel_task = asyncio.create_task(stop_request_coro(), name='pyknic:bellboy:future_cancel_task')
+        done, pending = await asyncio.wait([command_task, future_cancel_task], return_when=asyncio.FIRST_COMPLETED)
+
+        for i in pending:
+            i.cancel()
+
+        if command_task in done:
+            return command_task.result()
+
+        return None
 
     def start(self) -> None:
+        if self.__loop_thread:
+            raise RuntimeError('This app has been started already! Unable to run twice')
+
         BaseApp.start(self)
 
-        tasks_source = self.tasks_source()
-        tasks_source.execute('plugins_task')
-        tasks_source.wait_for(tasks_source.datalog(), 'plugins_task')
-
-        config_result = tasks_source.wait_for(tasks_source.datalog(), 'config_task')
-        config = config_result.result  # type: ignore[union-attr]
-
-        console = BellboyConsole()
-
         try:
-            cmd = self.args_parser_cls(self.__argv)
-        except pydantic.ValidationError as e:
-            console.error(str(e))
-            raise SystemExit(-1)
 
-        subcommand_obj = pydantic_settings.get_subcommand(cmd)
-        if subcommand_obj is None:
-            raise RuntimeError('Unable to find a subcommand')
+            tasks_source = self.tasks_source()
+            tasks_source.execute('plugins_task')
+            tasks_source.wait_for(tasks_source.datalog(), 'plugins_task')
 
-        if not isinstance(subcommand_obj, BellboyApp.BaseCommand):
-            raise TypeError(f'Invalid subcommand type -- {subcommand_obj.__class__}')
+            config_result = tasks_source.wait_for(tasks_source.datalog(), 'config_task')
+            config = config_result.result  # type: ignore[union-attr]
 
-        if subcommand_obj.bellboy is not None:
-            if subcommand_obj.bellboy.config is not None:
-                with pathlib.Path().open(subcommand_obj.bellboy.config) as f:
-                    config.merge_file(f)
+            console = BellboyConsole()
 
-        loop = asyncio.new_event_loop()
-        prepared_command = subcommand_obj._command_handler.prepare_command(subcommand_obj)
-        result = loop.run_until_complete(prepared_command.exec())  # TODO: make it possible to terminate the running command!
+            try:
+                cmd = self.args_parser_cls(self.__argv)
+            except pydantic.ValidationError as e:
+                console.error(str(e))
+                raise SystemExit(-1)
 
-        json_mode = False
-        if subcommand_obj.bellboy is not None:
-            if subcommand_obj.bellboy.formatting is not None:
-                if subcommand_obj.bellboy.formatting == FormattingMode.json:
-                    json_mode = True
-                else:
-                    if subcommand_obj.bellboy.formatting != FormattingMode.rich:
-                        raise RuntimeError('Unknown formatting settings spotted')
+            subcommand_obj = pydantic_settings.get_subcommand(cmd)
+            if subcommand_obj is None:
+                raise RuntimeError('Unable to find a subcommand')
 
-        if json_mode:
-            print(result.model_dump_json())
-        else:
-            console.process_result(result)
+            if not isinstance(subcommand_obj, BellboyApp.BaseCommand):
+                raise TypeError(f'Invalid subcommand type -- {subcommand_obj.__class__}')
+
+            if subcommand_obj.bellboy is not None:
+                if subcommand_obj.bellboy.config is not None:
+                    with pathlib.Path().open(subcommand_obj.bellboy.config) as f:
+                        config.merge_file(f)
+
+            loop = asyncio.new_event_loop()
+
+            with self.instance_lock():
+                self.__stop_request_future = loop.create_future()
+                self.__loop_thread = threading.current_thread()
+                self.__started_cmd = subcommand_obj._command_handler.prepare_command(subcommand_obj)
+
+            result = loop.run_until_complete(self.__main_coro(loop, self.__started_cmd))
+
+            if result is None:
+                # this was a ctrl-c a-like request
+                sys.exit(-1)
+
+            json_mode = False
+            if subcommand_obj.bellboy is not None:
+                if subcommand_obj.bellboy.formatting is not None:
+                    if subcommand_obj.bellboy.formatting == FormattingMode.json:
+                        json_mode = True
+                    else:
+                        if subcommand_obj.bellboy.formatting != FormattingMode.rich:
+                            raise RuntimeError('Unknown formatting settings spotted')
+
+            if json_mode:
+                print(result.model_dump_json())
+            else:
+                console.process_result(result)
+
+        finally:
+            self.stop()
 
     @classmethod
-    def main(cls, argv: typing.Optional[typing.Sequence[str]] = None) -> None:
+    def main(cls, argv: typing.Optional[typing.Sequence[str]] = None) -> int:
         # TODO: custom verbosity levels!
         bellboy_app = BellboyApp(argv=argv, log_level=PyknicLogLevel.INFO)
         bellboy_app.setup_singals_handler()
         bellboy_app.start()
 
+        return 0
+
 
 if __name__ == "__main__":
-    BellboyApp.main()
+    sys.exit(BellboyApp.main())
