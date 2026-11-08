@@ -22,7 +22,7 @@
 import enum
 import typing
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 
 import pydantic
 
