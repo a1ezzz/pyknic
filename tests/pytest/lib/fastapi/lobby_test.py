@@ -59,7 +59,7 @@ class TestLobbyCommandHandler:
 
         class SomeCommand(CustomHandler):
 
-            async def terminate_command(self):
+            async def terminate_command(self) -> None:
                 pass
 
         cmd = SomeCommand.prepare_command(NullableModel())
