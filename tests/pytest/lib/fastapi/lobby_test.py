@@ -6,6 +6,7 @@ import pydantic
 import pytest
 import typing
 
+from pyknic.lib.capability import iscapable
 from pyknic.lib.fastapi.lobby import LobbyCommandError, LobbyCommandHandler
 from pyknic.lib.fastapi.models.lobby import LobbyCommandResult
 from pyknic.lib.fastapi.models.base import NullableModel
@@ -25,6 +26,9 @@ async def test_abstract(module_event_loop: asyncio.AbstractEventLoop) -> None:
 
     with pytest.raises(NotImplementedError):
         _ = await LobbyCommandHandler.exec(None)  # type: ignore[arg-type]
+
+    with pytest.raises(NotImplementedError):
+        await LobbyCommandHandler.terminate_command(None)  # type: ignore[arg-type]
 
 
 class TestLobbyCommandHandler:
@@ -51,3 +55,12 @@ class TestLobbyCommandHandler:
         cmd = CustomHandler.prepare_command(NullableModel())
         result = await cmd.exec()
         assert(isinstance(result, NullableModel))
+        assert(iscapable(cmd, LobbyCommandHandler.terminate_command) is False)
+
+        class SomeCommand(CustomHandler):
+
+            async def terminate_command(self) -> None:
+                pass
+
+        cmd = SomeCommand.prepare_command(NullableModel())
+        assert(iscapable(cmd, LobbyCommandHandler.terminate_command) is True)

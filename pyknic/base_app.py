@@ -22,6 +22,7 @@
 # TODO: document the code
 # TODO: write tests for the code
 
+import os
 import signal
 import threading
 import typing
@@ -40,8 +41,11 @@ try:
 except ImportError:
     pass
 
+# TODO: import internal tasks the same way as it happens with external ones
 import pyknic.tasks  # noqa: F401  # force tasks loading
 
+from pyknic.lib.capability import iscapable
+from pyknic.lib.log import Logger
 from pyknic.lib.tasks.proto import TaskProto
 from pyknic.lib.tasks.scheduler.scheduler import Scheduler
 from pyknic.lib.tasks.scheduler.chain_source import ChainedTasksSource
@@ -51,8 +55,7 @@ from pyknic.environment import PyknicEnvVars, PyknicLogLevel
 
 class BaseApp(TaskProto):
 
-    __instance__: typing.Optional[ThreadedTask] = None
-    __instance_lock__ = threading.Lock()
+    __stop_timeout__ = 5  # number of seconds to wait for a thread stopping
 
     def __init__(
         self,
@@ -61,6 +64,9 @@ class BaseApp(TaskProto):
         config_dir: typing.Optional[str] = None
     ):
         TaskProto.__init__(self)
+
+        self.__instance_lock = threading.Lock()
+
         self.__scheduler = Scheduler(task_timeout=60)
         self.__scheduler_thread = ThreadedTask(self.__scheduler, thread_name="pyknic:scheduler")
 
@@ -71,47 +77,59 @@ class BaseApp(TaskProto):
         self.__config_file = config_file
         self.__config_dir = config_dir
 
+    def instance_lock(self) -> threading.Lock:
+        return self.__instance_lock
+
     def tasks_source(self) -> ChainedTasksSource:
         return self.__main_source
 
     def start(self) -> None:
-        PyknicEnvVars.export_settings(
-            log_level=self.__log_level.value,
-            dir_config=(self.__config_dir if self.__config_dir else ''),
-            file_config=(self.__config_file if self.__config_file else '')
-        )
 
-        self.__scheduler_thread.start()
-        self.__scheduler_thread.wait_initialization(60)
-        self.__main_source_thread.start()
-        self.__main_source_thread.wait_initialization(60)
+        with self.instance_lock():
+            PyknicEnvVars.export_settings(
+                log_level=self.__log_level.value,
+                dir_config=(self.__config_dir if self.__config_dir else ''),
+                file_config=(self.__config_file if self.__config_file else '')
+            )
 
-        self.__scheduler.subscribe(self.__main_source)
-        self.__main_source.execute('log_task')
-        self.__main_source.execute('config_task')
+            self.__scheduler_thread.start()
+            self.__scheduler_thread.wait_initialization(60)
+            self.__main_source_thread.start()
+            self.__main_source_thread.wait_initialization(60)
+
+            self.__scheduler.subscribe(self.__main_source)
+            self.__main_source.execute('log_task')
+            self.__main_source.execute('config_task')
 
     def stop(self) -> None:
-        self.__main_source_thread.stop()
-        self.__main_source_thread.wait()
-        self.__main_source_thread.join()
+        if not self.__main_source_thread.join():
+            self.__main_source_thread.stop()
+            self.__main_source_thread.wait(timeout=self.__stop_timeout__)
+            self.__main_source_thread.join()
 
-        self.__scheduler_thread.stop()
-        self.__scheduler_thread.wait()
-        self.__scheduler_thread.join()
+        if not self.__scheduler_thread.join():
+            self.__scheduler_thread.stop()
+            self.__scheduler_thread.wait(timeout=self.__stop_timeout__)
+            self.__scheduler_thread.join()
 
-    @classmethod
-    def terminate_app(cls, sig: int, frame: typing.Optional[FrameType]) -> None:
-        with cls.__instance_lock__:
-            if BaseApp.__instance__:
-                BaseApp.__instance__.stop()
-                BaseApp.__instance__.wait()
-                BaseApp.__instance__ = None
+    def setup_singals_handler(self) -> None:
 
-    @classmethod
-    def start_app(cls, thread_name: str, *args: typing.Any, **kwargs: typing.Any) -> ThreadedTask:
-        signal.signal(signal.SIGINT, cls.terminate_app)
-        signal.signal(signal.SIGTERM, cls.terminate_app)
+        def terminate_app_handler(sig: int, frame: typing.Optional[FrameType]) -> None:
 
-        BaseApp.__instance__ = ThreadedTask(cls(*args, **kwargs), thread_name=thread_name)
-        BaseApp.__instance__.start()
-        return BaseApp.__instance__
+            with self.instance_lock():
+
+                if iscapable(self, TaskProto.terminate):
+                    self.terminate()
+                else:
+                    self.stop()
+
+                running_threads = threading.enumerate()
+                if len(running_threads) > 1:
+                    Logger.critical(
+                        f'Unable to stop an app because there are multiple running threads ({running_threads})! '
+                        'We will terminate this app the hard way'
+                    )
+                    os.kill(0, signal.SIGKILL)
+
+        signal.signal(signal.SIGINT, terminate_app_handler)
+        signal.signal(signal.SIGTERM, terminate_app_handler)

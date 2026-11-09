@@ -218,5 +218,5 @@ class BellBoyCopyCommand(BellBoyCommandHandler):
     async def exec(self) -> LobbyCommandResult:
         """ The :meth:`.BellBoyCommandHandler.exec` method implementation
         """
-        caller = await AsyncWrapper.create(self.__copy)
+        caller = await AsyncWrapper.create(self.__copy, thread_name='bellboy:command:copier')
         return await caller()  # type: ignore[no-any-return]

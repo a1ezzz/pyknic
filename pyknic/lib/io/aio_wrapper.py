@@ -44,7 +44,8 @@ class AsyncWrapper:
         self,
         task: TaskProto,
         loop: asyncio.AbstractEventLoop,
-        thread_executor: typing.Optional[ThreadExecutor] = None
+        thread_executor: typing.Optional[ThreadExecutor] = None,
+        thread_name: typing.Optional[str] = None
     ) -> None:
         """Create a new wrapper
 
@@ -52,10 +53,12 @@ class AsyncWrapper:
         :param loop: loop inside which call will be made
         :param thread_executor: thread executor to execute a task with (if None then a new
         thread will be created)
+        :param thread_name: a name of a spawned thread
         """
         self.__task = task
         self.__watchdog = AsyncWatchDog(loop, self.__task, TaskProto.task_completed)
         self.__executor = thread_executor
+        self.__thread_name = thread_name
 
     async def __call__(self) -> typing.Any:
         """Execute a task in asynchronous way."""
@@ -63,7 +66,7 @@ class AsyncWrapper:
         if self.__executor is not None:
             task_executor = self.__executor.start_async(self.__task)
         else:
-            threaded_task = ThreadedTask(self.__task)
+            threaded_task = ThreadedTask(self.__task, thread_name=(self.__thread_name or 'async-wrapper'))
             task_executor = threaded_task.start_async()
 
         watchdog_future = await self.__watchdog.watchdog_future()
@@ -80,16 +83,18 @@ class AsyncWrapper:
         cls,
         fn: typing.Callable[[], typing.Any],
         loop: typing.Optional[asyncio.AbstractEventLoop] = None,
-        thread_executor: typing.Optional[ThreadExecutor] = None
+        thread_executor: typing.Optional[ThreadExecutor] = None,
+        thread_name: typing.Optional[str] = None
     ) -> "AsyncWrapper":
         """Create a new wrapper
 
         :param fn: the function to start (to wrap)
         :param loop: same as loop in the `.meth:AsyncWrapper.__init__` method
         :param thread_executor: same as thread_executor in the `.meth:AsyncWrapper.__init__` method
+        :param thread_name: same as thread_name in the `.meth:AsyncWrapper.__init__` method
         """
 
-        return cls(PlainTask(fn), loop if loop else asyncio.get_event_loop(), thread_executor)
+        return cls(PlainTask(fn), loop if loop else asyncio.get_event_loop(), thread_executor, thread_name=thread_name)
 
 
 class IOThrottler:
