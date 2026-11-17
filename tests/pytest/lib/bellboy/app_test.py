@@ -268,7 +268,7 @@ class TestLobbyClientAuth:
         client_auth = LobbyClientAuth(lobby_url)
         await client_auth.lobby_public_key()
 
-        custom_private_key = RSAPrivateKey.generate(1024)
+        custom_private_key = RSAPrivateKey.generate(2048)  # there is a warning for 1024
         pub_key = custom_private_key.public_key()
         pub_pem = pub_key.export_pem().decode('ascii')
         client_auth._LobbyClientAuth__public_key = pub_key  # type: ignore[attr-defined]  # just a test
