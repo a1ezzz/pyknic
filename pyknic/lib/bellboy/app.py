@@ -322,7 +322,7 @@ class LobbyClientAuth:
 
             async with s.post(
                 f'{self.__url}/{URLPath.login_basic.value}',
-                auth=aiohttp.BasicAuth(login, secret)
+                headers={"Authorization": aiohttp.encode_basic_auth(login, secret)}
             ) as response:
                 if response.status != 200:
                     raise BellboyCLIError('Unable to authorize with the "basic" method!')
